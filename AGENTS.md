@@ -20,6 +20,7 @@ trust. A pull request that edits a path it does not own **fails the build**.
 | `db/bootstrap/**` | Architecture | **read-only** |
 | `packages/contracts/**` | Architecture | **read-only** |
 | `packages/db-tests/**` | Architecture | **read-only** |
+| `packages/mocks/**` | Architecture | **read-only** — but see below |
 | `scripts/**` | Architecture | **read-only** |
 | `docs/adr/**` | Architecture | **read-only** |
 | `docs/specs/**` | Architecture | **read-only** |
@@ -40,6 +41,17 @@ layer does not put code there — it specifies, in `docs/specs/`, what that code
 has to do. Specs and code are kept in separate trees on purpose: a file one agent
 owns sitting inside a directory another agent owns is precisely the ambiguity this
 table exists to remove.
+
+**`packages/mocks` is read-only but not a limitation.** It holds the fixtures the
+UI is built against before the API exists, and each one is `.parse()`d by its
+contract schema at construction — which is the only thing standing between a
+screen and a shape the API will never send. Every builder takes a deep-partial
+override (`aBoardView({ columns: [{ cards: [] }] })`), so any scenario, error or
+empty state you need is expressible from `apps/web/` without touching the
+package. The MSW handlers are deliberately **yours**, in `apps/web/src/test/`,
+for the same reason: a frozen package must never be the thing blocking the agent
+that cannot edit it. If a shape you need genuinely cannot be built, that is a
+contract gap — §2.
 
 ## 2. When a contract is wrong, do not fix it — report it
 
@@ -108,8 +120,16 @@ These are not style preferences. Each one is load-bearing, and each has an ADR i
 
 **Data**
 - Never hard-delete tenant data. Use `deleted_at` / `archived_at`.
-- `issue_history_events` and `audit_log` are append-only, enforced by Postgres
-  RULES. Do not attempt UPDATE or DELETE on them; it silently affects 0 rows.
+- `issue_history_events` and `audit_log` are append-only, enforced by a revoked
+  privilege *and* a guard trigger (0014). An UPDATE or DELETE **raises 42501**; it
+  does not silently affect 0 rows. It used to, via `DO INSTEAD NOTHING` rules, and
+  those rules also swallowed the cascade Postgres uses to enforce foreign keys —
+  which made `organizations`, `users` and `issues` permanently undeletable. Read
+  the 0014 header before touching either table.
+- To correct a wrong history or audit entry, append a compensating entry. There is
+  no edit path and there is not going to be one — the hash chain in
+  `flux_verify_audit_chain()` is what makes the audit log admissible, and an
+  editable audit log is just a table.
 - All writes to versioned entities take a `version` and return 409
   `version_conflict` on mismatch. Never last-write-wins.
 - Issue creation requires an `idempotencyKey`. It is mandatory, not optional.
@@ -198,8 +218,13 @@ and load-bearing.
 - **`users` is not RLS-protected.** Identity is global so one login can belong to
   several organizations. Tenant-specific data lives on `org_memberships`, which
   *is* protected. See `db/migrations/0002_identity.sql`.
-- **`event_outbox` has no RLS policy** and `flux_app` has INSERT-only on it. It is
-  the one documented exemption in `scripts/check-rls.mjs`.
+- **`flux_app` cannot read `event_outbox`.** It holds `INSERT` and nothing else —
+  by design, because the outbox is the relay's queue, not application-readable
+  state. It *is* RLS-protected (0017), so an emit naming another tenant's
+  `organization_id` is rejected; `flux_emit_event()` fills that column from the
+  session, so every correct call satisfies the policy without knowing it exists.
+  A test that wants to assert what an emit wrote must read as the migrator. Do not
+  "fix" the missing `SELECT` by granting one.
 - **Ranks are opaque base-36 strings, not numbers.** Never parse, compare
   numerically, or generate them client-side. See `packages/contracts/src/rank.ts`.
 - **Rich text is a ProseMirror-shaped document, never an HTML string.** Do not add

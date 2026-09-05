@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    /** composite + noEmit are incompatible; this config only ever checks. */
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    /**
+     * NO ambient types AT ALL — not `["node"]`, not `["vite/client"]`.
+     *
+     * @flux/contracts restricts itself to node types so it can never
+     * reference the DOM. This package has the harder constraint: it is
+     * imported by `apps/web` (browser), by that app's vitest run (jsdom),
+     * and eventually by a worker's suite (node). Anything ambient it relied
+     * on would work in one of those and fail in the others, and the failure
+     * would land on the agent that imported it rather than on the agent that
+     * introduced it.
+     *
+     * The practical consequences, both deliberate:
+     *   • no `crypto.randomUUID()` — ids are derived by a pure hash instead
+     *     (determinism.ts), which is also what makes them stable
+     *   • no `process.env` — a fixture that reads the environment is not a
+     *     fixture
+     *
+     * This is the config that enforces it, so `pnpm typecheck` runs
+     * tsconfig.test.json (which adds node types for the test files) *and*
+     * this one. Dropping either half loses the guarantee.
+     */
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}

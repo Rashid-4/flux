@@ -45,10 +45,11 @@ the code that consumes them.
 | Layer | Status |
 | --- | --- |
 | `db/bootstrap`, `db/migrations` 0001–0017 | applied from scratch and verified against `postgres:17-alpine` |
-| `packages/contracts` | builds with declaration emit; 51 unit tests passing |
+| `packages/contracts` | builds with declaration emit; 51 unit tests passing. `types: []` — no ambient types, so it typechecks under the intersection of browser, node and `@flux/mocks`; the one platform API it needs is declared at its call site in `ids.ts`. Negative-tested: `process.env` in a schema file fails `pnpm typecheck` |
 | `packages/db-tests` | **42 integration tests passing** against a real Postgres, in 6 files. No `test` script, deliberately — `pnpm test` is the DB-free job |
+| `packages/mocks` | **67 tests passing.** Deterministic, contract-parsed fixtures for the UI to build against before the API exists. Frozen; overrides are the extension point. MSW handlers deliberately live in `apps/web/src/test/` |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
-| `docs/specs/web/` | **not started.** `pnpm check:docs` lists it, and the other six docs cited by path that do not exist yet — read that output instead of trusting this table |
+| `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
 | `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
 | `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
 | `apps/web` | **not created.** Owned by the UI agent, on the same terms |

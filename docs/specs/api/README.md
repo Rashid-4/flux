@@ -114,6 +114,23 @@ An integration test, against a real Postgres, that:
 
 ## 3. Request lifecycle
 
+### Base path
+
+Every path written in a module spec is relative to **`/api/v1`**. The specs write
+`POST /issues`; the route is `POST /api/v1/issues`. Mount the router once at that
+prefix rather than repeating it per route, and never let a path in a spec be read
+as absolute — the UI agent is reading the same specs and hardcoding a base path in
+its request layer, so a mismatch here surfaces as a 404 at integration time
+instead of a type error while either side is being written.
+
+Two things sit *outside* the prefix and are not versioned, because they are
+operational rather than product surface: `GET /health` (liveness, no auth, no DB)
+and `GET /ready` (readiness — checks the pool and the migration head).
+
+`v2` means a second mounted router, not a rewrite. Version the prefix, not
+individual endpoints: `/api/v1/issues` and `/api/v2/issues` may coexist, but
+`/api/v1/issues/v2` may not.
+
 ```
 request
   → verify OIDC token            → 401 unauthenticated

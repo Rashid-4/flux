@@ -60,6 +60,11 @@ const FROZEN = [
     why: 'the tenant-isolation, append-only and audit-chain properties are asserted here; a test relaxed to unblock a feature removes the evidence for a security claim',
   },
   {
+    prefix: 'packages/mocks/',
+    owner: 'architecture',
+    why: "every fixture is parsed by its contract schema at construction, which is the UI's only guarantee that it renders shapes the API will actually return; a fixture loosened to unblock a screen removes that guarantee and the screen ships against a shape that never arrives. You do not need to edit this package — every builder takes a deep-partial override, so any scenario, error or empty state is expressible from your own code. If a shape you need is genuinely not expressible, that is a contract gap: file it in docs/change-requests/",
+  },
+  {
     prefix: 'scripts/',
     owner: 'architecture',
     why: 'these scripts are what verify the invariants',

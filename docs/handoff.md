@@ -133,7 +133,12 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 >   in the contract, write `docs/change-requests/NNN-title.md` and build the rest
 >   of the screen against what exists.
 > - Never call `fetch` directly in a component. Data access goes through the
->   generated client and TanStack Query hooks.
+>   hand-written typed request layer in `apps/web/src/api/` — which you own and
+>   which parses every response with its contract schema — and TanStack Query
+>   hooks on top of it. There is deliberately no OpenAPI codegen: a generator
+>   needs a running API, and you are not waiting for one (§6).
+> - All API paths are relative to `/api/v1`. The specs write `POST /issues`; your
+>   request layer adds the prefix in one place.
 > - Server state is TanStack Query. Client state is Zustand. Do not put server
 >   data in Zustand — a second cache with its own invalidation rules is the
 >   commonest source of stale-UI bugs.
@@ -161,7 +166,16 @@ schemas, they can generate fixtures directly — so the UI can be built against
 real API will return.
 
 That makes the eventual swap from mock to real a change of base URL, not a
-rewrite. Ask the architecture agent for the mock layer before starting UI work.
+rewrite. The package is `@flux/mocks` — builders, a seeded scenario, and MSW
+handlers, described in [the web foundation spec](specs/web/README.md) §10. Ask the
+architecture agent for it before starting UI work if it is not in the workspace
+yet.
+
+Build every surface against the mocks *including its error and empty states*. A
+UI built only against success paths has no error states, and error states are most
+of a real application — `ApiErrorSchema` carries the fields that make them
+actionable, and [the web foundation spec](specs/web/README.md) §7 says what each
+one has to render.
 
 ## 7. Prompt to open a review session (Sol)
 
