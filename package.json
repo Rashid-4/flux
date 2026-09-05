@@ -23,6 +23,7 @@
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "check:rls": "node scripts/check-rls.mjs",
+    "check:enums": "node scripts/check-enum-drift.mjs",
     "format": "prettier --write ."
   },
   "devDependencies": {

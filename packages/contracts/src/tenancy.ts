@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AuditStampSchema, InstantSchema, LocalDateSchema } from './common.js'
+import { ActorKindSchema, AuditStampSchema, InstantSchema, LocalDateSchema } from './common.js'
 import { OrganizationIdSchema, ProjectIdSchema, TeamIdSchema, UserIdSchema } from './ids.js'
 
 /**
@@ -24,14 +24,34 @@ import { OrganizationIdSchema, ProjectIdSchema, TeamIdSchema, UserIdSchema } fro
 
 // ── Organization ─────────────────────────────────────────────────────
 
-export const PlanSchema = z.enum(['free', 'standard', 'premium', 'enterprise'])
+/**
+ * Commercial plans. `trial` is a real plan and not a flag: a trial has an
+ * end date, a seat limit, and a set of capabilities, and treating it as
+ * "no plan yet" is how trials silently become free forever.
+ *
+ * Mirrors organizations_plan_valid. scripts/check-enum-drift.mjs fails CI
+ * if the two lists diverge.
+ */
+export const PlanSchema = z.enum(['trial', 'starter', 'team', 'business', 'enterprise'])
 export type Plan = z.infer<typeof PlanSchema>
+
+/**
+ * Where a tenant's rows physically live. Pooled tenants share tables and
+ * are separated by RLS; a tenant that outgrows that gets its own schema or
+ * instance. This is an isolation decision, not a geographic one.
+ */
+export const TenancyModelSchema = z.enum(['pooled', 'dedicated_schema', 'dedicated_instance'])
+export type TenancyModel = z.infer<typeof TenancyModelSchema>
+
+/** Data residency region. Geography, unrelated to TenancyModel. */
+export const RegionSchema = z.enum(['eu', 'us', 'ap'])
+export type Region = z.infer<typeof RegionSchema>
 
 export const OrganizationSchema = AuditStampSchema.extend({
   id: OrganizationIdSchema,
   /** Subdomain-safe slug. Immutable once issued: it appears in URLs that
    *  end up in bookmarks, Slack messages and SSO configurations. */
-  slug: z.string().regex(/^[a-z][a-z0-9-]{1,38}[a-z0-9]$/),
+  slug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/),
   name: z.string().min(1).max(160),
   plan: PlanSchema,
   /**
@@ -48,10 +68,17 @@ export const OrganizationSchema = AuditStampSchema.extend({
    * an existing customer. Making it a column rather than a policy means
    * breaking the promise would require a migration someone has to sign off
    * on — which is exactly the friction we want.
+   *
+   * `intro` is the founding cohort — the one promised the launch price
+   * indefinitely. Later cohorts are stamped with the quarter or half they
+   * joined in, so a price rise can be scoped to "2027-Q1 onwards" without
+   * anyone having to reconstruct who was told what.
    */
-  priceCohort: z.string().regex(/^\d{4}-(Q[1-4]|H[12])$/),
+  priceCohort: z.string().regex(/^(intro|\d{4}-(Q[1-4]|H[12]))$/),
+  /** Isolation model. See TenancyModelSchema — this is not geography. */
+  tenancyModel: TenancyModelSchema,
   /** Data residency region. Chosen at creation; changing it is a migration. */
-  dataResidency: z.enum(['eu', 'us', 'ap']),
+  region: RegionSchema,
   seatLimit: z.number().int().positive().nullable(),
   /** Trials end; they do not silently convert to a paid plan. */
   trialEndsAt: InstantSchema.nullable(),
@@ -98,8 +125,13 @@ export type User = z.infer<typeof UserSchema>
 export const OrgRoleSchema = z.enum(['owner', 'admin', 'member', 'guest'])
 export type OrgRole = z.infer<typeof OrgRoleSchema>
 
+/**
+ * Deliberately has no surrogate id. The row is identified by
+ * (organizationId, userId), which is also its primary key — a synthetic id
+ * would make two memberships for the same pair representable, and nothing
+ * in the product knows what that would mean.
+ */
 export const OrgMembershipSchema = z.object({
-  id: z.string().uuid(),
   organizationId: OrganizationIdSchema,
   userId: UserIdSchema,
   role: OrgRoleSchema,
@@ -116,7 +148,7 @@ export const OrgMembershipSchema = z.object({
   joinedAt: InstantSchema.nullable(),
   /** Membership is revoked, not deleted: authorship history must survive. */
   removedAt: InstantSchema.nullable(),
-  lastActiveAt: InstantSchema.nullable(),
+  createdAt: InstantSchema,
 })
 export type OrgMembership = z.infer<typeof OrgMembershipSchema>
 
@@ -156,6 +188,8 @@ export const TeamSchema = AuditStampSchema.extend({
   name: z.string().min(1).max(120),
   description: z.string().max(1000).nullable(),
   leadUserId: UserIdSchema.nullable(),
+  /** Parent in the team hierarchy. What makes a group-level roll-up a query
+   *  rather than a hand-maintained list in a dashboard config. */
   parentTeamId: TeamIdSchema.nullable(),
   /** ISO weekday numbers, 1 = Monday. Drives working-day capacity maths and
    *  SLA clocks, so a team working Sun–Thu is a configuration, not a bug. */
@@ -168,8 +202,11 @@ export const TeamSchema = AuditStampSchema.extend({
 })
 export type Team = z.infer<typeof TeamSchema>
 
+export const TeamRoleSchema = z.enum(['lead', 'member'])
+export type TeamRole = z.infer<typeof TeamRoleSchema>
+
+/** No surrogate id, for the same reason as OrgMembershipSchema. */
 export const TeamMembershipSchema = z.object({
-  id: z.string().uuid(),
   teamId: TeamIdSchema,
   userId: UserIdSchema,
   /**
@@ -177,10 +214,16 @@ export const TeamMembershipSchema = z.object({
    * two teams is 0.5 in each, and capacity planning uses the number instead
    * of counting heads. Counting heads is why so many sprint plans are
    * quietly 40% over capacity from the first day.
+   *
+   * Strictly greater than zero: a 0% allocation is not a membership, it is
+   * an absence, and it belongs in user_availability where the capacity
+   * maths already handles it.
    */
-  allocation: z.number().min(0).max(1).default(1),
-  role: z.enum(['lead', 'member']).default('member'),
-  joinedAt: InstantSchema,
+  allocation: z.number().gt(0).max(1).default(1),
+  role: TeamRoleSchema.default('member'),
+  createdAt: InstantSchema,
+  /** Set instead of deleting the row: capacity and velocity for a closed
+   *  sprint are computed from who was on the team then. */
   leftAt: InstantSchema.nullable(),
 })
 export type TeamMembership = z.infer<typeof TeamMembershipSchema>
@@ -242,15 +285,35 @@ export type Bootstrap = z.infer<typeof BootstrapSchema>
  * auditor can see what a record actually looked like at a point in time
  * without replaying every prior entry.
  */
+/**
+ * `login` and `export` are audited actions even though they modify no
+ * entity: "who looked at this and who took a copy" is the first question in
+ * every access review, and it is unanswerable from create/update/delete
+ * alone.
+ */
+export const AuditActionSchema = z.enum([
+  'create',
+  'update',
+  'delete',
+  'archive',
+  'restore',
+  'publish',
+  'promote',
+  'revert',
+  'login',
+  'export',
+])
+export type AuditAction = z.infer<typeof AuditActionSchema>
+
 export const AuditEntrySchema = z.object({
   seq: z.number().int().positive(),
   organizationId: OrganizationIdSchema,
   entityType: z.string(),
   entityId: z.string().uuid(),
   entityLabel: z.string().nullable(),
-  action: z.enum(['create', 'update', 'delete', 'archive', 'restore', 'publish', 'promote', 'revert']),
+  action: AuditActionSchema,
   actorUserId: UserIdSchema.nullable(),
-  actorKind: z.enum(['user', 'automation', 'import', 'ai', 'system']),
+  actorKind: ActorKindSchema,
   actorLabel: z.string().nullable(),
   before: z.record(z.unknown()).nullable(),
   after: z.record(z.unknown()).nullable(),
@@ -277,13 +340,32 @@ export const AuditChainVerificationSchema = z.object({
 
 // ── Availability (org-level, consumed by capacity planning) ──────────
 
+/**
+ * Absence kinds. `other` exists on purpose: an absence that fits no
+ * category still has to be recordable, and without an escape hatch it gets
+ * filed as the nearest wrong one, which quietly corrupts capacity.
+ */
+export const AvailabilityKindSchema = z.enum([
+  'time_off',
+  'holiday',
+  'reduced',
+  'onboarding',
+  'other',
+])
+export type AvailabilityKind = z.infer<typeof AvailabilityKindSchema>
+
 export const CreateAvailabilitySchema = z
   .object({
     userId: UserIdSchema,
-    startDate: LocalDateSchema,
-    endDate: LocalDateSchema,
-    kind: z.enum(['pto', 'holiday', 'partial', 'onboarding', 'other']),
-    reduction: z.number().min(0).max(1).default(1),
+    startsOn: LocalDateSchema,
+    endsOn: LocalDateSchema,
+    kind: AvailabilityKindSchema,
+    /**
+     * Fraction of capacity *lost*. 1 is a full absence, 0.5 is a half day.
+     * Strictly greater than zero because a reduction of nothing is not a
+     * record worth keeping, and the column's CHECK agrees.
+     */
+    reduction: z.number().gt(0).max(1).default(1),
     note: z.string().max(500).optional(),
   })
-  .refine((v) => v.startDate <= v.endDate, { message: 'startDate must not be after endDate' })
+  .refine((v) => v.startsOn <= v.endsOn, { message: 'startsOn must not be after endsOn' })

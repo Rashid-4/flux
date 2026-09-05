@@ -205,6 +205,17 @@ jobs:
       - name: Audit tenant isolation
         run: pnpm check:rls
 
+      # Compares every contract z.enum against the CHECK constraint behind
+      # it. Migration 0011 fixed ~25 of these divergences and not one was
+      # visible to tsc, to a unit test, or to review: a value the type
+      # system accepts and the database rejects fails at INSERT, and a
+      # value the database holds and zod rejects makes the row unreadable
+      # through the API. The contracts are a treaty between agents who
+      # cannot talk to each other, and a treaty nothing verifies is a
+      # comment.
+      - name: Audit contract/schema enum drift
+        run: pnpm check:enums
+
       - name: Integration tests
         run: pnpm test:integration
 

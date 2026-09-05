@@ -44,14 +44,22 @@ the code that consumes them.
 
 | Layer | Status |
 | --- | --- |
-| `db/bootstrap`, `db/migrations` 0001–0010 | applied and verified against `postgres:17-alpine` |
+| `db/bootstrap`, `db/migrations` 0001–0011 | applied and verified against `postgres:17-alpine` |
 | `packages/contracts` | builds with declaration emit; 40 unit tests passing |
-| `.github/workflows/ci.yml` | frozen-paths + lint + typecheck + test + RLS audit |
-| `services/api` | scaffold + per-module specs; **no business logic yet** |
-| `apps/web` | scaffold; **no screens yet** |
+| `docs/specs/api/` | 7 of 10 modules written: issues, workflows, permissions, fields, search, boards-sprints, events |
+| `.github/workflows/ci.yml` | frozen-paths + lint + typecheck + test + RLS audit + enum-drift audit |
+| `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
+| `apps/web` | **not created.** Owned by the UI agent, on the same terms |
+
+Migration 0011 is the alignment pass: reconciling ~25 divergences between the
+contracts and the schema that had accumulated while both were being written.
+Read its header before adding anything to either side. `pnpm check:enums` is the
+machine check that stops the class of bug recurring, and it exits non-zero on
+drift in **either** direction — verified by planting a value in `PlanSchema` and
+watching it fail.
 
 What was proven empirically about the database, and therefore must not silently
-regress: 42 tenant-scoped tables all carry forced RLS; `flux_app` has
+regress: 43 tenant-scoped tables all carry forced RLS; `flux_app` has
 `bypassrls = false` and `usesuper = false`; a cross-tenant SELECT returns only
 own-tenant rows; a session with no tenant context returns nothing rather than
 everything; a cross-tenant INSERT raises
@@ -60,7 +68,9 @@ overrides a lying caller; `blocked_by_count` stays correct across link and
 unlink; the `audit_log` hash chain verifies with zero broken entries; and
 `UPDATE`/`DELETE` on `audit_log` affect 0 rows.
 
-`pnpm check:rls` re-asserts the structural half of that list on every CI run.
+`pnpm check:rls` re-asserts the structural half of that list on every CI run, and
+`pnpm check:enums` re-asserts that the contracts still describe the schema they
+claim to.
 
 ## Commit messages
 

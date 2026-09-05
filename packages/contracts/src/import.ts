@@ -144,17 +144,24 @@ export const StartImportSchema = z.object({
 })
 export type StartImport = z.infer<typeof StartImportSchema>
 
+/**
+ * `pending` rather than `queued`, and `running` rather than `importing`, so
+ * import and export jobs share one status vocabulary — an operations
+ * dashboard that has to special-case each job type is a dashboard nobody
+ * keeps accurate.
+ */
 export const ImportJobStatusSchema = z.enum([
-  'queued',
+  'pending',
   'discovering',
   'mapping_required',
+  'awaiting_review',
   'running',
   'paused',
-  'awaiting_review',
   'completed',
   'failed',
   'cancelled',
 ])
+export type ImportJobStatus = z.infer<typeof ImportJobStatusSchema>
 
 /**
  * Per-entity-type progress. Deliberately granular: "importing… 43%" on a
@@ -207,6 +214,14 @@ export type ImportJob = z.infer<typeof ImportJobSchema>
  * render a specific explanation and a specific remedy for each — a free-text
  * warning log is something users scroll past.
  */
+/**
+ * `blocker` is the one that matters: a commit is refused while any
+ * unresolved blocker remains. Warnings are imported with a recorded
+ * default, never silently dropped.
+ */
+export const ImportFindingSeveritySchema = z.enum(['info', 'warning', 'blocker'])
+export type ImportFindingSeverity = z.infer<typeof ImportFindingSeveritySchema>
+
 export const ImportFindingCodeSchema = z.enum([
   'unmapped_user',
   'unmapped_field',
@@ -236,7 +251,7 @@ export type ImportFindingCode = z.infer<typeof ImportFindingCodeSchema>
 export const ImportFindingSchema = z.object({
   id: z.string().uuid(),
   importJobId: ImportJobIdSchema,
-  severity: z.enum(['info', 'warning', 'blocker']),
+  severity: ImportFindingSeveritySchema,
   code: ImportFindingCodeSchema,
   entityType: ImportEntityTypeSchema.nullable(),
   sourceId: z.string().nullable(),
@@ -309,6 +324,14 @@ export type ImportReconciliation = z.infer<typeof ImportReconciliationSchema>
 
 // ── Export ───────────────────────────────────────────────────────────
 
+/** `expired` is a real state, not a deletion: the archive is purged on
+ *  expiry but the record that an export happened is audit evidence. */
+export const ExportJobStatusSchema = z.enum(['pending', 'running', 'completed', 'failed', 'expired'])
+export type ExportJobStatus = z.infer<typeof ExportJobStatusSchema>
+
+export const ExportScopeSchema = z.enum(['organization', 'projects'])
+export type ExportScope = z.infer<typeof ExportScopeSchema>
+
 export const ExportFormatSchema = z.enum([
   /** Complete, re-importable archive. The anti-lock-in guarantee. */
   'flux_archive',
@@ -336,7 +359,11 @@ export const StartExportSchema = z.object({
 export const ExportJobSchema = z.object({
   id: z.string().uuid(),
   format: ExportFormatSchema,
-  status: z.enum(['queued', 'running', 'completed', 'failed', 'expired']),
+  /** Derived at creation from whether projectIds was empty, then stored, so
+   *  "was this a whole-org export?" stays answerable after the fact. */
+  scope: ExportScopeSchema,
+  projectIds: z.array(ProjectIdSchema),
+  status: ExportJobStatusSchema,
   progress: z.number().min(0).max(1),
   /** Presigned, short-lived, single-tenant-scoped. Null until complete. */
   downloadUrl: z.string().nullable(),

@@ -43,6 +43,30 @@ export const ProjectTemplateSchema = z.enum([
 ])
 export type ProjectTemplate = z.infer<typeof ProjectTemplateSchema>
 
+/**
+ * Broad category, distinct from the template. The template decides what a
+ * project is seeded *with*; the type decides which product surfaces apply
+ * to it — a service project has queues and SLAs, a software project has
+ * sprints and boards.
+ */
+export const ProjectTypeSchema = z.enum(['software', 'service', 'business'])
+export type ProjectType = z.infer<typeof ProjectTypeSchema>
+
+/**
+ * How a new issue gets an assignee when the reporter does not choose one.
+ *
+ * `round_robin` and `least_busy` exist because "unassigned" is where issues
+ * go to be forgotten, and a triage rotation that the tool applies is the
+ * one that actually happens.
+ */
+export const DefaultAssigneeRuleSchema = z.enum([
+  'unassigned',
+  'project_lead',
+  'round_robin',
+  'least_busy',
+])
+export type DefaultAssigneeRule = z.infer<typeof DefaultAssigneeRuleSchema>
+
 export const ProjectSchema = AuditStampSchema.extend({
   id: ProjectIdSchema,
   key: ProjectKeySchema,
@@ -52,6 +76,8 @@ export const ProjectSchema = AuditStampSchema.extend({
   leadUserId: UserIdSchema.nullable(),
   defaultTeamId: TeamIdSchema.nullable(),
   template: ProjectTemplateSchema,
+  projectType: ProjectTypeSchema,
+  defaultAssigneeRule: DefaultAssigneeRuleSchema,
   /**
    * Scheme bindings. Both are project-scoped by default; an org policy is
    * an explicit, audited promotion (see permission.ts).
@@ -105,6 +131,7 @@ export const CreateProjectSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   template: ProjectTemplateSchema.default('scrum'),
+  projectType: ProjectTypeSchema.default('software'),
   leadUserId: UserIdSchema.optional(),
   defaultTeamId: TeamIdSchema.optional(),
   /**
@@ -123,6 +150,7 @@ export const UpdateProjectSchema = z.object({
   avatarUrl: z.string().nullable().optional(),
   leadUserId: UserIdSchema.nullable().optional(),
   defaultTeamId: TeamIdSchema.nullable().optional(),
+  defaultAssigneeRule: DefaultAssigneeRuleSchema.optional(),
   isPublic: z.boolean().optional(),
   version: z.number().int().positive(),
 })

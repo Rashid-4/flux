@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { AuditStampSchema, InstantSchema, LocalDateSchema, StatusCategorySchema } from './common.js'
 import { FilterNodeSchema } from './query.js'
+import { AvailabilityKindSchema } from './tenancy.js'
 import {
   BoardIdSchema,
   IssueIdSchema,
@@ -34,7 +35,18 @@ import {
  *    minus what we committed to) and historical velocity is immutable.
  */
 
-export const BoardTypeSchema = z.enum(['scrum', 'kanban'])
+export const BoardTypeSchema = z.enum(['kanban', 'scrum'])
+
+/**
+ * What the board counts. Named after the field it reads, not the unit —
+ * 'count' and 'time' did not say *which* field was being counted or timed,
+ * and a burndown has to know exactly which column to sum.
+ *
+ * Board-level rather than per-issue: mixing points and hours on one board
+ * makes every burndown on it meaningless.
+ */
+export const EstimationFieldSchema = z.enum(['story_points', 'original_estimate', 'issue_count'])
+export type EstimationField = z.infer<typeof EstimationFieldSchema>
 export type BoardType = z.infer<typeof BoardTypeSchema>
 
 export const BoardColumnSchema = z.object({
@@ -96,9 +108,7 @@ export const BoardSchema = AuditStampSchema.extend({
   /** Which chips the card shows. Fewer fields = faster board, so this is
    *  deliberately explicit rather than "render everything we have". */
   cardFields: z.array(CardFieldSchema),
-  /** Estimation basis. Mixing points and hours on one board makes every
-   *  burndown meaningless, so it is a board-level choice, not per-issue. */
-  estimationField: z.enum(['story_points', 'original_estimate', 'issue_count']),
+  estimationField: EstimationFieldSchema,
   /** Kanban only: issues sitting in a column longer than this are flagged. */
   columnAgeWarningDays: z.number().int().positive().nullable(),
   archivedAt: InstantSchema.nullable(),
@@ -117,7 +127,7 @@ export const CreateBoardSchema = z.object({
    * refinement, not a prerequisite.
    */
   columns: z.array(BoardColumnSchema.omit({ id: true })).optional(),
-  estimationField: z.enum(['story_points', 'original_estimate', 'issue_count']).default('story_points'),
+  estimationField: EstimationFieldSchema.default('story_points'),
 })
 
 // ── Board read model ─────────────────────────────────────────────────
@@ -209,6 +219,12 @@ export const SprintSchema = AuditStampSchema.extend({
   /** Snapshot of committed points at start. Immutable thereafter. */
   committedPoints: z.number().nullable(),
   committedIssueCount: z.number().int().nullable(),
+  /**
+   * How the frozen capacity figures were arrived at: member allocations,
+   * working days, and absences as they stood at start. Kept so that a
+   * capacity number nobody believes can be explained rather than defended.
+   */
+  capacityBasis: z.record(z.unknown()).nullable(),
 })
 export type Sprint = z.infer<typeof SprintSchema>
 
@@ -299,11 +315,11 @@ export type SprintReport = z.infer<typeof SprintReportSchema>
 export const UserAvailabilitySchema = z.object({
   id: z.string().uuid(),
   userId: UserIdSchema,
-  startDate: LocalDateSchema,
-  endDate: LocalDateSchema,
-  kind: z.enum(['pto', 'holiday', 'partial', 'onboarding', 'other']),
+  startsOn: LocalDateSchema,
+  endsOn: LocalDateSchema,
+  kind: AvailabilityKindSchema,
   /** 1.0 = fully unavailable, 0.5 = half capacity. */
-  reduction: z.number().min(0).max(1),
+  reduction: z.number().gt(0).max(1),
   note: z.string().max(500).nullable(),
 })
 export type UserAvailability = z.infer<typeof UserAvailabilitySchema>
