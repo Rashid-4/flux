@@ -248,8 +248,33 @@ export const ImportFindingCodeSchema = z.enum([
 ])
 export type ImportFindingCode = z.infer<typeof ImportFindingCodeSchema>
 
+/**
+ * What a human actually chose to do about a finding. Stored as jsonb rather
+ * than a text label because the choice carries data — *which* existing
+ * entity, *what* note — and a label plus three columns to hold its arguments
+ * is the shape that gets parsed by hand at every call site.
+ *
+ * `accept_as_is` is separate from `skip_entity` on purpose: accepting a lossy
+ * rich-text conversion and refusing to import an entity at all are different
+ * decisions, and a reconciliation report that conflates them cannot explain
+ * its own numbers.
+ */
+export const AppliedFindingResolutionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('map_to_existing'), targetId: z.string() }),
+  z.object({ kind: z.literal('create_new') }),
+  z.object({ kind: z.literal('skip_entity') }),
+  z.object({ kind: z.literal('accept_as_is'), note: z.string().max(500).optional() }),
+])
+export type AppliedFindingResolution = z.infer<typeof AppliedFindingResolutionSchema>
+
 export const ImportFindingSchema = z.object({
-  id: z.string().uuid(),
+  /**
+   * A monotonic sequence, not a uuid — the same identity the other two
+   * append-only tables use (`audit_log.seq`, `issue_history_events.seq`).
+   * Findings are written in bulk during a long job and never referenced
+   * before they exist, so there is nothing for a client-generated id to buy.
+   */
+  seq: z.number().int().positive(),
   importJobId: ImportJobIdSchema,
   severity: ImportFindingSeveritySchema,
   code: ImportFindingCodeSchema,
@@ -270,19 +295,21 @@ export const ImportFindingSchema = z.object({
     .nullable(),
   resolvedAt: InstantSchema.nullable(),
   resolvedBy: UserIdSchema.nullable(),
-  resolution: z.string().nullable(),
+  /** The resolution that was applied, null while unresolved. */
+  resolution: AppliedFindingResolutionSchema.nullable(),
+  /**
+   * How many source entities hit this same finding. 1,400 unmapped users
+   * arrive as one finding with a count of 1,400, never as 1,400 findings —
+   * a review screen nobody can get to the bottom of turns the blocker gate
+   * into something people click through.
+   */
   occurrenceCount: z.number().int().positive(),
   createdAt: InstantSchema,
 })
 export type ImportFinding = z.infer<typeof ImportFindingSchema>
 
 export const ResolveFindingSchema = z.object({
-  resolution: z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('map_to_existing'), targetId: z.string() }),
-    z.object({ kind: z.literal('create_new') }),
-    z.object({ kind: z.literal('skip_entity') }),
-    z.object({ kind: z.literal('accept_as_is'), note: z.string().max(500).optional() }),
-  ]),
+  resolution: AppliedFindingResolutionSchema,
   /** Apply this same resolution to every finding sharing the code+sourceId
    *  pattern. Resolving 1,400 unmapped users one at a time is not a
    *  migration tool, it is a punishment. */
@@ -365,6 +392,18 @@ export const ExportJobSchema = z.object({
   projectIds: z.array(ProjectIdSchema),
   status: ExportJobStatusSchema,
   progress: z.number().min(0).max(1),
+  /**
+   * What the archive was asked to contain, recorded rather than inferred.
+   * An export archive is audit evidence, and "what was in the copy this
+   * person took" has to stay answerable after the archive itself has expired
+   * — which is the whole reason the job row outlives the file.
+   */
+  includeComments: z.boolean(),
+  includeAttachments: z.boolean(),
+  includeHistory: z.boolean(),
+  includeAuditLog: z.boolean(),
+  /** Whether the archive was passphrase-encrypted. Never the passphrase. */
+  encrypted: z.boolean(),
   /** Presigned, short-lived, single-tenant-scoped. Null until complete. */
   downloadUrl: z.string().nullable(),
   sizeBytes: z.number().int().nullable(),

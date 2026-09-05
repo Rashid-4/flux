@@ -216,6 +216,15 @@ jobs:
       - name: Audit contract/schema enum drift
         run: pnpm check:enums
 
+      # The same idea one level up: does every contract field have a column,
+      # and does every column have a purpose someone wrote down. Fifteen of
+      # the twenty-seven entity schemas disagreed with their table about a
+      # field name before 0012, and a name mismatch has three plausible
+      # "fixes" — rename the column, rename the field, or hide a mapping in a
+      # service. Two agents working in parallel would not pick the same one.
+      - name: Audit contract/schema field drift
+        run: pnpm check:columns
+
       - name: Integration tests
         run: pnpm test:integration
 

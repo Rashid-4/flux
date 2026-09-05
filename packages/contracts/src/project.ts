@@ -260,7 +260,16 @@ export const ProjectRoleSchema = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_]{0,30}$/),
   name: z.string().min(1).max(60),
   description: z.string().max(500).nullable(),
+  /** Built in: cannot be deleted or renamed. */
   isSystem: z.boolean(),
+  /**
+   * The role a newly added project member lands in. Distinct from
+   * `isSystem` and not a synonym for it — Administrators is a system role
+   * and must never be the default, while a "Developers" role a team created
+   * themselves usually should be. Exactly one per project, enforced by a
+   * partial unique index.
+   */
+  isDefault: z.boolean(),
 })
 export type ProjectRole = z.infer<typeof ProjectRoleSchema>
 

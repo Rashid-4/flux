@@ -43,6 +43,7 @@ const PAIRS = [
   ['TeamRoleSchema', 'team_memberships_role_valid'],
   ['ProjectTypeSchema', 'projects_type_valid'],
   ['ProjectTemplateSchema', 'projects_template_valid'],
+  ['VersionStatusSchema', 'project_versions_status_valid'],
   ['DefaultAssigneeRuleSchema', 'projects_assignee_rule_valid'],
   ['FieldTypeSchema', 'field_definitions_type_valid'],
   ['StatusCategorySchema', 'issues_status_category_valid'],
@@ -86,6 +87,27 @@ const UNPAIRED = new Map([
   ['issue_security_members_kind_valid', 'A deliberate subset of SubjectKind: org_role and any_logged_in make no sense as security-level members.'],
   ['issue_watchers_source_valid', 'Why someone is watching is internal provenance, used to decide whether unwatching should stick. Clients see watching/muted/none.'],
   ['permission_grants_subject_id_consistency', 'Not an enum list — a cross-column rule that subject_id is present exactly when the subject kind needs one. Enforced in SQL because a grant with the wrong shape is a silent allow-everyone.'],
+])
+
+/**
+ * Contract enums with no CHECK constraint behind them, and why.
+ *
+ * The PAIRS sweep below only walks PAIRS, so before this map existed an enum
+ * with *no* constraint at all was invisible to the check — which is how
+ * VersionStatusSchema went unnoticed until project_versions turned out to
+ * have no `status` column whatsoever (fixed in 0012).
+ *
+ * Most of these are legitimately unconstrained because they are not columns:
+ * they live inside a jsonb document, or on the wire, and zod is the only
+ * validator that can reach them.
+ */
+const UNPAIRED_ENUMS = new Map([
+  ['ErrorCodeSchema', 'Wire-level only. Never stored — an error is a response, not a row.'],
+  ['EventTypeSchema', 'event_outbox.event_type is deliberately unconstrained: adding an event type must not require a migration, and the outbox is internal and append-only.'],
+  ['ComparatorSchema', 'Part of the FQL AST, stored inside jsonb (boards.filter, saved_views.filter). Validated by zod on write and by the compiler on read.'],
+  ['SortDirectionSchema', 'Inside saved_views.sort jsonb, as above.'],
+  ['CardFieldSchema', 'boards.card_fields is text[]. An element CHECK would need a helper function, and an unrecognised card field renders as nothing — cosmetic, not corrupting. Reconsider if it ever gates behaviour.'],
+  ['ImportFindingCodeSchema', 'import_findings.code is descriptive diagnostics. Severity IS constrained because it gates the commit; a new code must not require a migration in the middle of a customer migration.'],
 ])
 
 /**
@@ -176,6 +198,15 @@ const undecided = enumShaped
   .filter((r) => !paired.has(r.name) && !UNPAIRED.has(r.name))
   .map((r) => `${r.name} on ${r.table_name}`)
 
+// And the same sweep in the other direction: a contract enum with no
+// constraint anywhere. This is the direction that hid VersionStatusSchema.
+const pairedEnums = new Set(PAIRS.map(([e]) => e))
+const unconstrained = Object.entries(contracts)
+  .filter(([, v]) => v?._def?.typeName === 'ZodEnum')
+  .map(([name]) => name)
+  .filter((name) => !pairedEnums.has(name) && !UNPAIRED_ENUMS.has(name))
+  .sort()
+
 console.log(`Compared ${compared} contract enum(s) against CHECK constraints.`)
 for (const [name, reason] of UNPAIRED) {
   if (byName.has(name)) console.log(`  unpaired: ${name} — ${reason}`)
@@ -188,6 +219,17 @@ if (undecided.length) {
   process.exitCode = 1
 }
 
+if (unconstrained.length) {
+  console.error('\n✗ Contract enums with no CHECK constraint and no recorded reason:')
+  for (const e of unconstrained) console.error(`  • ${e}`)
+  console.error(
+    '\nEither the column needs a CHECK — in which case the database currently\n' +
+      'accepts values the product does not understand — or the enum is not a\n' +
+      'column at all, which belongs in UNPAIRED_ENUMS with the reason.',
+  )
+  process.exitCode = 1
+}
+
 if (problems.length) {
   console.error('\n✗ Contract/schema enum drift:')
   for (const p of problems) console.error(`  • ${p}`)
@@ -197,6 +239,6 @@ if (problems.length) {
       'the migration.',
   )
   process.exitCode = 1
-} else if (!undecided.length) {
+} else if (!undecided.length && !unconstrained.length) {
   console.log('\n✓ Contracts and schema agree.')
 }
