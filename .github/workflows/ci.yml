@@ -35,9 +35,17 @@ concurrency:
 permissions:
   contents: read
 
+# The pnpm version is NOT declared here. pnpm/action-setup reads it from the
+# `packageManager` field in package.json, which is also what a developer's
+# corepack uses — so there is exactly one place to change it. Declaring it in
+# both is how CI ends up installing a different pnpm than anyone runs locally.
+#
+# actions/setup-node is held at v5 deliberately: v6 removed automatic caching
+# for everything except npm, and `cache: pnpm` below is what keeps install at
+# ~5s instead of ~40s. Moving past v5 means replacing it with an explicit
+# actions/cache step keyed on pnpm-lock.yaml, not just bumping the number.
 env:
   NODE_VERSION: '22'
-  PNPM_VERSION: '9.12.0'
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
@@ -49,7 +57,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Needs history on both sides to find the merge base.
           fetch-depth: 0
@@ -77,11 +85,9 @@ jobs:
     name: Typecheck & lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -157,11 +163,9 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -203,11 +207,9 @@ jobs:
       PGPASSWORD: flux_migrator_dev
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -272,11 +274,9 @@ jobs:
     name: Secrets & dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -300,6 +300,25 @@ jobs:
       - name: Vulnerable dependencies
         run: pnpm audit --audit-level high --prod
 
+  # ──────────────────────────────────────────────────────────────────
+  # CodeQL.
+  #
+  # Code scanning is free on public repositories and part of GitHub Code
+  # Security — a paid add-on — on private ones. This repository is
+  # private, so on the first real CI run `analyze` spent three minutes
+  # building a database and then failed with "Resource not accessible by
+  # integration": a red job that no change to this repository can turn
+  # green.
+  #
+  # A permanently red job is worse than an absent one. People stop
+  # reading a status they know is always red, and the next genuine
+  # failure arrives inside that noise. But silently skipping is worse
+  # still — that is the blind-spot shape described in CLAUDE.md, where a
+  # green tick means "not analysed" and reads as "analysed, clean".
+  #
+  # So the job asks first, and when the answer is no it says so in the
+  # run summary and as a workflow warning, where somebody sees it.
+  # ──────────────────────────────────────────────────────────────────
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
@@ -307,9 +326,40 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - name: Is code scanning available
+        id: probe
+        run: |
+          # Fails safe: an absent `private` field renders as an empty string,
+          # which is not "false", so the job warns rather than erroring.
+          if [ "${{ github.event.repository.private }}" = "false" ] \
+             || [ "${{ vars.CODE_SCANNING_ENABLED }}" = "1" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'run=false' >> "$GITHUB_OUTPUT"
+          {
+            echo '### CodeQL did not run'
+            echo
+            echo 'Static analysis is **not** covering this commit.'
+            echo
+            echo 'Code scanning is free on public repositories and part of GitHub'
+            echo 'Code Security (paid) on private ones. This repository is private'
+            echo 'and the repository variable `CODE_SCANNING_ENABLED` is not `1`.'
+            echo
+            echo 'To enable: turn on Code Security for the repository, then set'
+            echo '`CODE_SCANNING_ENABLED=1` as a repository variable. Until then'
+            echo 'this job is a placeholder and every run will say so here.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::warning title=CodeQL skipped::Code scanning is not enabled for this private repository — this commit was not statically analysed. See the run summary."
+
+      - uses: actions/checkout@v5
+        if: steps.probe.outputs.run == 'true'
+      - uses: github/codeql-action/init@v4
+        if: steps.probe.outputs.run == 'true'
         with:
           languages: javascript-typescript
           queries: security-extended
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
+        if: steps.probe.outputs.run == 'true'

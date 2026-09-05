@@ -55,11 +55,51 @@ const FROZEN = [
     why: 'this is the shared contract every other agent is built against',
   },
   {
+    prefix: 'packages/db-tests/',
+    owner: 'architecture',
+    why: 'the tenant-isolation, append-only and audit-chain properties are asserted here; a test relaxed to unblock a feature removes the evidence for a security claim',
+  },
+  {
     prefix: 'scripts/',
     owner: 'architecture',
     why: 'these scripts are what verify the invariants',
   },
   { prefix: '.github/', owner: 'architecture', why: 'CI is what enforces every other rule' },
+  // ── The enforcement configuration itself ──────────────────────────
+  // These were unfrozen until the first CI run made the gap obvious: an
+  // agent blocked by a strict rule can satisfy CI by deleting the rule.
+  // Every entry below is a place where one line turns a check into a
+  // no-op, with a green tick either way.
+  {
+    prefix: 'eslint.config.mjs',
+    owner: 'architecture',
+    why: 'a rule that blocks you is not a bug in the rule; deleting it makes CI green and the convention gone',
+  },
+  {
+    prefix: 'tsconfig.base.json',
+    owner: 'architecture',
+    why: 'strict, noUncheckedIndexedAccess and exactOptionalPropertyTypes are load-bearing; relaxing one silently weakens every package',
+  },
+  {
+    prefix: 'package.json',
+    owner: 'architecture',
+    why: 'the root scripts are how CI invokes every check — your own package.json is yours, this one is not',
+  },
+  {
+    prefix: 'pnpm-workspace.yaml',
+    owner: 'architecture',
+    why: 'package discovery: a package removed from these globs stops being linted, typechecked and tested, and nothing reports it',
+  },
+  {
+    prefix: '.prettierrc.json',
+    owner: 'architecture',
+    why: 'the format config matches the committed code; changing it reformats the repository and buries your diff',
+  },
+  {
+    prefix: 'docker-compose.yml',
+    owner: 'architecture',
+    why: 'it mounts db/bootstrap into the Postgres entrypoint, which is what creates the unprivileged flux_app role the isolation tests depend on',
+  },
   {
     prefix: 'docs/adr/',
     owner: 'architecture',
@@ -82,7 +122,14 @@ const FROZEN = [
   },
 ]
 
-/** Explicitly writable, including where it sits under a frozen prefix. */
+/**
+ * Explicitly writable, including where it sits under a frozen prefix.
+ *
+ * `pnpm-lock.yaml` is deliberately absent from FROZEN rather than listed here:
+ * adding a dependency to your own package regenerates it, so freezing it would
+ * block ordinary work with a message about architecture ownership that makes no
+ * sense to the agent reading it. The lockfile is reviewed, not owned.
+ */
 const CARVE_OUTS = ['docs/change-requests/']
 
 function git(args) {

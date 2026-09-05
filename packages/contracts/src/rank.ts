@@ -31,20 +31,41 @@
 
 const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'
 const BASE = ALPHABET.length
-const MIN_CHAR = ALPHABET[0]! // '0'
+
+/**
+ * `ALPHABET[i]`, with the bounds check `noUncheckedIndexedAccess` insists on.
+ *
+ * Every call site computes `i` from arithmetic that is provably in range, which
+ * is the textbook case for a non-null assertion — except `!` *removes* the
+ * check rather than performing it. If any of that arithmetic is ever wrong,
+ * `!` splices the literal string `"undefined"` into a rank, the write succeeds,
+ * and board order is silently scrambled for everyone using that board. A throw
+ * is a bug report on the first request; a malformed rank is a support ticket six
+ * weeks later that nobody can reproduce.
+ */
+function digit(i: number): string {
+  const c = ALPHABET[i]
+  if (c === undefined) throw new Error(`rank: digit index out of range: ${i}`)
+  return c
+}
+
+const MIN_CHAR = digit(0) // '0'
 
 /** Rank handed to the first item in an empty list. Mid-alphabet on purpose,
  *  so appending above and below both have room without a rebalance. */
 export const INITIAL_RANK = 'i'
 
-function charIndex(c: string): number {
-  const i = ALPHABET.indexOf(c)
+function charIndex(c: string | undefined): number {
+  // `''.indexOf` order matters here: `ALPHABET.indexOf('')` is 0, not -1, so an
+  // empty string would read as a perfectly legal '0' digit. Reject it — and
+  // `undefined` — before the lookup rather than after it.
+  const i = c === undefined || c === '' ? -1 : ALPHABET.indexOf(c)
   if (i < 0) throw new Error(`invalid rank character: ${JSON.stringify(c)}`)
   return i
 }
 
 function charAt(s: string, i: number): number {
-  return i < s.length ? charIndex(s[i]!) : 0
+  return i < s.length ? charIndex(s[i]) : 0
 }
 
 /** Strip trailing '0's, which carry no ordering information. */
@@ -70,8 +91,13 @@ export function isValidRank(rank: string): boolean {
  * @param after  rank of the item below the drop point, or null for "bottom"
  */
 export function between(before: string | null, after: string | null): string {
-  if (before === null && after === null) return INITIAL_RANK
-  if (before === null) return rankBefore(after!)
+  // Nested rather than flat so control-flow narrowing proves `after` is a
+  // string on the branch that uses it. The flat form needs `after!`, which
+  // asserts exactly what the compiler is already able to work out.
+  if (before === null) {
+    if (after === null) return INITIAL_RANK
+    return rankBefore(after)
+  }
   if (after === null) return rankAfter(before)
 
   const lo = normalize(before)
@@ -89,18 +115,18 @@ export function between(before: string | null, after: string | null): string {
     const b = charAt(hi, i)
 
     if (a === b) {
-      prefix += ALPHABET[a]!
+      prefix += digit(a)
       continue
     }
 
     if (b - a > 1) {
       // There is a free digit in the gap: take the midpoint.
-      return prefix + ALPHABET[a + Math.floor((b - a) / 2)]!
+      return prefix + digit(a + Math.floor((b - a) / 2))
     }
 
     // Digits are adjacent (e.g. 'c' then 'd'). Descend into `lo`'s
     // remainder: anything of the form lo + <something> sorts below hi.
-    prefix += ALPHABET[a]!
+    prefix += digit(a)
     const tail = lo.slice(i + 1)
     return prefix + rankAfter(tail.length > 0 ? tail : MIN_CHAR)
   }
@@ -111,12 +137,12 @@ export function rankAfter(rank: string): string {
   const base = normalize(rank)
 
   for (let i = base.length - 1; i >= 0; i--) {
-    const idx = charIndex(base[i]!)
+    const idx = charIndex(base[i])
     if (idx < BASE - 1) {
       // Bump the last non-'z' digit, halfway to 'z' so the next append
       // after this one still has room without lengthening the string.
       const bumped = idx + Math.max(1, Math.floor((BASE - 1 - idx) / 2))
-      return base.slice(0, i) + ALPHABET[bumped]!
+      return base.slice(0, i) + digit(bumped)
     }
   }
 
@@ -136,12 +162,12 @@ export function rankBefore(rank: string): string {
   }
 
   for (let i = base.length - 1; i >= 0; i--) {
-    const idx = charIndex(base[i]!)
+    const idx = charIndex(base[i])
     if (idx > 1) {
       // Halve toward '1' rather than stepping down by one, for the same
       // reason as above: keep room for the next prepend.
       const lowered = Math.max(1, Math.floor(idx / 2))
-      return base.slice(0, i) + ALPHABET[lowered]!
+      return base.slice(0, i) + digit(lowered)
     }
   }
 
@@ -172,7 +198,7 @@ export function generateRanks(count: number): string[] {
     let n = step * i
     let s = ''
     for (let w = 0; w < width; w++) {
-      s = ALPHABET[n % BASE]! + s
+      s = digit(n % BASE) + s
       n = Math.floor(n / BASE)
     }
     out.push(normalize(s))

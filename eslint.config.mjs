@@ -91,6 +91,18 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': 'off', // scripts and workers legitimately log
       'no-return-await': 'off',
+      // This rule and `noUncheckedIndexedAccess` (tsconfig.base.json) are in
+      // deliberate tension. That setting types every `arr[i]` as possibly
+      // undefined, which is correct and worth keeping; the consequence is that
+      // code doing index arithmetic — rank.ts, ids.ts — must assert, default,
+      // or check at every read. The warning exists to push toward the third:
+      // `!` suppresses the check instead of performing it, so when the
+      // arithmetic is wrong the bad value propagates as the string "undefined"
+      // spliced into a rank, or a UUID with the wrong version nibble.
+      //
+      // Both of those files now use small checked accessors and the repository
+      // lints clean. If this warning reappears, add an accessor — do NOT
+      // resolve it by turning off noUncheckedIndexedAccess.
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off', // brand phantoms
       'prefer-const': 'error',
