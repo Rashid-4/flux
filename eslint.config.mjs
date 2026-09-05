@@ -152,6 +152,56 @@ export default tseslint.config(
           message:
             'No fetch outside apps/web/src/api/. Data access goes through the typed request layer, which parses every response with its contract schema (docs/specs/web/README.md §3).',
         },
+
+        // ── Design tokens ─────────────────────────────────────────────
+        // docs/specs/web/README.md §11 says every colour, spacing and
+        // type value comes from the `@theme` block, and CLAUDE.md's
+        // discipline is that a claimed guarantee is enforced or not
+        // claimed. These four selectors are the enforcement.
+        //
+        // The visual identity is the product, and it is not a set of
+        // components — it is the consistency of about forty numbers. One
+        // `bg-[#f4f4f5]` is invisible; the fortieth is why an app looks
+        // assembled rather than designed, and by then the fix is an
+        // audit of every file instead of one line in a CSS block.
+        //
+        // Two things this deliberately does NOT catch. Layout escape
+        // hatches — `w-[280px]`, `grid-cols-[240px_1fr]`, `z-[60]`,
+        // `translate-x-[…]` — are absent from the utility list, because
+        // a sidebar width is a layout fact and inventing a token for it
+        // makes the token file a dumping ground. And a value reached
+        // through `bg-[var(--x)]` matches, on purpose: `@theme` is what
+        // turns a variable into a utility, so a bare `:root` variable
+        // being smuggled in through brackets is the exact bypass §11
+        // names.
+        //
+        // Both severities are `error` rather than error-and-warn because
+        // `no-restricted-syntax` carries one severity for all of its
+        // selectors. The escape hatch is always available and always the
+        // right answer: add the token.
+        {
+          selector: 'JSXAttribute[name.name="className"] Literal[value=/#[0-9a-fA-F]{3,8}/]',
+          message:
+            'Raw hex in a className. Colours live in the @theme block of src/design/tokens.css and are used by name (bg-surface, text-muted) — docs/specs/web/README.md §11.',
+        },
+        {
+          selector:
+            'JSXAttribute[name.name="className"] TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
+          message:
+            'Raw hex in a className. Colours live in the @theme block of src/design/tokens.css and are used by name (bg-surface, text-muted) — docs/specs/web/README.md §11.',
+        },
+        {
+          selector:
+            'JSXAttribute[name.name="className"] Literal[value=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
+          message:
+            'Arbitrary value in a colour, spacing or type utility. Add the value to the @theme block in src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-) are exempt and need no token.',
+        },
+        {
+          selector:
+            'JSXAttribute[name.name="className"] TemplateElement[value.raw=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
+          message:
+            'Arbitrary value in a colour, spacing or type utility. Add the value to the @theme block in src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-) are exempt and need no token.',
+        },
       ],
 
       // ── React correctness ───────────────────────────────────────────
@@ -163,14 +213,17 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'error',
 
       // ── Accessibility ───────────────────────────────────────────────
-      // §9 commits to WCAG 2.2 AA and §8 forbids the component library
-      // that would have supplied the ARIA. That combination is only
-      // honest if something checks it, and a lint rule catches the
-      // mechanical half — a div with a click handler and no role, an
-      // input with no label — at the moment it is written rather than in
-      // an audit nobody schedules. The half it cannot see (focus order,
-      // whether a live region says something useful) is the keyboard
-      // pass in §12's test table.
+      // docs/specs/web/README.md §9 commits to WCAG 2.2 AA. Radix
+      // supplies correct ARIA for the primitives it covers, which is
+      // most dialogs and menus — but not the board, the drag-and-drop,
+      // the virtualized lists or the palette results, and those are
+      // precisely the parts nobody has written for this product. That
+      // commitment is only honest if something checks it, and a lint
+      // rule catches the mechanical half — a div with a click handler
+      // and no role, an input with no label — at the moment it is
+      // written rather than in an audit nobody schedules. The half it
+      // cannot see (focus order, whether a live region says something
+      // useful) is the keyboard pass in §12's test table.
       ...jsxA11y.flatConfigs.recommended.rules,
       // Custom controls are the point of a bespoke design system, so
       // these two fire constantly on legitimate code and are downgraded

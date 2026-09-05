@@ -144,10 +144,36 @@ rebuilt.
 > 3. `packages/mocks/src/index.ts` and one builder file next to it. This is what
 >    you build against; there is no API yet.
 >
-> Stack, decided: React 19 + TypeScript, Vite, TanStack Query v5, Zustand,
-> React Router. Vitest + Testing Library + MSW for tests, Playwright for E2E.
-> No component library — see [web/README.md](specs/web/README.md) §8, which says
-> why, and the design system that replaces it below.
+> Stack, decided — do not substitute:
+>
+> - React 19 + TypeScript, Vite, TanStack Query v5, Zustand, React Router.
+> - **Tailwind CSS v4** — v4 specifically, not v3. `pnpm add tailwindcss
+>   @tailwindcss/vite`, `tailwindcss()` in the Vite plugin array,
+>   `@import "tailwindcss";` at the top of your CSS. No PostCSS config, no
+>   `tailwind.config.js`, no `content` globs. If you find yourself writing any of
+>   those three you have followed a v3 tutorial — stop and re-read the v4 docs.
+> - **shadcn/ui** — `pnpm dlx shadcn@latest init`, then `add` one component at a
+>   time as a surface needs it. This needs `baseUrl: "."` and
+>   `paths: { "@/*": ["./src/*"] }` in **both** `tsconfig.json` and
+>   `tsconfig.app.json`, and a matching `resolve.alias` for `@` in
+>   `vite.config.ts`. Add only what this session actually uses.
+> - **Radix primitives** for behaviour, which is what shadcn installs under you.
+> - **lucide-react** for icons, imported one icon at a time.
+> - Vitest + Testing Library + MSW for tests, Playwright for E2E.
+>
+> Three things about that stack that are not negotiable, because they are the
+> reason it was allowed at all — [web/README.md](specs/web/README.md) §8 has the
+> argument:
+>
+> 1. **shadcn is a code generator, not a dependency.** It copies source into
+>    `src/components/ui/`, where it becomes yours: retune it, delete the parts
+>    you do not want, review it like your own code. Never re-run `add` over a
+>    file you have edited.
+> 2. **It supplies no virtualization and no drag-and-drop.** Those are the two
+>    hardest things in this product and they are still yours — TanStack Virtual
+>    for the first, hand-built and keyboard-operable for the second.
+> 3. **It is measured, not exempted.** The performance budgets are the same
+>    numbers whatever the class names look like.
 >
 > Deliver, and nothing beyond it:
 >
@@ -164,12 +190,19 @@ rebuilt.
 > - `src/queries/` — the query-key registry of
 >   [web/README.md](specs/web/README.md) §5, and the bootstrap hooks.
 > - `src/stores/` — Zustand stores for client state only. No server data.
-> - `src/design/` — the token layer of [web/README.md](specs/web/README.md) §11:
->   colour, type scale, spacing, radius, elevation, motion, density. Light and
->   dark from the start.
+> - `src/design/tokens.css` — one `@theme` block, and the only place a colour,
+>   radius, shadow, type step, spacing step or duration is defined
+>   ([web/README.md](specs/web/README.md) §11). Dark theme in from this commit,
+>   via `@custom-variant dark (&:where(.dark, .dark *))` — class-based, not
+>   `prefers-color-scheme`, because the theme is a preference the app persists.
+>   Retune shadcn's density here rather than per usage: it is spaced for pages
+>   people visit, and this is a tool people stare at for eight hours.
 > - `src/components/` — the primitives every surface needs: Button, Menu, Dialog,
->   Field, Tooltip, Toast, Avatar, Badge, Skeleton, VirtualList. Real ARIA, real
->   focus management, keyboard-operable.
+>   Field, Tooltip, Toast, Avatar, Badge, Skeleton, VirtualList. Generate what
+>   shadcn has into `components/ui/` and retune it; build what it does not have
+>   (VirtualList, on TanStack Virtual) yourself. Real ARIA, real focus
+>   management, keyboard-operable — and where you keep a Radix primitive, keep
+>   its behaviour rather than reimplementing it.
 > - `src/keyboard/` — the shortcut registry, focus utilities, and the `?` sheet
 >   generated from the registry rather than hand-maintained
 >   ([web/README.md](specs/web/README.md) §9).
@@ -185,7 +218,15 @@ rebuilt.
 >   [web/README.md](specs/web/README.md) §7, the keyboard registry, and one
 >   component test per primitive, queried by role and label.
 >
-> The rules below apply to this and every later session.
+> One change request is pre-approved, so file it rather than working around it:
+> `prettier-plugin-tailwindcss` sorts class names deterministically and belongs in
+> `.prettierrc.json`, which is frozen and which you must not edit. Write
+> `docs/change-requests/NNN-prettier-tailwind.md` once your Tailwind setup exists
+> and continue; the architecture agent adds it in one commit. Until then, do not
+> hand-sort class names — a hand-sorted file gets reordered the moment the plugin
+> lands and the diff buries whatever else you changed.
+>
+> The rules in the next section apply to this session and every later one.
 
 ### 5b. Per-surface sessions
 
@@ -222,13 +263,24 @@ rebuilt.
 > - Build against `@flux/mocks` first, including the surface's error and empty
 >   states. It is read-only, and you do not need to edit it: every builder takes
 >   a deep-partial override, so any scenario is expressible from your own code.
-> - No new dependency in the root `package.json` without a change request, and no
->   component library at all — the visual identity is the product. Your own
->   `apps/web/package.json` is yours; add what the surface needs there.
+> - The stack is Tailwind v4 + shadcn/ui + Radix + lucide-react. Generate a
+>   shadcn component when one fits, retune it once, and own it. No *other*
+>   component library — MUI, Ant, Chakra, Mantine and anything else that ships a
+>   runtime and its own opinion about what a table looks like is out, because the
+>   visual identity is the product. No new dependency in the root `package.json`
+>   without a change request; your own `apps/web/package.json` is yours.
+> - Every colour, spacing, radius and type value comes from the `@theme` block in
+>   `src/design/tokens.css`. Icons are `import { Check } from 'lucide-react'`,
+>   one at a time — a dynamic lookup or a barrel of "all our icons" ships the
+>   whole set.
 > - Lint is configured for `apps/**`: `react-hooks/exhaustive-deps` and
->   `jsx-a11y` are **errors**, and `fetch` outside `src/api/` is an error. If a
->   rule is wrong for a legitimate pattern, file a change request — do not
->   disable it inline.
+>   `jsx-a11y` are **errors**, `fetch` outside `src/api/` is an error, and so are
+>   a raw hex in a `className` and an arbitrary bracket value in a colour,
+>   spacing or type utility — layout ones (`w-[280px]`, `grid-cols-[…]`, `z-[…]`)
+>   are exempt. Expect `focus-visible:ring-[3px]` from a freshly generated shadcn
+>   component to trip it; `ring-3` is the fix, and that is the retuning working
+>   rather than the rule misfiring. If a rule is wrong for a legitimate pattern,
+>   file a change request — do not disable it inline.
 >
 > Work on branch `feat/ui-<surface>`. Run `pnpm format:check && pnpm lint &&
 > pnpm typecheck && pnpm test` before opening a PR.

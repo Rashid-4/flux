@@ -48,7 +48,8 @@ apps/web/src/
   queries/                 TanStack Query hooks and the query-key registry
   stores/                  Zustand stores — client state only, see §5
   components/              shared primitives (Button, Menu, Dialog, Field…)
-  design/                  tokens, theme, motion constants
+    ui/                    shadcn-generated source — yours once written, see §11
+  design/                  tokens.css (the `@theme` block), motion constants
   keyboard/                shortcut registry, focus utilities, the `?` sheet
   realtime/                WebSocket client and presence (Phase 2)
   test/                    fixture helpers, render helpers, MSW handlers
@@ -268,11 +269,24 @@ What that forbids, concretely:
   search results, the audit log: all virtualized. A 4,000-item backlog is paged
   by cursor (`BacklogViewSchema.backlog.nextCursor`) and must never be requested
   whole.
-- **No component library.** Not a budget rule so much as a consequence: the
-  visual identity *is* the product, and a generic component kit both looks like
-  everyone else and ships a large amount of CSS and JS that has to be paid for
-  on first paint. Build the primitives in `components/`. This is also why any
-  new dependency needs a change request.
+- **No component library as a runtime dependency.** The stack is Tailwind for
+  styling, Radix primitives for behaviour, shadcn/ui as the delivery mechanism
+  for both, and Lucide for icons. That last word is why this is compatible with
+  the budget above: shadcn is not a package you import from. Its CLI copies
+  component source into `components/ui/`, where you own it, edit it, and ship
+  exactly the components you added — no barrel pulling in a Select you never
+  used, no theme provider to work around, nothing to defeat with `!important`.
+
+  What stays forbidden is the shape this rule was written against: a monolithic
+  kit (MUI, Ant, Chakra, Mantine) with its own runtime and its own opinion about
+  what a table looks like. Those cost first paint, and they cost the visual
+  identity, which is the product.
+
+  Two consequences are not optional. **shadcn supplies no virtualization and no
+  drag-and-drop**, so the two hardest items on this list are still yours —
+  TanStack Virtual for the first, hand-built for the second (§9). And **Tailwind
+  and Radix get measured, not exempted**: the budgets in the table are the same
+  numbers whatever the class names look like.
 - **Route-level code splitting.** The board must not ship the import wizard.
 - **Interaction stays under 100ms.** Drag, typing, menu open. If work must
   happen, it happens off the interaction — never a synchronous filter over a
@@ -298,9 +312,20 @@ extremely expensive to retrofit.
 - **Real focus management.** Focus moves into a dialog, is trapped there,
   returns to the trigger on close. Focus is never lost to `<body>` — a
   keyboard user who loses focus has to tab from the top of the document.
-- **Real ARIA on custom controls**, because §8 forbids the component library
-  that would have supplied it. A `<div role="button">` with no `tabindex`, no
-  key handler and no accessible name is not a button.
+- **Use the Radix primitive where one exists.** Dialog, dropdown menu, popover,
+  select, tabs, tooltip, checkbox, radio group, switch and the focus/dismiss
+  behaviour underneath them are solved: focus trap and restore, `aria-expanded`
+  and `aria-controls` wired to real ids, typeahead in menus, Escape and
+  outside-press handling, portal and scroll-lock. Hand-rolling that is not
+  ambition, it is a worse dialog. Style the primitive — `asChild` hands the
+  behaviour and the props to your own element, so nothing about this costs you
+  a pixel of the visual identity.
+- **Where there is no primitive, the ARIA is yours, to the same standard.** That
+  is the board, drag-and-drop, the virtualized lists, the command palette
+  results, the inline editors — the parts that make this product different, and
+  therefore the parts nobody has written for you. A `<div role="button">` with no
+  `tabindex`, no key handler and no accessible name is not a button. A
+  virtualized list needs the row semantics to survive rows not being in the DOM.
 - Visible focus rings. Never `outline: none` without an equivalent, and the
   focus style must survive the dark theme.
 - Colour is never the only carrier of meaning. `statusCategory`,
@@ -347,16 +372,71 @@ building against what exists ([AGENTS.md](../../../AGENTS.md) §2).
 
 ## 11. Design system
 
-There is no component library, so there is a design system: `design/` holds
-tokens (colour, type scale, spacing, radius, elevation, motion), and components
-consume tokens — never raw hex, never a magic pixel value.
+The visual identity is the product, so there is a design system rather than a
+theme file. Tailwind v4 makes this cleaner than v3 did: the token layer is CSS,
+and it is the *same* declaration that generates the utilities.
 
-- **Dark theme is not a later pass.** Tokens are defined for both from the
-  start; retrofitting a theme means auditing every component.
-- **Density matters.** This is a tool people look at for eight hours. The
-  default is compact, and it is a token, not a hardcoded padding.
-- **Motion is functional.** It shows where a thing went. Under 200ms, and gone
-  entirely under `prefers-reduced-motion`.
+`design/tokens.css` holds one `@theme` block, and it is the only place a colour,
+a radius, a shadow, a type step or a duration is defined:
+
+```css
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-surface: oklch(1 0 0);
+  --color-surface-raised: oklch(0.985 0.002 250);
+  --radius-card: 0.5rem;
+  --text-body: 0.8125rem;
+  --ease-flux: cubic-bezier(0.2, 0, 0, 1);
+}
+```
+
+Two rules follow from that block, and they are the whole discipline:
+
+- **Every value in a class name comes from a token.** `bg-surface`, not
+  `bg-[#fff]` and not `bg-white`. Lint enforces it: a raw hex in a `className`
+  and an arbitrary bracket value in a colour, spacing or type utility are both
+  **errors**, and the fix is always the same one line — add the token. Layout
+  escape hatches (`w-[280px]`, `grid-cols-[240px_1fr]`, `z-[60]`,
+  `translate-x-[…]`) are deliberately exempt, because a sidebar width is a layout
+  fact and inventing a token for it turns the token file into a dumping ground.
+
+  One consequence to expect rather than be surprised by: shadcn's generated
+  components ship a few of these — `focus-visible:ring-[3px]` is the common one —
+  and they will fail lint the first time you add a component. That is the
+  retuning below happening at the right moment. `ring-3` is the fix.
+- **Never `:root` for a design value.** `@theme` and `:root` both produce a CSS
+  variable, but only `@theme` produces the utility, and a value that exists as a
+  variable without a utility is a value someone reaches with `bg-[var(--x)]`.
+
+Beyond the token block:
+
+- **Dark theme is not a later pass.** `@custom-variant dark` above is in from the
+  first commit, and every token has a dark value. Retrofitting a theme means
+  auditing every component; the class-based variant rather than
+  `prefers-color-scheme` is deliberate, because the theme is a user preference
+  the app persists, not a guess about the OS.
+- **Density matters, and shadcn's default is wrong for this product.** Its
+  generated components are spaced for pages people visit; flux is a tool people
+  stare at for eight hours. Compact is the default, it is a token, and it is
+  retuned **once** in the generated component — not patched at each usage with a
+  tighter `py-` and not left to per-surface taste.
+- **`components/ui/` is generated once and then owned.** shadcn's CLI writes
+  source into your repository; from that moment it is your code, reviewed like
+  your code. Never re-run `add` over a file you have edited — it overwrites, and
+  the retuning above is exactly what gets lost.
+- **Icons come from Lucide, one import at a time.**
+  `import { Check, GripVertical } from 'lucide-react'` — per-icon imports are
+  what make the library tree-shakable, and a dynamic lookup or a re-export barrel
+  of "all the icons we use" silently ships the whole set. Size, colour and
+  `strokeWidth` are props, so an icon inherits `currentColor` and needs no
+  variant of its own. Every decorative icon is `aria-hidden`; every icon that
+  *is* the control needs an accessible name (§9).
+- **Motion is functional.** It shows where a thing went. Under 200ms, driven by
+  the duration and easing tokens, and gone entirely under
+  `prefers-reduced-motion`.
 - **Empty, loading and error states are designed, not defaulted.** A surface
   without all three specified is not finished, and its first-run empty state is
   the first thing every evaluating customer sees.
