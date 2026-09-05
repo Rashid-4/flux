@@ -38,6 +38,21 @@
 // new table cannot be added without someone deciding whether the contracts
 // describe it.
 //
+// IT ALSO CHECKS LITERAL DEFAULTS
+//
+// A second pass validates every literal column DEFAULT against the zod schema
+// for the field it maps to, because a default the contract rejects is a row
+// that exists and cannot be read:
+//
+//   import_jobs.progress      jsonb NOT NULL DEFAULT '{}'
+//   ImportJobSchema.progress  z.array(ImportProgressSchema)
+//
+// Nothing above catches that. The column exists, the name is right, the type
+// is right — and the GET immediately after the POST fails, which reads like a
+// serialisation bug in the endpoint rather than a schema defect. Adding this
+// pass found seven across four tables where reading had found two; 0016 is
+// the fix.
+//
 // WHAT THIS DOES NOT CHECK
 //
 // Names only, not types. `import_findings.resolution` was jsonb while the
@@ -52,6 +67,13 @@
 // rather than on finding bugs. Worth doing when a type mismatch has cost
 // something real; until then, this is the honest boundary of the check and it
 // is written down so nobody mistakes green here for "the contract matches".
+//
+// Nullability is the nearer half of that, and the known next gap: a NULLABLE
+// column whose contract field is not `.nullable()` produces exactly the same
+// unreadable row as a bad default, and is checkable without any per-field
+// declaration — `attnotnull` against `schema.shape[field].isOptional()` /
+// `.isNullable()`. It is left out only to keep this change to one idea; the
+// defaults pass above is the same bug caught one step later.
 // ════════════════════════════════════════════════════════════════════
 
 import pg from 'pg'
@@ -295,22 +317,66 @@ function snake(field) {
   return field.replaceAll(/[A-Z]/g, (ch) => '_' + ch.toLowerCase())
 }
 
+/**
+ * Decode a column DEFAULT expression into the JS value a fresh row would
+ * hold, or return `undefined` for anything that is not a literal.
+ *
+ * Expressions are skipped on purpose rather than evaluated: now(),
+ * nextval(), gen_random_uuid() and `now() + '7 days'` produce values whose
+ * correctness is not a contract question. The literals are where the drift
+ * lives, because a literal is a claim about shape.
+ */
+function decodeDefault(expr) {
+  if (expr == null) return undefined
+  const e = expr.trim()
+  if (/^null$/i.test(e)) return undefined // nullability is checked elsewhere
+  if (/^true$/i.test(e)) return true
+  if (/^false$/i.test(e)) return false
+  if (/^-?\d+(\.\d+)?$/.test(e)) return Number(e)
+
+  // '<literal>'::<type>, with doubled single quotes unescaped.
+  const m = /^'((?:[^']|'')*)'::([a-z_ ]+(?:\[\])?)$/i.exec(e)
+  if (!m) return undefined
+  const [, raw, type] = m
+  const inner = raw.replaceAll("''", "'")
+
+  if (/jsonb?$/i.test(type)) {
+    try {
+      return JSON.parse(inner)
+    } catch {
+      return undefined
+    }
+  }
+  // Postgres array literal. Only the empty case, which is the only one used
+  // as a default here; parsing arbitrary array literals is a different job.
+  if (type.endsWith('[]')) return inner === '{}' ? [] : undefined
+  return inner
+}
+
 const client = new pg.Client({ connectionString })
 await client.connect()
 const { rows } = await client.query(`
-  SELECT c.relname AS table_name, a.attname AS column_name
+  SELECT c.relname AS table_name,
+         a.attname AS column_name,
+         pg_get_expr(d.adbin, d.adrelid) AS column_default
     FROM pg_attribute a
     JOIN pg_class c ON c.oid = a.attrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
    WHERE n.nspname = 'public' AND c.relkind = 'r'
      AND a.attnum > 0 AND NOT a.attisdropped
 `)
 await client.end()
 
 const columnsByTable = new Map()
-for (const { table_name, column_name } of rows) {
-  if (!columnsByTable.has(table_name)) columnsByTable.set(table_name, new Set())
+const defaultsByTable = new Map()
+for (const { table_name, column_name, column_default } of rows) {
+  if (!columnsByTable.has(table_name)) {
+    columnsByTable.set(table_name, new Set())
+    defaultsByTable.set(table_name, new Map())
+  }
   columnsByTable.get(table_name).add(column_name)
+  defaultsByTable.get(table_name).set(column_name, column_default)
 }
 
 const problems = []
@@ -334,13 +400,33 @@ for (const pair of PAIRS) {
   const derivedSet = new Set(derived)
   const internalSet = new Set(internal)
   const missingColumns = []
+  const badDefaults = []
   const claimedColumns = new Set(ALWAYS_INTERNAL)
+  const defaults = defaultsByTable.get(table) ?? new Map()
 
   for (const field of Object.keys(schema.shape)) {
     if (derivedSet.has(field)) continue
     const column = columnFor[field] ?? snake(field)
     if (columns.has(column)) claimedColumns.add(column)
-    else missingColumns.push(`${field} → ${column}`)
+    else {
+      missingColumns.push(`${field} → ${column}`)
+      continue
+    }
+
+    // A NOT NULL default that the contract rejects means a freshly inserted
+    // row cannot be read back through the API. Neither the enum check (which
+    // looks at CHECK constraints) nor the name check above can see this: the
+    // column exists, its name is right, and its default is the wrong *shape*.
+    const decoded = decodeDefault(defaults.get(column))
+    if (decoded === undefined) continue
+
+    const result = schema.shape[field].safeParse(decoded)
+    if (!result.success) {
+      const why = result.error.issues[0]
+      badDefaults.push(
+        `${column} defaults to ${JSON.stringify(decoded)}, which ${schemaName}.${field} rejects: ${why.message}`,
+      )
+    }
   }
 
   const unexposed = [...columns].filter(
@@ -355,6 +441,7 @@ for (const pair of PAIRS) {
 
   if (
     missingColumns.length ||
+    badDefaults.length ||
     unexposed.length ||
     staleInternal.length ||
     staleDerived.length ||
@@ -365,6 +452,12 @@ for (const pair of PAIRS) {
       lines.push(
         `      no column for: ${missingColumns.join(', ')}` +
           `\n          → every write of these fields fails with "column does not exist"`,
+      )
+    }
+    if (badDefaults.length) {
+      lines.push(
+        `      default the contract rejects:\n          ${badDefaults.join('\n          ')}` +
+          `\n          → a row inserted with this default cannot be read back through the API`,
       )
     }
     if (unexposed.length) {
