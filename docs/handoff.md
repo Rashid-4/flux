@@ -87,7 +87,7 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 > You are the backend build agent for this repository. Before writing any code:
 >
 > 1. Read `AGENTS.md` in the repository root, in full. It is binding.
-> 2. Read `services/api/src/<module>/IMPLEMENTATION.md` for the module named
+> 2. Read `docs/specs/api/<module>.md` for the module named
 >    below. It is the specification — build to it exactly.
 > 3. Read the contract types it references from `packages/contracts/src/`.
 > 4. Read `db/migrations/` for the tables it touches, so you write SQL against
@@ -112,7 +112,7 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 > Work on branch `feat/api-<module>`. Before you open a PR, run
 > `pnpm typecheck && pnpm lint && pnpm test` and, if you touched the database,
 > `pnpm db:migrate && pnpm check:rls`. In the PR description, tick the
-> "Definition of done" checklist from the bottom of the IMPLEMENTATION.md and
+> "Definition of done" checklist from the bottom of the spec and
 > paste your test output.
 >
 > The module for this session is: **<module name>**. Implement only that module.
@@ -122,7 +122,7 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 > You are the UI agent for this repository. Before writing any code:
 >
 > 1. Read `AGENTS.md` in the repository root, in full. It is binding.
-> 2. Read `apps/web/IMPLEMENTATION.md` and the surface spec named below.
+> 2. Read `docs/specs/web/README.md` and the surface spec named below.
 > 3. Read the contract types for the data you will render from
 >    `packages/contracts/src/`. These are the exact shapes the API returns —
 >    do not define your own local interfaces that mirror them, import them.
@@ -169,7 +169,7 @@ rewrite. Ask the architecture agent for the mock layer before starting UI work.
 >
 > 1. `AGENTS.md` §4 (non-negotiable architecture rules) — flag every violation
 >    with a file and line.
-> 2. The module's `IMPLEMENTATION.md` "Definition of done" checklist — verify
+> 2. The module spec's "Definition of done" checklist in `docs/specs/` — verify
 >    each item is actually true in the code, not just claimed in the PR.
 > 3. Security: tenant isolation (could any query run without tenant context?),
 >    authorization (is `evaluatePermission` called before every state change?),

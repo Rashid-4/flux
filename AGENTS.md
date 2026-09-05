@@ -21,6 +21,7 @@ trust. A pull request that edits a path it does not own **fails the build**.
 | `packages/contracts/**` | Architecture | **read-only** |
 | `scripts/**` | Architecture | **read-only** |
 | `docs/adr/**` | Architecture | **read-only** |
+| `docs/specs/**` | Architecture | **read-only** |
 | `.github/**` | Architecture | **read-only** |
 | `AGENTS.md`, `CLAUDE.md` | Architecture | **read-only** |
 | `services/api/**` | Backend build agent | read |
@@ -31,6 +32,13 @@ trust. A pull request that edits a path it does not own **fails the build**.
 
 Backend and UI trees are disjoint on purpose: two agents can work in parallel on
 separate branches and their merges cannot conflict.
+
+`services/` and `apps/` are created *entirely* by the agents that own them,
+including their `package.json`, tsconfig, and framework wiring. The architecture
+layer does not put code there — it specifies, in `docs/specs/`, what that code
+has to do. Specs and code are kept in separate trees on purpose: a file one agent
+owns sitting inside a directory another agent owns is precisely the ambiguity this
+table exists to remove.
 
 ## 2. When a contract is wrong, do not fix it — report it
 
@@ -53,9 +61,9 @@ Template: `docs/change-requests/TEMPLATE.md`.
 
 ## 3. The module specs are the source of truth for behaviour
 
-Every backend module has a `services/api/src/<module>/IMPLEMENTATION.md`. It
-specifies the transaction boundaries, which events to emit, which error codes to
-return, and the tests that must pass.
+Every backend module has a spec at `docs/specs/api/<module>.md`. It specifies the
+transaction boundaries, which events to emit, which error codes to return, and
+the tests that must pass. UI surfaces have specs at `docs/specs/web/<surface>.md`.
 
 - Build to the spec, not to your instincts about how a Jira clone should work.
 - If the spec and the code disagree, the spec wins.

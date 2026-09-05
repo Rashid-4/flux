@@ -45,6 +45,7 @@ const FROZEN = [
   { prefix: 'scripts/', owner: 'architecture', why: 'these scripts are what verify the invariants' },
   { prefix: '.github/', owner: 'architecture', why: 'CI is what enforces every other rule' },
   { prefix: 'docs/adr/', owner: 'architecture', why: 'accepted decisions are superseded by a new ADR, never rewritten' },
+  { prefix: 'docs/specs/', owner: 'architecture', why: 'the spec is what the reviewer checks the code against; code that edits its own spec cannot be reviewed' },
   { prefix: 'AGENTS.md', owner: 'architecture', why: 'the rules change in one place, deliberately' },
   { prefix: 'CLAUDE.md', owner: 'architecture', why: 'the rules change in one place, deliberately' },
 ]

@@ -17,7 +17,7 @@ permitted to change `db/migrations/`, `packages/contracts/`, `scripts/`,
 `docs/adr/`, and `.github/`.
 
 It does **not** write feature implementations. Those go to the build agents
-against the specs in `services/api/src/<module>/IMPLEMENTATION.md`. If you are
+against the specs in `docs/specs/api/<module>.md`. If you are
 tempted to implement a module here because it would be faster, don't — the value
 of the contracts is that one mind wrote all of them and no mind is also editing
 the code that consumes them.
