@@ -104,7 +104,10 @@ export type FilterValue = z.infer<typeof FilterValueSchema>
  */
 export const FieldRefSchema = z
   .string()
-  .regex(/^(cf:)?[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/, 'e.g. status, assignee, cf:severity, parent.status')
+  .regex(
+    /^(cf:)?[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/,
+    'e.g. status, assignee, cf:severity, parent.status',
+  )
 export type FieldRef = z.infer<typeof FieldRefSchema>
 
 export type FilterNode =
@@ -133,7 +136,11 @@ export type FilterNode =
   /** Duration in a state, computed from history. Drives SLA + flow views. */
   | { op: 'time_in_state'; state: string; cmp: 'gt' | 'lt'; seconds: number }
   /** Graph traversal over issue_links — powers the dependency view. */
-  | { op: 'linked'; linkType: 'blocks' | 'blocked_by' | 'relates_to' | 'duplicates'; child: FilterNode }
+  | {
+      op: 'linked'
+      linkType: 'blocks' | 'blocked_by' | 'relates_to' | 'duplicates'
+      child: FilterNode
+    }
 
 export const FilterNodeSchema: z.ZodType<FilterNode> = z.lazy(() =>
   z.discriminatedUnion('op', [

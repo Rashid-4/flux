@@ -61,7 +61,10 @@ export const FieldConfigSchema = z.discriminatedUnion('type', [
     maxLength: z.number().int().positive().max(1000).default(255),
     pattern: z.string().optional(),
   }),
-  z.object({ type: z.literal('text_long'), maxLength: z.number().int().positive().default(32_000) }),
+  z.object({
+    type: z.literal('text_long'),
+    maxLength: z.number().int().positive().default(32_000),
+  }),
   z.object({ type: z.literal('rich_text') }),
   z.object({
     type: z.literal('number'),
@@ -86,9 +89,16 @@ export const FieldConfigSchema = z.discriminatedUnion('type', [
     maxSelections: z.number().int().positive().optional(),
   }),
   z.object({ type: z.literal('radio'), options: z.array(SelectOptionSchema).min(2) }),
-  z.object({ type: z.literal('date'), minDate: LocalDateSchema.optional(), maxDate: LocalDateSchema.optional() }),
+  z.object({
+    type: z.literal('date'),
+    minDate: LocalDateSchema.optional(),
+    maxDate: LocalDateSchema.optional(),
+  }),
   z.object({ type: z.literal('datetime') }),
-  z.object({ type: z.literal('duration'), unit: z.enum(['minutes', 'hours', 'days']).default('hours') }),
+  z.object({
+    type: z.literal('duration'),
+    unit: z.enum(['minutes', 'hours', 'days']).default('hours'),
+  }),
   z.object({
     type: z.literal('user'),
     /** Restrict the picker to project members / a team, not the whole org. */
@@ -102,7 +112,10 @@ export const FieldConfigSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('team') }),
   z.object({ type: z.literal('url') }),
   z.object({ type: z.literal('email') }),
-  z.object({ type: z.literal('labels'), suggestFrom: z.enum(['project', 'org']).default('project') }),
+  z.object({
+    type: z.literal('labels'),
+    suggestFrom: z.enum(['project', 'org']).default('project'),
+  }),
   z.object({
     type: z.literal('issue_link'),
     restrictToProjectIds: z.array(ProjectIdSchema).default([]),
@@ -113,7 +126,11 @@ export const FieldConfigSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('attachment'),
     allowedMimeTypes: z.array(z.string()).default([]),
-    maxSizeBytes: z.number().int().positive().default(100 * 1024 * 1024),
+    maxSizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .default(100 * 1024 * 1024),
   }),
   z.object({
     type: z.literal('formula'),
@@ -124,7 +141,7 @@ export const FieldConfigSchema = z.discriminatedUnion('type', [
      * cycles, and incapable of arbitrary execution. Real scripting lives
      * in the automation engine, off the write path.
      */
-     expression: z.unknown(),
+    expression: z.unknown(),
     resultType: z.enum(['number', 'decimal', 'duration', 'text']),
   }),
 ])

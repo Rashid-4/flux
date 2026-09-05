@@ -131,7 +131,11 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('clear_field'), fieldKey: z.string() }),
   z.object({ kind: z.literal('add_labels'), labels: z.array(z.string()).min(1) }),
   z.object({ kind: z.literal('remove_labels'), labels: z.array(z.string()).min(1) }),
-  z.object({ kind: z.literal('add_comment'), body: TemplateStringSchema, isInternal: z.boolean().default(false) }),
+  z.object({
+    kind: z.literal('add_comment'),
+    body: TemplateStringSchema,
+    isInternal: z.boolean().default(false),
+  }),
   z.object({
     kind: z.literal('create_issue'),
     projectId: ProjectIdSchema,
@@ -142,19 +146,25 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
     linkToTrigger: z.enum(['none', 'blocks', 'relates_to', 'child_of']).default('relates_to'),
     inheritFields: z.array(z.string()).default([]),
   }),
-  z.object({ kind: z.literal('link_issues'), targetFilter: FilterNodeSchema, linkType: z.string() }),
+  z.object({
+    kind: z.literal('link_issues'),
+    targetFilter: FilterNodeSchema,
+    linkType: z.string(),
+  }),
   z.object({
     kind: z.literal('notify'),
-    recipients: z.array(
-      z.discriminatedUnion('to', [
-        z.object({ to: z.literal('user'), userId: UserIdSchema }),
-        z.object({ to: z.literal('assignee') }),
-        z.object({ to: z.literal('reporter') }),
-        z.object({ to: z.literal('watchers') }),
-        z.object({ to: z.literal('project_role'), roleKey: z.string() }),
-        z.object({ to: z.literal('team'), teamId: z.string().uuid() }),
-      ]),
-    ).min(1),
+    recipients: z
+      .array(
+        z.discriminatedUnion('to', [
+          z.object({ to: z.literal('user'), userId: UserIdSchema }),
+          z.object({ to: z.literal('assignee') }),
+          z.object({ to: z.literal('reporter') }),
+          z.object({ to: z.literal('watchers') }),
+          z.object({ to: z.literal('project_role'), roleKey: z.string() }),
+          z.object({ to: z.literal('team'), teamId: z.string().uuid() }),
+        ]),
+      )
+      .min(1),
     subject: TemplateStringSchema,
     body: TemplateStringSchema,
     channels: z.array(z.enum(['email', 'in_app', 'slack', 'webhook'])).min(1),
@@ -184,14 +194,20 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
     relation: z.enum(['subtasks', 'parent', 'children', 'blocks', 'blocked_by', 'linked']),
     filter: FilterNodeSchema.nullable(),
     maxIssues: z.number().int().positive().max(200).default(50),
-    actions: z.array(
-      z.discriminatedUnion('kind', [
-        z.object({ kind: z.literal('transition_issue'), toStateFamilyId: z.string().uuid() }),
-        z.object({ kind: z.literal('set_field'), fieldKey: z.string(), value: z.unknown() }),
-        z.object({ kind: z.literal('add_comment'), body: TemplateStringSchema, isInternal: z.boolean().default(false) }),
-        z.object({ kind: z.literal('add_labels'), labels: z.array(z.string()).min(1) }),
-      ]),
-    ).min(1),
+    actions: z
+      .array(
+        z.discriminatedUnion('kind', [
+          z.object({ kind: z.literal('transition_issue'), toStateFamilyId: z.string().uuid() }),
+          z.object({ kind: z.literal('set_field'), fieldKey: z.string(), value: z.unknown() }),
+          z.object({
+            kind: z.literal('add_comment'),
+            body: TemplateStringSchema,
+            isInternal: z.boolean().default(false),
+          }),
+          z.object({ kind: z.literal('add_labels'), labels: z.array(z.string()).min(1) }),
+        ]),
+      )
+      .min(1),
   }),
 ])
 export type AutomationAction = z.infer<typeof AutomationActionSchema>
@@ -230,7 +246,13 @@ export const AutomationRuleSchema = AuditStampSchema.extend({
   lastFailureAt: InstantSchema.nullable(),
   consecutiveFailures: z.number().int().nonnegative(),
   disabledReason: z
-    .enum(['manual', 'rate_limit_exceeded', 'repeated_failures', 'loop_detected', 'invalid_configuration'])
+    .enum([
+      'manual',
+      'rate_limit_exceeded',
+      'repeated_failures',
+      'loop_detected',
+      'invalid_configuration',
+    ])
     .nullable(),
 })
 export type AutomationRule = z.infer<typeof AutomationRuleSchema>
@@ -303,7 +325,11 @@ export const SimulateRuleSchema = z.object({
       maxEvents: z.number().int().positive().max(10_000).default(1_000),
     }),
     z.object({ mode: z.literal('issues'), issueIds: z.array(IssueIdSchema).min(1).max(500) }),
-    z.object({ mode: z.literal('filter'), filter: FilterNodeSchema, maxIssues: z.number().int().max(500).default(100) }),
+    z.object({
+      mode: z.literal('filter'),
+      filter: FilterNodeSchema,
+      maxIssues: z.number().int().max(500).default(100),
+    }),
   ]),
 })
 
@@ -353,7 +379,11 @@ export type SimulationReport = z.infer<typeof SimulationReportSchema>
  * Loop guard, shared by the executor and the simulator so a chain that the
  * simulation reports as safe is the same chain the executor permits.
  */
-export function isLoopBlocked(causationDepth: number, ruleIdsInChain: readonly string[], ruleId: string): boolean {
+export function isLoopBlocked(
+  causationDepth: number,
+  ruleIdsInChain: readonly string[],
+  ruleId: string,
+): boolean {
   if (causationDepth >= MAX_CAUSATION_DEPTH) return true
   // A rule re-entering its own chain is a loop regardless of depth. Two
   // rules ping-ponging would otherwise burn all 10 levels every time.

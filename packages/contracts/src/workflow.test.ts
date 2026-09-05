@@ -46,12 +46,17 @@ describe('validateWorkflowGraph', () => {
       state('doing', { category: 'in_progress' }),
       state('done', { category: 'done' }),
     ]
-    const transitions = [transition('start', 'todo', 'doing'), transition('finish', 'doing', 'done')]
+    const transitions = [
+      transition('start', 'todo', 'doing'),
+      transition('finish', 'doing', 'done'),
+    ]
     expect(validateWorkflowGraph(states, transitions)).toEqual([])
   })
 
   it('rejects a workflow with no initial state', () => {
-    expect(codes([state('todo'), state('done', { category: 'done' })], [])).toContain('no_initial_state')
+    expect(codes([state('todo'), state('done', { category: 'done' })], [])).toContain(
+      'no_initial_state',
+    )
   })
 
   it('rejects more than one initial state', () => {
@@ -84,8 +89,15 @@ describe('validateWorkflowGraph', () => {
   it('treats a global transition as reaching its target from anywhere', () => {
     // fromStateId === null means "from any state". Getting this wrong would
     // flag every Jira-style global "Close" target as unreachable.
-    const states = [state('todo', { isInitial: true }), state('cancelled', { category: 'cancelled' }), state('done', { category: 'done' })]
-    const transitions = [transition('cancel', null, 'cancelled'), transition('finish', null, 'done')]
+    const states = [
+      state('todo', { isInitial: true }),
+      state('cancelled', { category: 'cancelled' }),
+      state('done', { category: 'done' }),
+    ]
+    const transitions = [
+      transition('cancel', null, 'cancelled'),
+      transition('finish', null, 'done'),
+    ]
     expect(codes(states, transitions)).not.toContain('unreachable_state')
   })
 

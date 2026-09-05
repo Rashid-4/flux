@@ -46,7 +46,9 @@ export const RichTextNodeSchema: z.ZodType<RichTextNode> = z.lazy(() =>
     type: z.string(),
     attrs: z.record(z.unknown()).optional(),
     content: z.array(RichTextNodeSchema).optional(),
-    marks: z.array(z.object({ type: z.string(), attrs: z.record(z.unknown()).optional() })).optional(),
+    marks: z
+      .array(z.object({ type: z.string(), attrs: z.record(z.unknown()).optional() }))
+      .optional(),
     text: z.string().optional(),
   }),
 )

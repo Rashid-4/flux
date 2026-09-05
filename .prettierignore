@@ -1,0 +1,24 @@
+# ════════════════════════════════════════════════════════════════════
+# Prettier owns TypeScript, JavaScript, JSON and YAML. It does not own
+# SQL or Markdown, and both exclusions are deliberate.
+#
+# SQL: prettier has no SQL parser, and the migrations are hand-aligned
+# in columns anyway — a formatter would not preserve that even if it
+# could read them.
+#
+# MARKDOWN: the specs are hand-wrapped prose full of em-dashes, and
+# prettier's table alignment miscounts those characters — it emits
+# separator rows two columns wider than the content rows it is meant to
+# line up with. It also rewrites `*emphasis*` to `_emphasis_` and pads
+# every table cell to the width of the longest one, which turns a
+# one-word edit into a whole-table diff. Docs are read by people and by
+# agents, not rendered from a pipeline, so hand formatting wins here.
+# ════════════════════════════════════════════════════════════════════
+
+**/dist/**
+**/build/**
+**/coverage/**
+**/node_modules/**
+pnpm-lock.yaml
+*.sql
+*.md

@@ -287,7 +287,11 @@ export class FluxError extends Error {
   constructor(
     code: ErrorCode,
     message: string,
-    options: { fields?: z.infer<typeof FieldErrorSchema>[]; meta?: Record<string, unknown>; cause?: unknown } = {},
+    options: {
+      fields?: z.infer<typeof FieldErrorSchema>[]
+      meta?: Record<string, unknown>
+      cause?: unknown
+    } = {},
   ) {
     super(message, options.cause !== undefined ? { cause: options.cause } : undefined)
     this.name = 'FluxError'

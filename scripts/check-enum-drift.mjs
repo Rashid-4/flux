@@ -75,18 +75,42 @@ const PAIRS = [
  * constraint cannot be added without a decision being recorded.
  */
 const UNPAIRED = new Map([
-  ['users_status_valid', 'Global user lifecycle, not exposed in any API payload — the product speaks in memberships.'],
-  ['issue_watchers_state_valid', 'Watcher state is a field on IssueDetail, not a standalone enum export.'],
-  ['attachments_upload_status_valid', 'Upload state is internal to the attachment flow; clients see ready or nothing.'],
-  ['workflow_publish_previews_status_valid', 'Inline in WorkflowPublishPreviewSchema; worth extracting if it is ever reused.'],
+  [
+    'users_status_valid',
+    'Global user lifecycle, not exposed in any API payload — the product speaks in memberships.',
+  ],
+  [
+    'issue_watchers_state_valid',
+    'Watcher state is a field on IssueDetail, not a standalone enum export.',
+  ],
+  [
+    'attachments_upload_status_valid',
+    'Upload state is internal to the attachment flow; clients see ready or nothing.',
+  ],
+  [
+    'workflow_publish_previews_status_valid',
+    'Inline in WorkflowPublishPreviewSchema; worth extracting if it is ever reused.',
+  ],
   ['saved_views_visibility_valid', 'Inline in the saved-view schema.'],
   ['saved_views_display_valid', 'Inline in the saved-view schema.'],
-  ['notification_preferences_channel_valid', 'Shared with automation actions; extract when the notification module is specified.'],
+  [
+    'notification_preferences_channel_valid',
+    'Shared with automation actions; extract when the notification module is specified.',
+  ],
   ['notification_preferences_delivery_valid', 'As above.'],
   ['notifications_reason_valid', 'As above.'],
-  ['issue_security_members_kind_valid', 'A deliberate subset of SubjectKind: org_role and any_logged_in make no sense as security-level members.'],
-  ['issue_watchers_source_valid', 'Why someone is watching is internal provenance, used to decide whether unwatching should stick. Clients see watching/muted/none.'],
-  ['permission_grants_subject_id_consistency', 'Not an enum list — a cross-column rule that subject_id is present exactly when the subject kind needs one. Enforced in SQL because a grant with the wrong shape is a silent allow-everyone.'],
+  [
+    'issue_security_members_kind_valid',
+    'A deliberate subset of SubjectKind: org_role and any_logged_in make no sense as security-level members.',
+  ],
+  [
+    'issue_watchers_source_valid',
+    'Why someone is watching is internal provenance, used to decide whether unwatching should stick. Clients see watching/muted/none.',
+  ],
+  [
+    'permission_grants_subject_id_consistency',
+    'Not an enum list — a cross-column rule that subject_id is present exactly when the subject kind needs one. Enforced in SQL because a grant with the wrong shape is a silent allow-everyone.',
+  ],
 ])
 
 /**
@@ -103,11 +127,23 @@ const UNPAIRED = new Map([
  */
 const UNPAIRED_ENUMS = new Map([
   ['ErrorCodeSchema', 'Wire-level only. Never stored — an error is a response, not a row.'],
-  ['EventTypeSchema', 'event_outbox.event_type is deliberately unconstrained: adding an event type must not require a migration, and the outbox is internal and append-only.'],
-  ['ComparatorSchema', 'Part of the FQL AST, stored inside jsonb (boards.filter, saved_views.filter). Validated by zod on write and by the compiler on read.'],
+  [
+    'EventTypeSchema',
+    'event_outbox.event_type is deliberately unconstrained: adding an event type must not require a migration, and the outbox is internal and append-only.',
+  ],
+  [
+    'ComparatorSchema',
+    'Part of the FQL AST, stored inside jsonb (boards.filter, saved_views.filter). Validated by zod on write and by the compiler on read.',
+  ],
   ['SortDirectionSchema', 'Inside saved_views.sort jsonb, as above.'],
-  ['CardFieldSchema', 'boards.card_fields is text[]. An element CHECK would need a helper function, and an unrecognised card field renders as nothing — cosmetic, not corrupting. Reconsider if it ever gates behaviour.'],
-  ['ImportFindingCodeSchema', 'import_findings.code is descriptive diagnostics. Severity IS constrained because it gates the commit; a new code must not require a migration in the middle of a customer migration.'],
+  [
+    'CardFieldSchema',
+    'boards.card_fields is text[]. An element CHECK would need a helper function, and an unrecognised card field renders as nothing — cosmetic, not corrupting. Reconsider if it ever gates behaviour.',
+  ],
+  [
+    'ImportFindingCodeSchema',
+    'import_findings.code is descriptive diagnostics. Severity IS constrained because it gates the commit; a new code must not require a migration in the middle of a customer migration.',
+  ],
 ])
 
 /**
@@ -213,7 +249,9 @@ for (const [name, reason] of UNPAIRED) {
 }
 
 if (undecided.length) {
-  console.error('\n✗ Enum-shaped CHECK constraints with no contract pairing and no recorded reason:')
+  console.error(
+    '\n✗ Enum-shaped CHECK constraints with no contract pairing and no recorded reason:',
+  )
   for (const u of undecided) console.error(`  • ${u}`)
   console.error('\nAdd it to PAIRS in scripts/check-enum-drift.mjs, or to UNPAIRED with a reason.')
   process.exitCode = 1

@@ -40,7 +40,8 @@ const PLACEHOLDER =
 const DEV_VALUE = /^[a-z0-9]+([_-][a-z0-9]+)*_dev(_[a-z0-9]+)?$/
 const ALLOWED_DEV_VALUES = new Set(['flux', 'localhost', 'development', 'debug', 'info'])
 
-const SECRET_KEY = /(SECRET|TOKEN|PASSWORD|PASSWD|PWD|API_?KEY|PRIVATE_?KEY|CREDENTIAL|CLIENT_SECRET|ACCESS_KEY|SALT|SIGNING)/i
+const SECRET_KEY =
+  /(SECRET|TOKEN|PASSWORD|PASSWD|PWD|API_?KEY|PRIVATE_?KEY|CREDENTIAL|CLIENT_SECRET|ACCESS_KEY|SALT|SIGNING)/i
 
 /** Live-credential shapes, worth flagging wherever they appear. */
 const HIGH_ENTROPY_PATTERNS = [
@@ -75,7 +76,11 @@ const problems = []
 // ── .env.example: every KEY=VALUE must be a placeholder or dev value ──
 for (const envFile of trackedFiles().filter((f) => /(^|\/)\.env(\..+)?$/.test(f))) {
   if (envFile === '.env' || /\/\.env$/.test(envFile)) {
-    problems.push({ file: envFile, line: 0, why: 'a .env file is tracked by git — run: git rm --cached ' + envFile })
+    problems.push({
+      file: envFile,
+      line: 0,
+      why: 'a .env file is tracked by git — run: git rm --cached ' + envFile,
+    })
     continue
   }
 
@@ -90,9 +95,18 @@ for (const envFile of trackedFiles().filter((f) => /(^|\/)\.env(\..+)?$/.test(f)
     const key = trimmed.slice(0, eq).trim()
     let value = trimmed.slice(eq + 1).trim()
     // Strip an inline comment, then quotes.
-    value = value.replace(/\s+#.*$/, '').replace(/^["'](.*)["']$/, '$1').trim()
+    value = value
+      .replace(/\s+#.*$/, '')
+      .replace(/^["'](.*)["']$/, '$1')
+      .trim()
 
-    if (value === '' || PLACEHOLDER.test(value) || DEV_VALUE.test(value) || ALLOWED_DEV_VALUES.has(value)) return
+    if (
+      value === '' ||
+      PLACEHOLDER.test(value) ||
+      DEV_VALUE.test(value) ||
+      ALLOWED_DEV_VALUES.has(value)
+    )
+      return
 
     if (SECRET_KEY.test(key)) {
       problems.push({

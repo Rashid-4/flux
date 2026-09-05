@@ -109,7 +109,9 @@ export type ImportScope = z.infer<typeof ImportScopeSchema>
 export const ImportMappingSchema = z.object({
   /** source user identifier → Flux user. Unmatched users become inactive
    *  placeholder accounts so authorship is preserved rather than erased. */
-  users: z.record(z.union([UserIdSchema, z.literal('create_placeholder'), z.literal('skip')])).default({}),
+  users: z
+    .record(z.union([UserIdSchema, z.literal('create_placeholder'), z.literal('skip')]))
+    .default({}),
   /** source project key → existing Flux project, or create a new one. */
   projects: z.record(z.union([ProjectIdSchema, z.literal('create')])).default({}),
   /** source field id → Flux field key, or 'create' / 'skip'. */
@@ -119,7 +121,9 @@ export const ImportMappingSchema = z.object({
   /** source issue type name → Flux issue type key. */
   issueTypes: z.record(z.string()).default({}),
   /** source priority name → Flux priority. */
-  priorities: z.record(z.enum(['blocker', 'critical', 'high', 'medium', 'low', 'trivial'])).default({}),
+  priorities: z
+    .record(z.enum(['blocker', 'critical', 'high', 'medium', 'low', 'trivial']))
+    .default({}),
   /** source link type name → Flux link type. */
   linkTypes: z.record(z.string()).default({}),
 })
@@ -286,7 +290,10 @@ export const ImportFindingSchema = z.object({
    *  the fix inline rather than describing it in prose. */
   suggestedResolution: z
     .discriminatedUnion('kind', [
-      z.object({ kind: z.literal('map_to_existing'), candidates: z.array(z.object({ id: z.string(), label: z.string() })) }),
+      z.object({
+        kind: z.literal('map_to_existing'),
+        candidates: z.array(z.object({ id: z.string(), label: z.string() })),
+      }),
       z.object({ kind: z.literal('create_new') }),
       z.object({ kind: z.literal('skip_entity') }),
       z.object({ kind: z.literal('retry') }),
@@ -342,7 +349,9 @@ export const ImportReconciliationSchema = z.object({
       sourceId: z.string(),
       fluxIssueKey: z.string(),
       matchedFields: z.number().int(),
-      mismatchedFields: z.array(z.object({ field: z.string(), source: z.string(), flux: z.string() })),
+      mismatchedFields: z.array(
+        z.object({ field: z.string(), source: z.string(), flux: z.string() }),
+      ),
     }),
   ),
   overallStatus: z.enum(['verified', 'discrepancies_found', 'failed']),
@@ -353,7 +362,13 @@ export type ImportReconciliation = z.infer<typeof ImportReconciliationSchema>
 
 /** `expired` is a real state, not a deletion: the archive is purged on
  *  expiry but the record that an export happened is audit evidence. */
-export const ExportJobStatusSchema = z.enum(['pending', 'running', 'completed', 'failed', 'expired'])
+export const ExportJobStatusSchema = z.enum([
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'expired',
+])
 export type ExportJobStatus = z.infer<typeof ExportJobStatusSchema>
 
 export const ExportScopeSchema = z.enum(['organization', 'projects'])

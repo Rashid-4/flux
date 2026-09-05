@@ -71,7 +71,10 @@ export type TransitionValidator = z.infer<typeof TransitionValidatorSchema>
  * stream in Temporal and cannot slow a user's click.
  */
 export const TransitionPostFunctionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('assign_to'), target: z.enum(['actor', 'reporter', 'project_lead', 'component_lead', 'unassigned']) }),
+  z.object({
+    kind: z.literal('assign_to'),
+    target: z.enum(['actor', 'reporter', 'project_lead', 'component_lead', 'unassigned']),
+  }),
   z.object({ kind: z.literal('set_field'), fieldKey: z.string(), value: z.unknown() }),
   z.object({ kind: z.literal('clear_field'), fieldKey: z.string() }),
   z.object({ kind: z.literal('set_resolution'), resolution: z.string() }),
@@ -162,7 +165,9 @@ export const WorkflowPublishPreviewSchema = z.object({
     affectedProjectIds: z.array(ProjectIdSchema),
     affectedIssueCount: z.number().int(),
     /** States present in the published version but gone from the draft. */
-    removedStates: z.array(z.object({ familyId: z.string(), name: z.string(), issueCount: z.number().int() })),
+    removedStates: z.array(
+      z.object({ familyId: z.string(), name: z.string(), issueCount: z.number().int() }),
+    ),
     /**
      * Issues whose current state has no equivalent in the draft. These are
      * the ones that would become unmovable. The admin must choose a target
@@ -178,7 +183,9 @@ export const WorkflowPublishPreviewSchema = z.object({
       }),
     ),
     /** Transitions that can never fire because no path reaches their source. */
-    unreachableTransitions: z.array(z.object({ name: z.string(), fromStateName: z.string().nullable() })),
+    unreachableTransitions: z.array(
+      z.object({ name: z.string(), fromStateName: z.string().nullable() }),
+    ),
     /** States with no inbound transition — usually a modelling mistake. */
     orphanedStates: z.array(z.object({ name: z.string() })),
     /** familyId → familyId mapping that will be applied on publish. */
@@ -229,7 +236,11 @@ export function validateWorkflowGraph(
 
   const initial = states.filter((s) => s.isInitial)
   if (initial.length === 0) {
-    problems.push({ severity: 'error', code: 'no_initial_state', message: 'Workflow has no initial state' })
+    problems.push({
+      severity: 'error',
+      code: 'no_initial_state',
+      message: 'Workflow has no initial state',
+    })
   } else if (initial.length > 1) {
     problems.push({
       severity: 'error',

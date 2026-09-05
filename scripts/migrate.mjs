@@ -49,13 +49,17 @@ async function loadMigrations() {
 async function appliedMigrations(client) {
   // The ledger itself is created by 0001, so on a virgin database this
   // table does not exist yet. Treat that as "nothing applied".
-  const { rows } = await client.query(`
+  const { rows } = await client
+    .query(
+      `
     SELECT version, checksum FROM schema_migrations
     WHERE to_regclass('schema_migrations') IS NOT NULL
-  `).catch((err) => {
-    if (err.code === '42P01') return { rows: [] } // undefined_table
-    throw err
-  })
+  `,
+    )
+    .catch((err) => {
+      if (err.code === '42P01') return { rows: [] } // undefined_table
+      throw err
+    })
   return new Map(rows.map((r) => [r.version, r.checksum]))
 }
 
@@ -94,10 +98,10 @@ async function up() {
       await client.query('BEGIN')
       try {
         await client.query(m.sql)
-        await client.query(
-          `INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)`,
-          [m.version, m.checksum],
-        )
+        await client.query(`INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)`, [
+          m.version,
+          m.checksum,
+        ])
         await client.query('COMMIT')
         console.log(`  ✓ ${m.version}`)
       } catch (err) {

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Brand } from './ids.js'
 import type { IssueContext, PermissionGrant, SubjectContext } from './permission.js'
-import { DANGEROUS_FOR_ANY_LOGGED_IN, evaluatePermission, evaluatePermissions } from './permission.js'
+import {
+  DANGEROUS_FOR_ANY_LOGGED_IN,
+  evaluatePermission,
+  evaluatePermissions,
+} from './permission.js'
 
 /**
  * Permission evaluation is the highest-consequence pure function in the
@@ -38,7 +42,9 @@ function issueCtx(overrides: Partial<IssueContext> = {}): IssueContext {
   }
 }
 
-const grant = (g: Partial<PermissionGrant> & Pick<PermissionGrant, 'permission' | 'subjectKind'>): PermissionGrant => ({
+const grant = (
+  g: Partial<PermissionGrant> & Pick<PermissionGrant, 'permission' | 'subjectKind'>,
+): PermissionGrant => ({
   id: 'grant-1',
   subjectId: null,
   ...g,
@@ -63,7 +69,9 @@ describe('evaluatePermission — subject matching', () => {
   it('matches a direct user grant and nobody else', () => {
     const grants = [grant({ permission: 'issue.edit', subjectKind: 'user', subjectId: 'alice' })]
     expect(evaluatePermission(subject(), grants, 'issue.edit').granted).toBe(true)
-    expect(evaluatePermission(subject({ userId: user('carol') }), grants, 'issue.edit').granted).toBe(false)
+    expect(
+      evaluatePermission(subject({ userId: user('carol') }), grants, 'issue.edit').granted,
+    ).toBe(false)
   })
 
   it('matches team membership', () => {
@@ -74,12 +82,20 @@ describe('evaluatePermission — subject matching', () => {
   })
 
   it('scopes project roles to the issue’s project', () => {
-    const grants = [grant({ permission: 'issue.edit', subjectKind: 'project_role', subjectId: 'devs' })]
+    const grants = [
+      grant({ permission: 'issue.edit', subjectKind: 'project_role', subjectId: 'devs' }),
+    ]
     // Alice is a Developer in proj-2, not in proj-1.
     const s = subject({ projectRoleIds: { 'proj-2': [id<'ProjectRoleId'>('devs')] } })
 
-    expect(evaluatePermission(s, grants, 'issue.edit', issueCtx({ projectId: project('proj-1') })).granted).toBe(false)
-    expect(evaluatePermission(s, grants, 'issue.edit', issueCtx({ projectId: project('proj-2') })).granted).toBe(true)
+    expect(
+      evaluatePermission(s, grants, 'issue.edit', issueCtx({ projectId: project('proj-1') }))
+        .granted,
+    ).toBe(false)
+    expect(
+      evaluatePermission(s, grants, 'issue.edit', issueCtx({ projectId: project('proj-2') }))
+        .granted,
+    ).toBe(true)
   })
 })
 
@@ -87,10 +103,20 @@ describe('evaluatePermission — relative subjects', () => {
   it('grants to the assignee only when they are the assignee', () => {
     const grants = [grant({ permission: 'issue.transition', subjectKind: 'assignee' })]
     expect(
-      evaluatePermission(subject(), grants, 'issue.transition', issueCtx({ assigneeId: user('alice') })).grantedVia,
+      evaluatePermission(
+        subject(),
+        grants,
+        'issue.transition',
+        issueCtx({ assigneeId: user('alice') }),
+      ).grantedVia,
     ).toBe('relative:assignee')
     expect(
-      evaluatePermission(subject(), grants, 'issue.transition', issueCtx({ assigneeId: user('bob') })).granted,
+      evaluatePermission(
+        subject(),
+        grants,
+        'issue.transition',
+        issueCtx({ assigneeId: user('bob') }),
+      ).granted,
     ).toBe(false)
   })
 
@@ -155,7 +181,9 @@ describe('evaluatePermission — org escalation', () => {
 
   it('does not escalate plain members or guests', () => {
     for (const role of ['member', 'guest'] as const) {
-      expect(evaluatePermission(subject({ orgRole: role }), [], 'project.admin').granted).toBe(false)
+      expect(evaluatePermission(subject({ orgRole: role }), [], 'project.admin').granted).toBe(
+        false,
+      )
     }
   })
 })
@@ -166,14 +194,23 @@ describe('evaluatePermissions — batch', () => {
       grant({ permission: 'issue.view', subjectKind: 'any_logged_in' }),
       grant({ permission: 'comment.create', subjectKind: 'any_logged_in' }),
     ]
-    const result = evaluatePermissions(subject(), grants, ['issue.view', 'comment.create', 'issue.delete'])
+    const result = evaluatePermissions(subject(), grants, [
+      'issue.view',
+      'comment.create',
+      'issue.delete',
+    ])
     expect(result).toEqual({ 'issue.view': true, 'comment.create': true, 'issue.delete': false })
   })
 })
 
 describe('DANGEROUS_FOR_ANY_LOGGED_IN', () => {
   it('covers every permission that could cause org-wide damage', () => {
-    for (const p of ['project.admin', 'project.manage_permissions', 'issue.delete', 'comment.view_internal'] as const) {
+    for (const p of [
+      'project.admin',
+      'project.manage_permissions',
+      'issue.delete',
+      'comment.view_internal',
+    ] as const) {
       expect(DANGEROUS_FOR_ANY_LOGGED_IN.has(p)).toBe(true)
     }
     // Ordinary permissions must stay grantable broadly, or the guard rail

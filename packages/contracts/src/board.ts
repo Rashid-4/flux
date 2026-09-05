@@ -353,7 +353,12 @@ export const CapacityForecastSchema = z.object({
   /** Populated when planned work already exceeds capacity. */
   warnings: z.array(
     z.object({
-      code: z.enum(['over_capacity', 'no_velocity_history', 'missing_availability', 'single_point_of_failure']),
+      code: z.enum([
+        'over_capacity',
+        'no_velocity_history',
+        'missing_availability',
+        'single_point_of_failure',
+      ]),
       message: z.string(),
     }),
   ),

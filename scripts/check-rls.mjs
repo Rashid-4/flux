@@ -123,7 +123,9 @@ try {
       [table],
     )
     for (const g of grants) {
-      problems.push(`${table}: ${g.grantee} still holds ${g.privilege_type} — history is not append-only`)
+      problems.push(
+        `${table}: ${g.grantee} still holds ${g.privilege_type} — history is not append-only`,
+      )
     }
 
     // And the guard trigger, which stops even the table owner rewriting an
@@ -218,7 +220,7 @@ try {
   if (problems.length) {
     console.error('\n✗ Tenant isolation problems found:\n')
     for (const p of problems) console.error(`  • ${p}`)
-    console.error('\nFix by calling CALL flux_enable_tenant_rls(\'<table>\') in the migration')
+    console.error("\nFix by calling CALL flux_enable_tenant_rls('<table>') in the migration")
     console.error('that creates the table — never in a later one.\n')
     process.exit(1)
   }

@@ -290,24 +290,66 @@ const PAIRS = [
  */
 const UNPAIRED_TABLES = new Map([
   ['schema_migrations', 'The migration runner’s own ledger.'],
-  ['project_issue_counters', 'One row per project holding the last issue number. Internal to key allocation.'],
-  ['project_key_aliases', 'Retired project keys, kept so old links redirect. Read by the router, never rendered.'],
-  ['project_role_members', 'Membership rows; the API exposes AddRoleMemberSchema as input and role members inside the role read model.'],
-  ['event_outbox', 'EventEnvelopeSchema is the wire format, not this row: the row also carries relay bookkeeping (attempts, dead_lettered_at) that no consumer should see.'],
-  ['comments', 'Reaches clients inside IssueDetailSchema. A standalone CommentSchema is worth extracting when the comment module is specified.'],
+  [
+    'project_issue_counters',
+    'One row per project holding the last issue number. Internal to key allocation.',
+  ],
+  [
+    'project_key_aliases',
+    'Retired project keys, kept so old links redirect. Read by the router, never rendered.',
+  ],
+  [
+    'project_role_members',
+    'Membership rows; the API exposes AddRoleMemberSchema as input and role members inside the role read model.',
+  ],
+  [
+    'event_outbox',
+    'EventEnvelopeSchema is the wire format, not this row: the row also carries relay bookkeeping (attempts, dead_lettered_at) that no consumer should see.',
+  ],
+  [
+    'comments',
+    'Reaches clients inside IssueDetailSchema. A standalone CommentSchema is worth extracting when the comment module is specified.',
+  ],
   ['worklogs', 'As above — embedded in the issue read model.'],
-  ['attachments', 'As above. Upload state is internal to the upload flow; clients see ready attachments or nothing.'],
-  ['issue_links', 'Embedded in IssueDetailSchema, where a link is rendered from the other issue’s point of view.'],
-  ['issue_watchers', 'Watch state is a field on IssueDetailSchema, not an entity clients manipulate directly.'],
-  ['issue_templates', 'Prefill payloads consumed by the create form; see docs/specs/api/fields.md §6.'],
-  ['issue_security_levels', 'Exposed through the permissions read model; see docs/specs/api/permissions.md §4.'],
+  [
+    'attachments',
+    'As above. Upload state is internal to the upload flow; clients see ready attachments or nothing.',
+  ],
+  [
+    'issue_links',
+    'Embedded in IssueDetailSchema, where a link is rendered from the other issue’s point of view.',
+  ],
+  [
+    'issue_watchers',
+    'Watch state is a field on IssueDetailSchema, not an entity clients manipulate directly.',
+  ],
+  [
+    'issue_templates',
+    'Prefill payloads consumed by the create form; see docs/specs/api/fields.md §6.',
+  ],
+  [
+    'issue_security_levels',
+    'Exposed through the permissions read model; see docs/specs/api/permissions.md §4.',
+  ],
   ['issue_security_members', 'As above.'],
-  ['sprint_issues', 'The sprint↔issue join carrying the frozen commitment flags. Read by the sprint report, never returned as rows.'],
+  [
+    'sprint_issues',
+    'The sprint↔issue join carrying the frozen commitment flags. Read by the sprint report, never returned as rows.',
+  ],
   ['sprint_metrics', 'Materialised sprint aggregates. Surface is SprintReportSchema.'],
-  ['saved_views', 'No SavedViewSchema exists yet — a real contract gap, tracked against docs/specs/api/search.md §4 rather than hidden here.'],
-  ['notifications', 'The notification module is specified but not contracted; see docs/specs/api/events.md §6.'],
+  [
+    'saved_views',
+    'No SavedViewSchema exists yet — a real contract gap, tracked against docs/specs/api/search.md §4 rather than hidden here.',
+  ],
+  [
+    'notifications',
+    'The notification module is specified but not contracted; see docs/specs/api/events.md §6.',
+  ],
   ['notification_preferences', 'As above.'],
-  ['import_entity_map', 'The idempotency ledger. Internal to resumability; a client has no use for source→target pairs.'],
+  [
+    'import_entity_map',
+    'The idempotency ledger. Internal to resumability; a client has no use for source→target pairs.',
+  ],
 ])
 
 // ── mechanics ────────────────────────────────────────────────────────
@@ -466,7 +508,8 @@ for (const pair of PAIRS) {
           `\n          → declare it internal with a reason, or add it to the contract`,
       )
     }
-    if (staleInternal.length) lines.push(`      internal names no column: ${staleInternal.join(', ')}`)
+    if (staleInternal.length)
+      lines.push(`      internal names no column: ${staleInternal.join(', ')}`)
     if (staleDerived.length) lines.push(`      derived names no field: ${staleDerived.join(', ')}`)
     if (staleColumnFor.length) {
       lines.push(`      columnFor names no field: ${staleColumnFor.map(([f]) => f).join(', ')}`)

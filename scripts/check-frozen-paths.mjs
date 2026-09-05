@@ -39,15 +39,47 @@ import { execFileSync } from 'node:child_process'
  * what to do instead.
  */
 const FROZEN = [
-  { prefix: 'db/migrations/', owner: 'architecture', why: 'a migration edited after it has been applied anywhere is permanently divergent' },
-  { prefix: 'db/bootstrap/', owner: 'architecture', why: 'role privileges are the tenant-isolation boundary' },
-  { prefix: 'packages/contracts/', owner: 'architecture', why: 'this is the shared contract every other agent is built against' },
-  { prefix: 'scripts/', owner: 'architecture', why: 'these scripts are what verify the invariants' },
+  {
+    prefix: 'db/migrations/',
+    owner: 'architecture',
+    why: 'a migration edited after it has been applied anywhere is permanently divergent',
+  },
+  {
+    prefix: 'db/bootstrap/',
+    owner: 'architecture',
+    why: 'role privileges are the tenant-isolation boundary',
+  },
+  {
+    prefix: 'packages/contracts/',
+    owner: 'architecture',
+    why: 'this is the shared contract every other agent is built against',
+  },
+  {
+    prefix: 'scripts/',
+    owner: 'architecture',
+    why: 'these scripts are what verify the invariants',
+  },
   { prefix: '.github/', owner: 'architecture', why: 'CI is what enforces every other rule' },
-  { prefix: 'docs/adr/', owner: 'architecture', why: 'accepted decisions are superseded by a new ADR, never rewritten' },
-  { prefix: 'docs/specs/', owner: 'architecture', why: 'the spec is what the reviewer checks the code against; code that edits its own spec cannot be reviewed' },
-  { prefix: 'AGENTS.md', owner: 'architecture', why: 'the rules change in one place, deliberately' },
-  { prefix: 'CLAUDE.md', owner: 'architecture', why: 'the rules change in one place, deliberately' },
+  {
+    prefix: 'docs/adr/',
+    owner: 'architecture',
+    why: 'accepted decisions are superseded by a new ADR, never rewritten',
+  },
+  {
+    prefix: 'docs/specs/',
+    owner: 'architecture',
+    why: 'the spec is what the reviewer checks the code against; code that edits its own spec cannot be reviewed',
+  },
+  {
+    prefix: 'AGENTS.md',
+    owner: 'architecture',
+    why: 'the rules change in one place, deliberately',
+  },
+  {
+    prefix: 'CLAUDE.md',
+    owner: 'architecture',
+    why: 'the rules change in one place, deliberately',
+  },
 ]
 
 /** Explicitly writable, including where it sits under a frozen prefix. */
@@ -89,7 +121,9 @@ if (files.length === 0) {
 const violations = []
 for (const file of files) {
   if (CARVE_OUTS.some((c) => file.startsWith(c))) continue
-  const hit = FROZEN.filter((f) => file.startsWith(f.prefix)).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+  const hit = FROZEN.filter((f) => file.startsWith(f.prefix)).sort(
+    (a, b) => b.prefix.length - a.prefix.length,
+  )[0]
   if (hit) violations.push({ file, ...hit })
 }
 

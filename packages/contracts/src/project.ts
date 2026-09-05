@@ -321,7 +321,11 @@ export const ConfigurationAuditSchema = z.object({
     z.object({ issueTypeId: IssueTypeIdSchema, name: z.string(), issueCount: z.number().int() }),
   ),
   orphanedSchemes: z.array(
-    z.object({ schemeId: z.string().uuid(), kind: z.enum(['permission', 'workflow']), name: z.string() }),
+    z.object({
+      schemeId: z.string().uuid(),
+      kind: z.enum(['permission', 'workflow']),
+      name: z.string(),
+    }),
   ),
   /** Duplicate field definitions detected by name/type similarity. */
   probableDuplicateFields: z.array(

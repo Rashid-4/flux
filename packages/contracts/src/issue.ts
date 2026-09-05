@@ -105,7 +105,11 @@ export const IssueDetailSchema = IssueSchema.extend({
   sprintId: SprintIdSchema.nullable(),
   sprintName: z.string().nullable(),
 
-  reporter: z.object({ id: UserIdSchema, displayName: z.string(), avatarUrl: z.string().nullable() }),
+  reporter: z.object({
+    id: UserIdSchema,
+    displayName: z.string(),
+    avatarUrl: z.string().nullable(),
+  }),
   assignee: z
     .object({ id: UserIdSchema, displayName: z.string(), avatarUrl: z.string().nullable() })
     .nullable(),

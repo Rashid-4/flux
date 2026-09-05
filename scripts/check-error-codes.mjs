@@ -105,7 +105,9 @@ for (const file of files) {
   }
   // 3. Migration and code comments that name the code an index or a
   //    constraint is reported as.
-  for (const m of text.matchAll(/surfaced (?:to callers )?as\s+`?([a-z][a-z0-9_]*_[a-z0-9_]+)`?/gi)) {
+  for (const m of text.matchAll(
+    /surfaced (?:to callers )?as\s+`?([a-z][a-z0-9_]*_[a-z0-9_]+)`?/gi,
+  )) {
     cite(m[1], null, file)
   }
 }
@@ -132,7 +134,9 @@ for (const [code, byStatus] of [...cited].sort()) {
   }
 }
 
-console.log(`Checked ${files.length} file(s) against ${CODES.size} error code(s); found ${cited.size} citation(s).`)
+console.log(
+  `Checked ${files.length} file(s) against ${CODES.size} error code(s); found ${cited.size} citation(s).`,
+)
 
 if (unknown.length) {
   console.error('\n✗ Error codes named in docs but absent from ErrorCodeSchema:')
