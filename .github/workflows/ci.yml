@@ -1,0 +1,254 @@
+name: CI
+
+# ════════════════════════════════════════════════════════════════════
+# CI is the only reviewer that is present in every session.
+#
+# Three agents build this repository and none of them can see the
+# others' work, so every rule they are asked to follow has to be
+# checkable by a machine or it is decoration. That is what this file is
+# for. In rough order of how expensive the mistake is to discover late:
+#
+#   frozen-paths  someone edited the shared contract unilaterally
+#   static        the contract and its consumers have drifted apart
+#   unit          shared pure logic (permissions, ranking, workflows)
+#   database      migrations apply, and every tenant table has RLS
+#   integration   the real enforcement path, against real Postgres
+#   security      secrets committed, vulnerable deps, CodeQL
+#
+# Keep jobs independent so a failure names one thing. Do not collapse
+# them into one script to save runner minutes; a red "build" job that
+# could mean any of six problems is how agents end up guessing.
+# ════════════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push supersedes the previous run on the same branch, except on
+# main where every commit's result is a record worth keeping.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9.12.0'
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────
+  # Ownership. Runs first and fastest: if a PR has edited the treaty,
+  # nothing else about it matters yet.
+  # ──────────────────────────────────────────────────────────────────
+  frozen-paths:
+    name: Frozen paths
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Needs history on both sides to find the merge base.
+          fetch-depth: 0
+
+      - name: Check ownership
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          # The escape hatch, deliberately narrow: architecture branches
+          # and PRs a human has labelled. An agent cannot grant itself
+          # either one.
+          FROZEN_PATHS_OVERRIDE: ${{ (startsWith(github.head_ref, 'arch/') || contains(github.event.pull_request.labels.*.name, 'architecture')) && '1' || '0' }}
+        run: |
+          git fetch --no-tags --depth=0 origin "${{ github.base_ref }}"
+          node scripts/check-frozen-paths.mjs "origin/${{ github.base_ref }}"
+
+  # ──────────────────────────────────────────────────────────────────
+  # Types and lint. This is the job that catches an API and a UI built
+  # against different versions of the same contract.
+  # ──────────────────────────────────────────────────────────────────
+  static:
+    name: Typecheck & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Contracts must be built first: everything else consumes its
+      # emitted .d.ts, and declaration emit fails on whole classes of
+      # error that `tsc --noEmit` cannot see (TS4023 on unnameable
+      # types, most memorably).
+      - name: Build contracts
+        run: pnpm --filter @flux/contracts build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # dist/ is gitignored, so a test file leaking into the published
+      # build is invisible locally and permanent once shipped.
+      - name: Assert no test files in build output
+        run: |
+          leaked=$(find packages/*/dist -name '*.test.*' 2>/dev/null || true)
+          if [ -n "$leaked" ]; then
+            echo "Test files were emitted into dist/:"
+            echo "$leaked"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────────────────────────
+  # Pure logic. No database, no network — these are the functions that
+  # must give the same answer on the client and the server.
+  # ──────────────────────────────────────────────────────────────────
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @flux/contracts build
+      - run: pnpm test
+
+  # ──────────────────────────────────────────────────────────────────
+  # Migrations and tenant isolation.
+  #
+  # check:rls is the highest-value job in this file. A tenant table
+  # that ships without a policy is not a bug that surfaces as an error
+  # — it is a silent cross-tenant data leak that looks like working
+  # software. So RLS is asserted structurally on every commit rather
+  # than trusted to review.
+  # ──────────────────────────────────────────────────────────────────
+  database:
+    name: Migrations & RLS
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: flux
+          POSTGRES_USER: flux_migrator
+          POSTGRES_PASSWORD: flux_migrator_dev
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U flux_migrator -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_MIGRATOR_URL: postgres://flux_migrator:flux_migrator_dev@localhost:5432/flux
+      DATABASE_URL: postgres://flux_app:flux_app_dev@localhost:5432/flux
+      PGPASSWORD: flux_migrator_dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @flux/contracts build
+
+      # docker-compose mounts db/bootstrap into the entrypoint; a
+      # service container cannot, so apply it by hand. It must run as
+      # flux_migrator, because ALTER DEFAULT PRIVILEGES only affects
+      # objects created by the role that ran it — and flux_migrator is
+      # what creates every table.
+      - name: Bootstrap roles
+        run: |
+          for f in db/bootstrap/*.sql; do
+            echo "── $f"
+            psql -v ON_ERROR_STOP=1 -h localhost -U flux_migrator -d flux -f "$f"
+          done
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Migrations are idempotent
+        run: pnpm db:migrate
+
+      # Re-running must be a no-op. If someone edits an already-applied
+      # migration in place, every environment that ran the old version
+      # diverges permanently and nothing tells you.
+      - name: No pending migrations
+        run: pnpm db:status
+
+      - name: Audit tenant isolation
+        run: pnpm check:rls
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+  # ──────────────────────────────────────────────────────────────────
+  # Security. Cheap, and the failures it catches are the expensive kind.
+  # ──────────────────────────────────────────────────────────────────
+  security:
+    name: Secrets & dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A committed .env is the single most common way a project of this
+      # shape leaks production credentials.
+      - name: No committed .env
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo ".env is tracked by git. Remove it: git rm --cached .env"
+            exit 1
+          fi
+
+      # .env.example is documentation and gets copied verbatim, so a
+      # real value in it is a real leak. Placeholders are expected.
+      - name: No plausible secrets in .env.example
+        run: node scripts/check-secrets.mjs
+
+      - name: Vulnerable dependencies
+        run: pnpm audit --audit-level high --prod
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
