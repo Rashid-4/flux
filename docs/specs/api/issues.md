@@ -37,7 +37,7 @@ Request `CreateIssueSchema`. Response `IssueDetail`. `201`.
 
 **`idempotencyKey` is required.** A create that retries after a network timeout
 must return the original issue, not a second one. Store the key and return the
-original response on a repeat — see §8.
+original response on a repeat — see §9.
 
 Order inside one transaction:
 
@@ -159,7 +159,47 @@ Request `RankIssueSchema` (`beforeId` / `afterId`). Response the new rank.
   must not error — resolve ties by `created_at`, and let the next drag separate
   them.
 
-## 5. Read — `GET /issues/:key`
+## 5. Move — `POST /issues/:key/move`
+
+Moving an issue to another project. Permission `issue.move` on the **source** and
+`issue.create` on the **target** — one is not enough in either direction.
+
+This is the operation people describe as "Jira's move wizard eats issues", and
+every complaint about it is really one of the four steps below being skipped:
+
+1. **Allocate a new number in the target project** with
+   `flux_next_issue_number(target_project_id)`. `(project_id, number)` is unique,
+   so the number cannot travel with the issue. The key changes.
+2. **Record the old key as an alias**, so every link in Slack, in commit
+   messages and in other issues' descriptions still resolves. `project_key_aliases`
+   is per *project* and cannot express this — one moved issue is not a retired
+   project key — so this needs a per-issue alias table. It does not exist yet:
+   file it as a change request (`AGENTS.md` §2) and refuse the move with
+   `409 preview_required` until it lands, rather than shipping a move that
+   silently breaks links.
+3. **Remap what does not exist in the target project**: issue type, status (via
+   the target's published workflow), components, fix versions, and every custom
+   field not in the target's layout. The caller supplies the mapping and the
+   endpoint refuses an incomplete one with `422 remapping_incomplete`, naming each
+   unmapped item in `fields[]`. Never drop a value silently — the data loss people
+   remember is a field that vanished without a message.
+4. **Move the children too, or refuse.** A subtask cannot live in a different
+   project from its parent, so either the whole subtree moves in the same
+   transaction or the move is refused with `409 in_use`. Half a subtree in each
+   project is the state that makes every roll-up wrong.
+
+Sprints and ranks do not travel: the issue leaves any sprint it was in and gets a
+fresh backlog rank in the target. Worklogs, comments, attachments, watchers and
+history all follow the issue by id and need no rewriting.
+
+`GET /issues/:key/move-preview` returns the full remapping plan — what changes,
+what will be cleared, the new key, and how many children come along — before
+anything is written. Same code path as the move, rolled back.
+
+One transaction, one `issue.moved` event carrying both keys, one history row
+recording the source project.
+
+## 6. Read — `GET /issues/:key`
 
 Response `IssueDetail`.
 
@@ -180,7 +220,7 @@ as enabled-then-rejected.
 Batch the lookups. A detail view that issues one query per linked issue is an N+1
 that only shows up on the issues that matter most.
 
-## 6. Comments, links, worklogs, attachments, watchers
+## 7. Comments, links, worklogs, attachments, watchers
 
 - **Comments** — `comments` has a `version` trigger, so edits take a version.
   Internal comments (`comment.view_internal`) must be filtered in the **query**,
@@ -200,7 +240,7 @@ that only shows up on the issues that matter most.
   who unwatches must stay unwatched even if they are later assigned; store the
   explicit decision rather than deriving it.
 
-## 7. Bulk update — `POST /issues/bulk`
+## 8. Bulk update — `POST /issues/bulk`
 
 Request `BulkUpdateIssuesSchema`. Returns `202` and a job id.
 
@@ -209,7 +249,7 @@ a permission bypass, and a user with edit rights on 40 of 50 selected issues get
 40 updated and 10 reported as denied. Partial success is the correct outcome and
 must be reported per issue, not collapsed into one status.
 
-## 8. Idempotency
+## 9. Idempotency
 
 `idempotency_keys (organization_id, key, request_hash, response_body, created_at)`,
 unique on `(organization_id, key)`.
@@ -225,7 +265,7 @@ This table does not exist yet. It is a change request (`AGENTS.md` §2) — file
 and implement creates without the replay path until the migration lands. Do not
 add the migration yourself.
 
-## 9. Errors
+## 10. Errors
 
 | Code | Status | When |
 | --- | --- | --- |
@@ -239,8 +279,10 @@ add the migration yourself.
 | `required_field_missing` | 422 | List every missing field. |
 | `field_value_invalid` | 422 | Field key plus the reason. |
 | `invalid_reference` | 422 | Issue type that does not belong to this project. |
-| `in_use` | 409 | Deleting a parent that still has children. |
+| `in_use` | 409 | Deleting a parent that still has children, or moving one whose subtree cannot come along. |
 | `idempotency_key_reused` | 409 | Same key, different body. |
+| `preview_required` | 409 | A move whose old key cannot be preserved yet (§5, step 2). |
+| `remapping_incomplete` | 422 | A move with unmapped types, states, components, versions or fields. Name each in `fields[]`. |
 
 A create resolves three references — project, parent, issue type — and all three
 failures are `404 not_found` or `422 invalid_reference`, so the response must say
@@ -249,18 +291,19 @@ deliberately no `parent_not_found` code: the client's behaviour is identical in 
 case and only the field differs, which is what `fields[]` is for. Without the path,
 a create form can only show the error at the top of the page.
 
-## 10. Events emitted
+## 11. Events emitted
 
 `issue.created`, `issue.updated`, `issue.transitioned`, `issue.assigned`,
-`issue.deleted`, `issue.restored`, `issue.ranked`, `issue.linked`,
+`issue.deleted`, `issue.restored`, `issue.ranked`, `issue.moved`, `issue.linked`,
 `issue.unlinked`, `comment.created`, `comment.updated`, `comment.deleted`,
-`worklog.created`, `attachment.added`.
+`worklog.logged`, `attachment.added`, `attachment.removed`,
+`issue.rank_rebalance_needed`.
 
 All via `flux_emit_event(...)` inside the write transaction. Payload shapes are in
 `packages/contracts/src/events.ts` — match them exactly; a consumer parses them
 with the same schema.
 
-## 11. Delete
+## 12. Delete
 
 Soft only. Set `deleted_at` / `deleted_by`, never `DELETE`. Audit and the
 revert-from-audit path both need the row to survive. Hard deletion is a retention
@@ -292,6 +335,7 @@ this list, so an unticked box means the module cannot be reviewed.
 - [ ] History written once per user action, with all changed fields
 - [ ] Reopening clears `resolved_at` and `resolution`
 - [ ] Bulk operations evaluate permission per issue and report per-issue results
+- [ ] Move requires permission on both source and target, remaps every unmapped value explicitly, and moves the whole subtree or refuses
 - [ ] Soft delete only; `not_found` is indistinguishable from unauthorised
 - [ ] Integration tests run against real Postgres via Testcontainers, not mocks
 - [ ] A tenant-isolation test proves org A cannot read org B's issues through this module's endpoints

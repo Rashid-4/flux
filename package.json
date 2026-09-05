@@ -26,7 +26,9 @@
     "check:enums": "node scripts/check-enum-drift.mjs",
     "check:columns": "node scripts/check-column-drift.mjs",
     "check:errors": "node scripts/check-error-codes.mjs",
-    "format": "prettier --write ."
+    "check:events": "node scripts/check-event-types.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

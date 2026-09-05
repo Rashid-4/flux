@@ -101,6 +101,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # There was no .prettierrc for the first sixteen migrations, which meant
+      # `pnpm format` used prettier's defaults — double quotes and semicolons,
+      # the opposite of every file in the repo. The first agent to run it would
+      # have rewritten the entire codebase and buried its own diff. The config
+      # now matches the code, and this step is what keeps that true.
+      - name: Formatting
+        run: pnpm format:check
+
       # No database needed, so it runs here rather than in `database`.
       # ErrorCodeSchema is a closed enum because clients switch on it, which
       # means a spec naming a code the enum lacks describes something the
@@ -110,6 +118,16 @@ jobs:
       # there (`invalid_field_value` for `field_value_invalid`).
       - name: Audit documented error codes
         run: pnpm check:errors
+
+      # The same drift, one vocabulary over, and with a worse failure mode:
+      # event_outbox.event_type has no CHECK (deliberately — adding a type must
+      # not need a migration), so an undeclared type is written, the transaction
+      # COMMITS, the request returns 201, and only then does the relay fail to
+      # parse it. The event is durably stored and permanently undeliverable: no
+      # index, no notification, no webhook, and no error anyone saw. All seven
+      # specs with an Events section named at least one such type.
+      - name: Audit documented event types
+        run: pnpm check:events
 
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.

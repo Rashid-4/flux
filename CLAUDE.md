@@ -44,10 +44,11 @@ the code that consumes them.
 
 | Layer | Status |
 | --- | --- |
-| `db/bootstrap`, `db/migrations` 0001–0015 | applied and verified against `postgres:17-alpine` |
-| `packages/contracts` | builds with declaration emit; 40 unit tests passing |
-| `docs/specs/api/` | 7 of 10 modules written: issues, workflows, permissions, fields, search, boards-sprints, events |
-| `.github/workflows/ci.yml` | frozen-paths + lint + typecheck + test + RLS/append-only audit + enum-drift audit + field-drift audit |
+| `db/bootstrap`, `db/migrations` 0001–0016 | applied and verified against `postgres:17-alpine` |
+| `packages/contracts` | builds with declaration emit; 51 unit tests passing |
+| `docs/specs/api/` | 9 of 10 modules written: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity. **Missing: imports** |
+| `docs/specs/web/` | **not started.** `handoff.md` §5 already links it, so that reference dangles |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + RLS/append-only audit + enum, field, error-code and event-type drift audits |
 | `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
 | `apps/web` | **not created.** Owned by the UI agent, on the same terms |
 
@@ -87,6 +88,38 @@ including the invariant that the columns the guard permits clearing are exactly
 the columns the digest omits, checked behaviourally and negative-tested four
 ways. `pnpm check:enums` and `pnpm check:columns` re-assert that the contracts
 still describe the schema they claim to, by enum value and by field name.
+
+## Drift is a family, not a bug
+
+Five distinct kinds of contract drift have now been found here, and each one was
+**invisible to the checks that catch the other four**. That is the pattern worth
+internalising: every vocabulary shared between agents needs its own machine check,
+because none of them are visible to `tsc`, to review, or to each other.
+
+| Kind | Found | Caught by |
+| --- | --- | --- |
+| enum **values** disagree with the CHECK behind them | ~25 | `check:enums` (0011) |
+| field **names** disagree with their column | 15 of 27 schemas | `check:columns` (0012) |
+| column **defaults** the contract would reject | 7 | `check:columns` (0016) |
+| **error codes** the specs name and the enum lacks | 45 | `check:errors` |
+| **event types** the specs name and the enum lacks | 30 | `check:events` |
+
+The last two are the same shape as the first three, one layer up: the specs are
+what a build agent implements, and a spec naming something the contract does not
+have describes code that cannot be written. The agent then invents a name, and the
+client switches on one that never arrives.
+
+Error codes and event types differ in one respect worth remembering. An unknown
+error code fails on the way *out* of a request, where someone sees a status line.
+An unknown event type fails on the way *in* to the relay — `event_outbox.event_type`
+has no CHECK on purpose, so the row is written, the transaction **commits**, the
+request returns 201, and only then is the event unparseable. Durably stored,
+permanently undeliverable, and nothing said so.
+
+`packages/contracts/src/events.test.ts` covers the half a spec scan cannot: no
+duplicate entries in an 80-string hand-maintained enum, every type exactly
+`namespace.action` so `flux.<ns>.*` binds one level deep, and no payload schema
+keyed to a type that does not exist. All three were negative-tested.
 
 ## Commit messages
 

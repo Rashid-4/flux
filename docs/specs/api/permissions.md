@@ -125,19 +125,57 @@ restricted, narrow the grant or use a security level.
 writes an audit entry. Warn; do not silently forbid — a guard rail admins cannot
 override is one they route around entirely.
 
-## 9. Errors
+## 9. Schemes — project-scoped, or promoted to org policy
+
+Grants hang off a scheme (`permission_grants.scheme_id`), and
+`permission_schemes_scope_exclusive` says a scheme is **either** attached to one
+project **or** an org policy, never both. `permission_schemes_project_key` is
+unique, so a project has at most one scheme of its own.
+
+A project's effective grants are the union of its own scheme and every org
+policy. Union, because §7: there are no deny rules, so an org policy is a floor
+that projects add to, never a ceiling they fight. The partial index on
+`is_org_policy` is deliberately **not** unique — several org policies union
+cleanly, and forcing everything org-wide into one row makes an admin edit a
+600-row scheme to change one grant.
+
+**Promotion** — `POST /permission-schemes/:id/promote` — is how "this project got
+it right" becomes the default: set `project_id = NULL`, `is_org_policy = true`,
+and record `promoted_at` / `promoted_by`. It is an in-place scope change, not a
+copy. The project keeps every grant it had (they now arrive as org policy instead
+of project scheme) and is free to create a new project-scoped scheme for what is
+genuinely local to it.
+
+Two things this must do, both of which are the difference between an admin
+trusting the button and never pressing it again:
+
+- **Show the blast radius first.** Promotion widens grants to every project in
+  the organization, including ones the caller may not administer. Return the
+  affected project count and the permissions being widened, and require
+  `acknowledgeProjectCount` to match — the same shape as the key-rename
+  acknowledgement, and `422 confirmation_required` when it does not.
+- **Requires `project.manage_permissions` at the org level, not the project's.**
+  A project admin must not be able to change what every other project grants.
+
+Editing a scheme's grants emits `permission_scheme.updated`; promotion emits
+`permission_scheme.promoted`. Both are audited, and promotion carries the before
+and after scope so the audit answers "when did this become org-wide".
+
+## 10. Errors
 
 | Code | Status | When |
 | --- | --- | --- |
 | `permission_denied` | 403 | Evaluator returned false |
 | `simulation_is_read_only` | 403 | Write attempted while simulating |
 | `in_use` | 409 | Deleting a role that still holds grants |
+| `confirmation_required` | 422 | Promotion without a matching `acknowledgeProjectCount` |
 | `validation_failed` | 422 | Subject kind and subject id disagree (e.g. `user` with no id, or `assignee` with one) |
 
-## 10. Events
+## 11. Events
 
 `permission.grant_added`, `permission.grant_removed`, `role.created`,
-`role.member_added`, `role.member_removed`, `security_level.applied`.
+`role.member_added`, `role.member_removed`, `security_level.applied`,
+`permission_scheme.updated`, `permission_scheme.promoted`.
 
 Every permission change is audited. This is the table auditors ask about first,
 and `audit_log` is hash-chained so the answer is verifiable rather than merely
@@ -160,6 +198,7 @@ recorded.
 - [ ] `grantedVia` / `blockedBy` returned so a denial can be explained
 - [ ] No deny-rule concept introduced
 - [ ] `DANGEROUS_FOR_ANY_LOGGED_IN` grants require acknowledgement and write an audit entry
+- [ ] Promotion is an in-place scope change, requires org-level `project.manage_permissions`, and reports its blast radius before acting
 - [ ] A resolved-permissions call for a detail view issues O(1) queries, not O(permissions)
 - [ ] Integration test: user with a role in project A gets no access in project B
 - [ ] Integration test: security level hides an issue from a project admin who is not a member

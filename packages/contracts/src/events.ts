@@ -52,6 +52,21 @@ import {
  *      against later writes. Hence the denormalised fields below.
  */
 
+/**
+ * The catalog is closed, and `pnpm check:events` fails the build if a spec's
+ * "Events" section names a type that is not in it. That check was written after
+ * the specs turned out to document 30 types this enum did not have — every
+ * module's spec had at least one. An undeclared type is not a compile error at
+ * the emit site (`event_outbox.event_type` is deliberately unconstrained so
+ * adding a type needs no migration), so the event is written, committed, and
+ * then fails `EventEnvelopeSchema` in the relay: silently undeliverable, at the
+ * one point where nobody is watching a return value.
+ *
+ * Two documented names lost to the declared spelling rather than being added,
+ * because they were the same event twice: `worklog.created` → `worklog.logged`,
+ * and boards' `issue.ranked` is now declared rather than folded into
+ * `issue.moved` (which means moved between projects — a different thing).
+ */
 export const EventTypeSchema = z.enum([
   // issues
   'issue.created',
@@ -62,7 +77,15 @@ export const EventTypeSchema = z.enum([
   'issue.restored',
   'issue.linked',
   'issue.unlinked',
+  /** Moved to another project. Its key changes; consumers must re-resolve it. */
   'issue.moved',
+  /** Reordered within a board or backlog. High volume — a consumer that does
+   *  real work per event will not keep up with a drag-heavy sprint planning
+   *  session, so treat it as a hint and batch. */
+  'issue.ranked',
+  /** `rank.needsRebalance()` returned true. A background job compacts the
+   *  ranks; the ranking endpoint must never do it inline. */
+  'issue.rank_rebalance_needed',
   // comments & attachments
   'comment.created',
   'comment.updated',
@@ -77,19 +100,63 @@ export const EventTypeSchema = z.enum([
   'sprint.closed',
   'sprint.issue_added',
   'sprint.issue_removed',
-  // configuration
+  'board.created',
+  'board.updated',
+  // projects & their configuration
   'project.created',
   'project.updated',
   'project.archived',
+  'project.restored',
+  /** Old and new key both in the payload, so consumers can invalidate caches
+   *  and rewrite links. The alias row makes old URLs redirect, but a consumer
+   *  holding the key as data does not go through the router. */
+  'project.key_renamed',
+  'issue_type.created',
+  'issue_type.archived',
+  'component.created',
+  'component.updated',
+  'component.archived',
+  'version.created',
+  'version.released',
+  'version.archived',
+  // workflows
+  'workflow.draft_created',
   'workflow.published',
+  'workflow.archived',
+  'workflow.preview_completed',
+  'workflow.issues_migrated',
+  // fields
   'field.created',
+  'field.updated',
   'field.archived',
+  /** Changes what is searchable, so search reindexes the affected projects. */
+  'field_layout.updated',
+  'field_option.deactivated',
+  // permissions
   'permission_scheme.updated',
   'permission_scheme.promoted',
-  // membership
+  'permission.grant_added',
+  'permission.grant_removed',
+  'role.created',
+  'role.member_added',
+  'role.member_removed',
+  'security_level.applied',
+  // organization & membership
+  'organization.updated',
+  /** Billing or compliance suspension. Every session for the org is refused
+   *  from this point, so consumers holding one must drop it. */
+  'organization.suspended',
+  'organization.reinstated',
   'member.invited',
   'member.joined',
   'member.removed',
+  'member.role_changed',
+  'team.created',
+  'team.updated',
+  'team.archived',
+  'team.membership_changed',
+  /** Someone's availability or absence changed; capacity forecasts are stale. */
+  'availability.changed',
   // automation (Phase 2)
   'automation.rule_enabled',
   'automation.rule_disabled',
@@ -98,11 +165,15 @@ export const EventTypeSchema = z.enum([
   // sla (Phase 3)
   'sla.breached',
   'sla.at_risk',
-  // import (Phase 1)
+  // import & export (Phase 1)
   'import.started',
   'import.finding_raised',
   'import.completed',
   'import.failed',
+  /** The archive is ready. Notifications need this: an export takes long
+   *  enough that nobody is still watching the page it was started from. */
+  'export.completed',
+  'export.failed',
 ])
 export type EventType = z.infer<typeof EventTypeSchema>
 
@@ -113,6 +184,12 @@ export const EventEnvelopeSchema = z.object({
   /** Payload schema version. Consumers must tolerate unknown values. */
   version: z.number().int().positive().default(1),
   organizationId: OrganizationIdSchema,
+  /**
+   * What the event is *about*, which is not the same as the first segment of
+   * `type`. `member.role_changed` is about a `user`; `security_level.applied`
+   * is about an `issue`. Pick the thing whose ordering matters, because this is
+   * what `aggregateId` partitions on.
+   */
   aggregateType: z.enum([
     'issue',
     'project',
@@ -121,9 +198,16 @@ export const EventEnvelopeSchema = z.object({
     'workflow',
     'field',
     'permission_scheme',
+    'role',
     'organization',
+    'team',
+    'user',
+    'component',
+    'version',
+    'issue_type',
     'automation_rule',
     'import_job',
+    'export_job',
   ]),
   /** Partition key. Guarantees per-aggregate ordering. */
   aggregateId: z.string().uuid(),
@@ -302,6 +386,14 @@ export const ImportFindingRaisedPayloadSchema = z.object({
  * emitting `issue.transitioned` without `secondsInPreviousState` is a
  * compile error rather than a runtime surprise discovered in analytics
  * three weeks later.
+ *
+ * **It is deliberately partial.** A type absent from this map carries the
+ * envelope and whatever the emitter put in `payload`, unvalidated. That is the
+ * right default for the config-change events (`component.updated`,
+ * `team.archived`, …), whose consumers only need to know *that* something
+ * changed and then re-read it. Pinning a schema is what you do when consumers
+ * must act on the contents without a callback — and adding one later is
+ * additive, so start without it rather than inventing fields no consumer reads.
  */
 export const EVENT_PAYLOAD_SCHEMAS = {
   'issue.created': IssueCreatedPayloadSchema,
@@ -328,12 +420,19 @@ export type FluxEvent<K extends keyof EventPayloadMap = keyof EventPayloadMap> =
 }
 
 /**
- * Subject naming for NATS / Kafka topics: `flux.<aggregate>.<action>`.
- * Consumers subscribe to `flux.issue.*` rather than enumerating types, so
- * adding an event type doesn't require touching every subscriber.
+ * Subject naming for NATS / Kafka topics: `flux.<namespace>.<action>`, where
+ * the namespace is the first segment of the event type — **not**
+ * `aggregateType`, which can differ (`member.role_changed` is about a `user`).
+ * Subjects follow the type because that is what subscriptions are written
+ * against: a consumer binds `flux.sprint.*` rather than enumerating types, so
+ * adding a type does not require touching every subscriber.
+ *
+ * Every declared type has exactly one dot, which is what makes the wildcard
+ * bind exactly one level deep. `events.test.ts` asserts it for the whole enum;
+ * a two-dot type would silently fall outside `flux.<namespace>.*` on NATS.
  */
 export function eventSubject(type: EventType): string {
-  return `flux.${type.replace('.', '.')}`
+  return `flux.${type}`
 }
 
 /**
