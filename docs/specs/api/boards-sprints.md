@@ -99,7 +99,7 @@ States: `future` → `active` → `closed`.
 
 **There is no default for incomplete issues.** The caller must state where they go:
 the next sprint, the backlog, or a named sprint. Jira defaults this, and the result
-is work silently vanishing from view. Missing → `422 incomplete_disposition_required`.
+is work silently vanishing from view. Missing → `422 confirmation_required`.
 
 1. Set `completed_at = now()` — the actual close time, not the scheduled end.
    Velocity uses the actual, and the gap between the two is itself a signal worth
@@ -147,10 +147,15 @@ system, not two.
 | --- | --- | --- |
 | `sprint_already_active` | 409 | Second active sprint without opt-in |
 | `sprint_not_active` | 409 | Closing a future sprint, etc. |
-| `incomplete_disposition_required` | 422 | Close without stating where incomplete issues go |
-| `over_commitment_not_acknowledged` | 422 | Committed > capacity without the flag |
-| `column_mapping_invalid` | 422 | Column references an unknown state family |
-| `transition_blocked` | 403 | Card move rejected by the workflow |
+| `confirmation_required` | 422 | Closing without saying where incomplete issues go, or committing over capacity without the flag |
+| `invalid_reference` | 422 | Column references an unknown state family |
+| `transition_condition_failed` | 409 | Card move rejected by the workflow |
+
+`confirmation_required` carries `confirmField` naming which field to resend
+(`incompleteDisposition`, `acknowledgeOverCommitment`) and `confirmValue` with what
+the server computed. A dialog that says "you are committing 62 points against a
+capacity of 40" is a decision; one that says "confirmation required" is an obstacle,
+and people learn to click past obstacles.
 
 ## 9. Events
 

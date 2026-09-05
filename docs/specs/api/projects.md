@@ -78,7 +78,7 @@ client that follows the redirect updates its own URL, and a bookmark heals itsel
 fear, so it is worth doing properly.
 
 1. Require `acknowledgedIssueCount` to equal the current issue count exactly. A
-   mismatch is `409 stale_acknowledgement`. This is not ceremony — it is how
+   mismatch is `422 confirmation_required`. This is not ceremony — it is how
    someone discovers they are about to rewrite 14,000 issue keys and not 40.
 2. Insert the **old** key into `project_key_aliases` with `retired_at` and
    `retired_by`. The alias is permanent; there is no expiry.
@@ -126,7 +126,7 @@ clicking "make default" at the same moment would both pass an application check.
 
 Archiving a type (`archived_at`) hides it from create forms and leaves every
 existing issue alone. Refuse to archive the project's default type with
-`409 cannot_archive_default` — the create form would have nothing to preselect.
+`409 cannot_remove_last` — the create form would have nothing to preselect.
 
 ## 5. Components
 
@@ -233,8 +233,8 @@ audit that acts on its own findings is an audit nobody will run twice.
 | Code | When |
 | --- | --- |
 | `project_key_taken` | key collides with a live project or a retired alias |
-| `stale_acknowledgement` | `acknowledgedIssueCount` ≠ actual count |
-| `cannot_archive_default` | archiving the default issue type, or the last one |
+| `confirmation_required` | `acknowledgedIssueCount` ≠ actual count |
+| `cannot_remove_last` | archiving the default issue type, or the last one |
 | `component_in_use` | delete attempted on a referenced component |
 | `version_release_date_required` | releasing with no date resolvable |
 | `hierarchy_level_invalid` | parent/child more than one level apart |

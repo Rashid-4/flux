@@ -102,7 +102,7 @@ Two requirements:
    simulator that reimplements the rules tells you about the simulator.
 2. **Writes are rejected while simulating.** The simulation flag lives on the
    request context and any write path must refuse with
-   `403 simulation_read_only`. An admin who "checks what Bob sees" and accidentally
+   `403 simulation_is_read_only`. An admin who "checks what Bob sees" and accidentally
    transitions Bob's issue has been given a footgun.
 
 Return the decision *and* `grantedVia` / `blockedBy` for each permission. "Denied"
@@ -130,9 +130,9 @@ override is one they route around entirely.
 | Code | Status | When |
 | --- | --- | --- |
 | `permission_denied` | 403 | Evaluator returned false |
-| `simulation_read_only` | 403 | Write attempted while simulating |
-| `role_in_use` | 409 | Deleting a role that still holds grants |
-| `invalid_grant_subject` | 422 | Subject kind and subject id disagree (e.g. `user` with no id, or `assignee` with one) |
+| `simulation_is_read_only` | 403 | Write attempted while simulating |
+| `in_use` | 409 | Deleting a role that still holds grants |
+| `validation_failed` | 422 | Subject kind and subject id disagree (e.g. `user` with no id, or `assignee` with one) |
 
 ## 10. Events
 
@@ -156,7 +156,7 @@ recorded.
 - [ ] `securityLevelMemberUserIds` is `null` for unrestricted and an array for restricted; the distinction is tested
 - [ ] Security levels enforced in SQL on every list and search path, not in serialisers
 - [ ] Effective-permissions map returned by the endpoint and embedded in `IssueDetail`
-- [ ] Simulation calls the real evaluator and rejects all writes with `simulation_read_only`
+- [ ] Simulation calls the real evaluator and rejects all writes with `simulation_is_read_only`
 - [ ] `grantedVia` / `blockedBy` returned so a denial can be explained
 - [ ] No deny-rule concept introduced
 - [ ] `DANGEROUS_FOR_ANY_LOGGED_IN` grants require acknowledgement and write an audit entry

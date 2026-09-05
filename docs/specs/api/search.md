@@ -100,7 +100,7 @@ Consumes `issue.created`, `issue.updated`, `issue.transitioned`, `issue.deleted`
   clause flagged. A view that 500s because a field was archived is how people stop
   trusting saved views.
 - Views are used by boards, dashboards and subscriptions, so deleting one in use
-  is `409 view_in_use` with the list of referencing entities.
+  is `409 in_use` with the list of referencing entities.
 
 ## 5. Pagination
 
@@ -121,10 +121,10 @@ prefer `hasMore`.
 | `unknown_field` | 422 | Unresolvable field ref |
 | `filter_too_deep` | 422 | Depth over the cap |
 | `invalid_cursor` | 400 | Malformed or expired |
-| `view_in_use` | 409 | Deleting a referenced view |
-| `search_unavailable` | 503 | Meilisearch down — structured queries must still work via Postgres |
+| `in_use` | 409 | Deleting a referenced view |
+| `search_degraded` | 503 | Meilisearch down — structured queries must still work via Postgres |
 
-`search_unavailable` matters: free-text degrades, but the product must not become
+`search_degraded` matters: free-text degrades, but the product must not become
 unusable because the search engine is down.
 
 ---

@@ -136,7 +136,7 @@ security failure, and a validator silently skipped is data corruption.
 | `workflow_invalid` | 422 | Graph validation errors |
 | `preview_required` | 409 | Publish without a ready preview |
 | `remapping_incomplete` | 422 | Stranded issues with no mapping |
-| `state_in_use` | 409 | Deleting a state with live issues |
+| `in_use` | 409 | Deleting a state with live issues |
 | `unsupported_rule_node` | 422 | Unknown AST node |
 
 ## 7. Events

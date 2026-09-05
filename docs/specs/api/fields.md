@@ -72,7 +72,7 @@ defined together. Notably:
 
 - `select` / `multi_select` store option **ids**, never labels. Storing labels means
   renaming an option rewrites history.
-- Deleting an option that is in use is `409 option_in_use`. Offer deactivation
+- Deleting an option that is in use is `409 in_use`. Offer deactivation
   instead: an inactive option cannot be chosen on new issues but still renders on
   the issues that hold it.
 - `user` / `multi_user` store user ids and must resolve to `UserRef` on read. A
@@ -127,14 +127,20 @@ saved, and again on apply — a layout can change after a template is written.
 
 | Code | Status | When |
 | --- | --- | --- |
-| `field_not_found` | 404 | Unknown field id or key |
-| `field_key_immutable` | 409 | Changing a key that has values |
-| `invalid_field_value` | 422 | Value fails `valueSchemaFor` |
+| `not_found` | 404 | Unknown field id or key |
+| `identifier_immutable` | 409 | Changing a key that has values |
+| `field_value_invalid` | 422 | Value fails `valueSchemaFor` |
 | `required_field_missing` | 422 | List all, not the first |
-| `unknown_field_key` | 422 | Value for a field not on the layout |
-| `option_in_use` | 409 | Deleting an option with values |
-| `field_in_use` | 409 | Deleting a field with values or referenced by a rule |
-| `hidden_field_write` | 422 | Value for a field whose visibility rule is false |
+| `unknown_field` | 422 | Value for a field that is on no layout, or does not exist |
+| `in_use` | 409 | Deleting a field with values or referenced by a rule, or an option with values |
+| `field_not_writable` | 422 | Value for a read-only field, or one whose visibility rule is false |
+
+`in_use` covers both the field and the option case, and the difference goes in
+`blockedBy` — the issues, rules or views that hold a value. Populate it, and set
+`blockedByTotal`: "used by 3 issues" and "used by 3 of 14,000" lead to different
+decisions, and only one of them is honest. A bare "this field is in use" is a
+refusal the admin cannot act on, which is how a field library silently accumulates
+fields nobody dares touch.
 
 ## 8. Events
 

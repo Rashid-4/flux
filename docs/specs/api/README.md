@@ -195,6 +195,34 @@ Throw `FluxError` with a code from `ErrorCodeSchema`. The HTTP status is derived
 from the code — never set it by hand, or the same logical failure will return 400
 from one module and 422 from another.
 
+**The vocabulary is closed, and it is closed at the contract, not per module.** If
+a module needs a code that is not in `ErrorCodeSchema`, that is a change request
+against `packages/contracts` — not a new string, and not a neighbouring code
+bent to fit. `pnpm check:errors` fails the build if any spec names a code the enum
+does not have, or documents one with a status other than the one
+`HTTP_STATUS_BY_CODE` assigns it. That check exists because the specs originally
+named 45 codes the contract did not have, most of them near-duplicates of one it
+did.
+
+A code exists when the *client's* response to it differs, not when the server's
+reason differs. That is why there is one `not_found` rather than one per entity,
+one `in_use` rather than six `*_in_use`, and one `confirmation_required` rather
+than one per thing needing confirmation. What varies goes in the error body:
+
+| Field | On | Carries |
+| --- | --- | --- |
+| `fields[].path` | any 422, and `not_found` | which reference or input failed |
+| `blockedBy`, `blockedByTotal` | `in_use`, `cannot_remove_last` | what is in the way, truncated, plus the true total |
+| `confirmField`, `confirmValue` | `confirmation_required` | what to resend, and the value the server computed |
+| `currentVersion` | `version_conflict` | the version the server holds |
+| `requiredPermission` | `permission_denied` | the permission that was missing |
+
+Populating these is not optional polish. A 409 that says only "in use" is a refusal
+the user cannot act on, and the fix they reach for is to stop trusting the check.
+
+The 400/422 line: **400 means the request could not be parsed, 422 means it was
+parsed and is wrong.** A zod failure is 422.
+
 An error must never contain a credential, a token, a connection string, or another
 tenant's data. The message is for the caller; the detail goes to the log with the
 trace id.

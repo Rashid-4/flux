@@ -111,7 +111,7 @@ a user experiences and the thing every other latency measurement sits on top of.
 Slack messages and SSO configurations, and there is no alias table for it (unlike
 project keys, which are renameable by design — see
 [projects.md](projects.md) §3). Reject any attempt to change it with
-`409 slug_immutable` rather than accepting it and breaking links.
+`409 identifier_immutable` rather than accepting it and breaking links.
 
 `tenancy_model` and `region` are different questions and were conflated in one
 column until migration 0011. `tenancy_model` is isolation
@@ -197,7 +197,7 @@ emits `member.joined`.
 
 - An organization must always have at least one `owner` with
   `removed_at IS NULL`. Removing or demoting the last owner is
-  `409 last_owner` — an org with no owner cannot be administered or cancelled,
+  `409 cannot_remove_last` — an org with no owner cannot be administered or cancelled,
   and recovering one requires support access to the database.
 - A member cannot change their own role. Self-promotion to owner via a `PATCH` on
   your own membership is the first thing anyone tries.
@@ -212,7 +212,7 @@ without an admin editing twelve projects.
 `parent_team_id` makes a group-level roll-up a query rather than a
 hand-maintained list in a dashboard config. `teams_no_self_parent` blocks the
 one-cycle case; **deeper cycles are the application's job** — walk the ancestor
-chain before setting a parent and reject with `409 team_hierarchy_cycle`. A CHECK
+chain before setting a parent and reject with `422 circular_dependency`. A CHECK
 cannot see a three-team cycle, and a recursive CTE that hits one does not return.
 
 `working_days` (ISO weekdays, 1 = Monday), `timezone` and `hours_per_day` drive
@@ -269,10 +269,10 @@ and the user would reasonably conclude the feature is broken.
 | `org_access_denied` | no membership, or `removed_at` set |
 | `organization_suspended` | `suspended_at` set |
 | `seat_limit_reached` | acceptance would exceed `seat_limit` |
-| `last_owner` | removing or demoting the final owner |
+| `cannot_remove_last` | removing or demoting the final owner |
 | `self_role_change` | caller editing their own role |
-| `slug_immutable` | attempt to change an org slug |
-| `team_hierarchy_cycle` | parent assignment would create a cycle |
+| `identifier_immutable` | attempt to change an org slug |
+| `circular_dependency` | parent assignment would create a cycle |
 | `allocation_invalid` | allocation ≤ 0 or > 1 |
 | `version_conflict` | optimistic-concurrency mismatch |
 

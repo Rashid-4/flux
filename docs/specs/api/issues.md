@@ -41,16 +41,16 @@ original response on a repeat — see §8.
 
 Order inside one transaction:
 
-1. Resolve the project by key. `404 project_not_found` if missing or archived.
+1. Resolve the project by key. `404 not_found` if missing or archived.
 2. `evaluatePermission(subject, grants, 'issue.create')` with the project context.
    `403 permission_denied`.
-3. Validate the issue type belongs to this project. `422 invalid_issue_type`.
+3. Validate the issue type belongs to this project. `422 invalid_reference`.
 4. If `parentId` is set:
-   - load the parent, `404 parent_not_found`;
+   - load the parent, `404 not_found`;
    - the parent must be in the same project — cross-project parenting is a
      change request, not a silent allow;
    - `canBeChildOf(childLevel, parentLevel)` must be true, or
-     `422 invalid_hierarchy`. Exactly one level, both directions. A subtask
+     `422 hierarchy_violation`. Exactly one level, both directions. A subtask
      hanging directly off an initiative is what makes every roll-up total
      ambiguous, which is why "any level below" is not good enough.
 5. Resolve the initial workflow state from the project's **published** workflow
@@ -61,7 +61,7 @@ Order inside one transaction:
      field in the error, all of them, not just the first — a form that reveals
      one error at a time is the thing users hate about Jira);
    - each value against `valueSchemaFor(fieldDefinition)` →
-     `422 invalid_field_value`;
+     `422 field_value_invalid`;
    - unknown keys rejected, not silently dropped.
 7. Allocate `number` with `flux_next_issue_number(project_id)` and build `key` as
    `<PROJECT_KEY>-<number>`. Use that function — do not reimplement it. It takes
@@ -123,13 +123,13 @@ Request `TransitionIssueSchema`. Response `IssueDetail`.
 1. Load the issue and the workflow version it is pinned to (`workflow_id`).
 2. Find the transition. It is valid if `fromStateId` matches the current status
    **or** `fromStateId IS NULL` (a global transition, valid from anywhere).
-   Missing → `422 invalid_transition`.
+   Missing → `409 invalid_transition`.
 3. Permission: `issue.transition`, plus any per-transition permission condition.
-4. Evaluate the transition's **conditions**. Any false → `403 transition_blocked`,
+4. Evaluate the transition's **conditions**. Any false → `409 transition_condition_failed`,
    with the failing condition named. "You can't do that" without a reason is the
    Jira experience being replaced.
 5. Evaluate **validators** against the merged post-transition state. Failure →
-   `422 transition_validation_failed`, listing every failure.
+   `422 transition_validator_failed`, listing every failure.
 6. Apply the new `status_id`. The trigger updates `status_category`.
 7. Run **post-functions** in declared order, inside the same transaction. They are
    declarative ASTs, not code — evaluate them, never `eval` them.
@@ -229,16 +229,25 @@ add the migration yourself.
 
 | Code | Status | When |
 | --- | --- | --- |
-| `issue_not_found` | 404 | Missing, soft-deleted, or invisible to the caller. Identical response for all three — a distinguishable 403 tells an attacker the issue exists. |
+| `not_found` | 404 | Missing, soft-deleted, or invisible to the caller. Identical response for all three — a distinguishable 403 tells an attacker the issue exists. |
 | `permission_denied` | 403 | Evaluator returned false. |
 | `version_conflict` | 409 | Optimistic concurrency. Body carries current state. |
-| `invalid_transition` | 422 | No such transition from the current state. |
-| `transition_blocked` | 403 | A condition failed. Name it. |
-| `transition_validation_failed` | 422 | Validators failed. List all. |
-| `invalid_hierarchy` | 422 | `canBeChildOf` false, or a cycle. |
+| `invalid_transition` | 409 | No such transition from the current state. |
+| `transition_condition_failed` | 409 | A condition failed. Name it. |
+| `transition_validator_failed` | 422 | Validators failed. List all. |
+| `hierarchy_violation` | 422 | `canBeChildOf` false, or a cycle. |
 | `required_field_missing` | 422 | List every missing field. |
-| `invalid_field_value` | 422 | Field key plus the reason. |
+| `field_value_invalid` | 422 | Field key plus the reason. |
+| `invalid_reference` | 422 | Issue type that does not belong to this project. |
+| `in_use` | 409 | Deleting a parent that still has children. |
 | `idempotency_key_reused` | 409 | Same key, different body. |
+
+A create resolves three references — project, parent, issue type — and all three
+failures are `404 not_found` or `422 invalid_reference`, so the response must say
+**which** in `fields[].path` (`projectKey`, `parentId`, `issueTypeId`). There is
+deliberately no `parent_not_found` code: the client's behaviour is identical in each
+case and only the field differs, which is what `fields[]` is for. Without the path,
+a create form can only show the error at the top of the page.
 
 ## 10. Events emitted
 
@@ -258,7 +267,7 @@ revert-from-audit path both need the row to survive. Hard deletion is a retentio
 job's responsibility, not an endpoint's.
 
 Deleting a parent must not orphan children silently: either block with
-`422 has_children` or reparent explicitly on request. Choose the block by default.
+`409 in_use` or reparent explicitly on request. Choose the block by default.
 
 ---
 
@@ -283,7 +292,7 @@ this list, so an unticked box means the module cannot be reviewed.
 - [ ] History written once per user action, with all changed fields
 - [ ] Reopening clears `resolved_at` and `resolution`
 - [ ] Bulk operations evaluate permission per issue and report per-issue results
-- [ ] Soft delete only; `issue_not_found` is indistinguishable from unauthorised
+- [ ] Soft delete only; `not_found` is indistinguishable from unauthorised
 - [ ] Integration tests run against real Postgres via Testcontainers, not mocks
 - [ ] A tenant-isolation test proves org A cannot read org B's issues through this module's endpoints
 - [ ] A pooled-connection test proves tenant context does not leak between transactions

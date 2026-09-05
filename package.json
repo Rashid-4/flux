@@ -25,6 +25,7 @@
     "check:rls": "node scripts/check-rls.mjs",
     "check:enums": "node scripts/check-enum-drift.mjs",
     "check:columns": "node scripts/check-column-drift.mjs",
+    "check:errors": "node scripts/check-error-codes.mjs",
     "format": "prettier --write ."
   },
   "devDependencies": {

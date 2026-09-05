@@ -101,6 +101,16 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # No database needed, so it runs here rather than in `database`.
+      # ErrorCodeSchema is a closed enum because clients switch on it, which
+      # means a spec naming a code the enum lacks describes something the
+      # build agent cannot write — so it invents a code, and the UI switches
+      # on one that never arrives. The specs named 45 such codes before this
+      # check existed, most of them near-misses of a code that was already
+      # there (`invalid_field_value` for `field_value_invalid`).
+      - name: Audit documented error codes
+        run: pnpm check:errors
+
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.
       - name: Assert no test files in build output
