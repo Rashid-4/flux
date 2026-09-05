@@ -46,9 +46,9 @@ the code that consumes them.
 | --- | --- |
 | `db/bootstrap`, `db/migrations` 0001–0016 | applied and verified against `postgres:17-alpine` |
 | `packages/contracts` | builds with declaration emit; 51 unit tests passing |
-| `docs/specs/api/` | 9 of 10 modules written: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity. **Missing: imports** |
-| `docs/specs/web/` | **not started.** `handoff.md` §5 already links it, so that reference dangles |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + RLS/append-only audit + enum, field, error-code and event-type drift audits |
+| `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
+| `docs/specs/web/` | **not started.** `pnpm check:docs` lists it, and the other six docs cited by path that do not exist yet — read that output instead of trusting this table |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits |
 | `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
 | `apps/web` | **not created.** Owned by the UI agent, on the same terms |
 
@@ -101,8 +101,9 @@ because none of them are visible to `tsc`, to review, or to each other.
 | enum **values** disagree with the CHECK behind them | ~25 | `check:enums` (0011) |
 | field **names** disagree with their column | 15 of 27 schemas | `check:columns` (0012) |
 | column **defaults** the contract would reject | 7 | `check:columns` (0016) |
-| **error codes** the specs name and the enum lacks | 45 | `check:errors` |
+| **error codes** the specs name and the enum lacks | 45 + 8 | `check:errors` |
 | **event types** the specs name and the enum lacks | 30 | `check:events` |
+| **section references** that resolve to the wrong section | 2 | `check:docs` |
 
 The last two are the same shape as the first three, one layer up: the specs are
 what a build agent implements, and a spec naming something the contract does not
@@ -120,6 +121,24 @@ permanently undeliverable, and nothing said so.
 duplicate entries in an 80-string hand-maintained enum, every type exactly
 `namespace.action` so `flux.<ns>.*` binds one level deep, and no payload schema
 keyed to a type that does not exist. All three were negative-tested.
+
+## A check that passes over a blind spot is worse than no check
+
+`check:errors` reported success for months while **eight** undeclared codes sat in
+the specs. Rules 1–3 all required a status to appear beside the code, and eight of
+the ten specs wrote their errors table without a Status column — so every code in
+those tables was invisible. `component_in_use` was among them, which is the exact
+`*_in_use` proliferation README §7 names as the thing not to do.
+
+That is the more dangerous shape. A check that fails loudly is a check doing its
+job. A check that passes over a blind spot actively licenses the belief that the
+vocabulary is clean, and nobody re-reads the specs by hand once CI is green.
+
+Seven of the eight were near-duplicates of a code that already existed and were
+rewritten to it; `seat_limit_reached` was a genuine gap and was added. Both errors
+tables now carry a Status column so both halves of the check apply. When adding a
+check, ask what shape of citation it *cannot* see, and write that down in its
+header — every one of these scripts now does.
 
 ## Commit messages
 

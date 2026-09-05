@@ -71,6 +71,14 @@ export const ErrorCodeSchema = z.enum([
   'cannot_remove_last',
   /** A key or slug with dependents cannot be renamed. */
   'identifier_immutable',
+  /**
+   * Accepting this invite would exceed the plan's `seat_limit`. Distinct from
+   * `permission_denied` and from `organization_suspended` because the client's
+   * response differs from both: the remedy is to buy seats, and the UI says so
+   * with a price. That difference in client behaviour is the whole test for
+   * whether a code deserves to exist.
+   */
+  'seat_limit_reached',
   'invalid_transition',
   'transition_condition_failed',
   'workflow_not_published',
@@ -163,6 +171,7 @@ export const HTTP_STATUS_BY_CODE: Record<ErrorCode, number> = {
   in_use: 409,
   cannot_remove_last: 409,
   identifier_immutable: 409,
+  seat_limit_reached: 409,
   invalid_transition: 409,
   transition_condition_failed: 409,
   workflow_not_published: 409,

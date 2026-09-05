@@ -45,13 +45,46 @@
 //   2. a status immediately followed by a code, in prose
 //        block with `422 required_field_missing`
 //   3. "surfaced to callers as <code>", in SQL and TS comments
+//   4. any table row whose first cell is a backticked snake_case token,
+//      inside a section whose heading says "Errors"
+//        | `component_in_use` | delete attempted on a referenced component |
+//
+// RULE 4 WAS MISSING FOR SIX SPECS, AND THIS CHECK PASSED THE WHOLE TIME
+//
+// Rules 1–3 all require a status to appear next to the code. Two of the ten
+// specs write their errors table with a status column and eight do not — so
+// every code in a two-column errors table was invisible, and the check reported
+// success over six undeclared codes:
+//
+//   spec                           what it should have said
+//   seat_limit_reached             (genuinely missing — now added, 409)
+//   component_in_use               in_use            ← README §7 names this
+//                                                      exact anti-pattern
+//   project_key_taken              duplicate_key
+//   hierarchy_level_invalid        hierarchy_violation
+//   version_release_date_required  required_field_missing
+//   allocation_invalid             field_value_invalid
+//   self_role_change               field_not_writable
+//   role_member_ambiguous          validation_failed
+//
+// This is the more dangerous shape of drift, and it is worth being explicit
+// about why: a check that fails loudly is a check doing its job, but a check
+// that passes over a blind spot actively licenses the belief that the
+// vocabulary is clean. Nobody re-reads the specs by hand once CI is green.
+//
+// Rule 4 is scoped to Errors sections rather than applied file-wide, because
+// specs are full of backticked snake_case in other tables — projects.md has a
+// templates table with `bug_tracking` and `service_desk` in the first column,
+// and those are not codes. Section scoping removes that class for free.
 //
 // STATUS IS CHECKED TOO
 //
 // A spec that documents the right code with the wrong status is still a spec
 // the implementation cannot follow: HTTP_STATUS_BY_CODE derives the status, and
 // the README says never to set it by hand. Three of these existed and all three
-// were caught here.
+// were caught here. A rule-4 citation carries no status, so it is checked for
+// existence only — which is the argument for a status column, not against the
+// rule.
 // ════════════════════════════════════════════════════════════════════
 
 import { readdirSync, readFileSync } from 'node:fs'
@@ -66,6 +99,31 @@ const SEARCH_DIRS = ['docs/specs/api', 'docs/specs/web', 'db/migrations', 'docs'
 
 /** Any token that looks like a code but is one of these is a false positive. */
 const NOT_CODES = new Set(['status', 'code', 'the', 'and'])
+
+/**
+ * Bodies of every section whose heading mentions "Error", up to the next
+ * heading at the same level or higher. Rule 4 only looks inside these.
+ */
+function errorSections(text) {
+  const sections = []
+  let current = null
+
+  for (const line of text.split('\n')) {
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line)
+    if (heading) {
+      const level = heading[1].length
+      if (current && level <= current.level) current = null
+      if (!current && /\berrors?\b/i.test(heading[2])) {
+        current = { level, lines: [] }
+        sections.push(current)
+      }
+      continue
+    }
+    if (current) current.lines.push(line)
+  }
+
+  return sections.map((s) => s.lines.join('\n'))
+}
 
 function filesIn(dir) {
   let entries
@@ -109,6 +167,13 @@ for (const file of files) {
     /surfaced (?:to callers )?as\s+`?([a-z][a-z0-9_]*_[a-z0-9_]+)`?/gi,
   )) {
     cite(m[1], null, file)
+  }
+  // 4. Any table row in an Errors section whose first cell is a backticked
+  //    snake_case token. No status to check, so existence only.
+  for (const section of errorSections(text)) {
+    for (const m of section.matchAll(/^\|\s*`([a-z][a-z0-9_]*_[a-z0-9_]+)`\s*\|/gm)) {
+      cite(m[1], null, file)
+    }
   }
 }
 

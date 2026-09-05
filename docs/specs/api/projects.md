@@ -47,7 +47,7 @@ This is the single most important rule in the module. Jira's shared schemes are
 why editing one project's workflow breaks eleven others, and why nobody in a
 large instance is willing to touch a scheme at all. Sharing is representable in
 this schema — `permission_schemes.is_org_policy` exists — but it is an explicit,
-audited promotion (see [permissions.md](permissions.md) §8), never the default
+audited promotion (see [permissions.md](permissions.md) §9), never the default
 and never a side effect of cloning.
 
 **Counter row.** Insert `project_issue_counters (project_id, last_number = 0)`.
@@ -230,19 +230,27 @@ audit that acts on its own findings is an audit nobody will run twice.
 
 ## 10. Errors
 
-| Code | When |
-| --- | --- |
-| `project_key_taken` | key collides with a live project or a retired alias |
-| `confirmation_required` | `acknowledgedIssueCount` ≠ actual count |
-| `cannot_remove_last` | archiving the default issue type, or the last one |
-| `component_in_use` | delete attempted on a referenced component |
-| `version_release_date_required` | releasing with no date resolvable |
-| `hierarchy_level_invalid` | parent/child more than one level apart |
-| `role_member_ambiguous` | both `userId` and `teamId` supplied |
-| `version_conflict` | optimistic-concurrency mismatch on `version` |
+| Code | Status | When |
+| --- | --- | --- |
+| `duplicate_key` | 409 | Key collides with a live project or a retired alias. |
+| `confirmation_required` | 422 | `acknowledgedIssueCount` ≠ actual count. `confirmValue` carries the real one. |
+| `cannot_remove_last` | 409 | Archiving the default issue type, or the last one. |
+| `in_use` | 409 | Delete attempted on a referenced component. `blockedBy` names the issues. |
+| `required_field_missing` | 422 | Releasing a version with no date resolvable. |
+| `hierarchy_violation` | 422 | Parent/child more than one level apart, or a cycle. |
+| `validation_failed` | 422 | Both `userId` and `teamId` supplied on a role member. `fields[]` names both paths. |
+| `version_conflict` | 409 | Optimistic-concurrency mismatch on `version`. |
 
 Every one is a `FluxError` with a code from `ErrorCodeSchema`. Never set the HTTP
 status by hand.
+
+Five of these rows used to name a code of their own — `project_key_taken`,
+`component_in_use`, `version_release_date_required`, `hierarchy_level_invalid`,
+`role_member_ambiguous` — and none of them existed in the enum. They survived
+`pnpm check:errors` for months because this table had no Status column and the
+check only recognised a code that sat next to one. `component_in_use` is the
+`*_in_use` proliferation README §7 names as the thing not to do, written into a
+spec anyway. The column is here now so both halves of the check apply.
 
 ## 11. Events
 
@@ -271,7 +279,8 @@ broker from application code.
 - [ ] `project_issue_counters` row exists after create, before any issue exists.
 - [ ] A key rename updates zero `issues` rows, and the old key still resolves
       (`301`) afterwards.
-- [ ] `acknowledgedIssueCount` mismatch returns `409` and changes nothing.
+- [ ] `acknowledgedIssueCount` mismatch returns `422 confirmation_required` and
+      changes nothing.
 - [ ] Reindex after rename is asserted, not assumed — search by old key returns
       the issues, search results carry the new key.
 - [ ] Two concurrent "set default issue type" requests: one succeeds, one gets a

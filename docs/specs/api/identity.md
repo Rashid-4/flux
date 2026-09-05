@@ -263,18 +263,26 @@ and the user would reasonably conclude the feature is broken.
 
 ## 8. Errors
 
-| Code | When |
-| --- | --- |
-| `unauthenticated` | token invalid, expired, or unverifiable |
-| `org_access_denied` | no membership, or `removed_at` set |
-| `organization_suspended` | `suspended_at` set |
-| `seat_limit_reached` | acceptance would exceed `seat_limit` |
-| `cannot_remove_last` | removing or demoting the final owner |
-| `self_role_change` | caller editing their own role |
-| `identifier_immutable` | attempt to change an org slug |
-| `circular_dependency` | parent assignment would create a cycle |
-| `allocation_invalid` | allocation ≤ 0 or > 1 |
-| `version_conflict` | optimistic-concurrency mismatch |
+| Code | Status | When |
+| --- | --- | --- |
+| `unauthenticated` | 401 | Token invalid, expired, or unverifiable. |
+| `org_access_denied` | 403 | No membership, or `removed_at` set. |
+| `organization_suspended` | 403 | `suspended_at` set. Export is the one exemption — see [imports.md](imports.md) §1. |
+| `seat_limit_reached` | 409 | Acceptance would exceed `seat_limit`. The remedy is billing, not access, which is why this is not `permission_denied`. |
+| `cannot_remove_last` | 409 | Removing or demoting the final owner. |
+| `field_not_writable` | 422 | Caller editing their own role. `fields[].path` is `role`. |
+| `identifier_immutable` | 409 | Attempt to change an org slug. |
+| `circular_dependency` | 422 | Parent assignment would create a cycle. |
+| `field_value_invalid` | 422 | Availability `allocation` ≤ 0 or > 1. |
+| `version_conflict` | 409 | Optimistic-concurrency mismatch. |
+
+`self_role_change` and `allocation_invalid` used to be rows here, and neither was
+in the enum — see [projects.md](projects.md) §10 for how eight such codes went
+unnoticed. `seat_limit_reached` was the one that turned out to be a genuine gap
+rather than a near-duplicate, and it was added to `ErrorCodeSchema` rather than
+bent onto a neighbouring code: a client's response to it is specific and
+different — offer to buy seats — and that is the test for whether a code should
+exist at all.
 
 ## 9. Events
 
@@ -307,7 +315,7 @@ Billing consumes the event.
 - [ ] The cross-org `organizations` list returns id/slug/name/role and nothing
       else, and a test asserts the field set exactly.
 - [ ] Seat limit is enforced on acceptance, not invite: 200 invites against a
-      10-seat org succeed, and the eleventh acceptance is `409`.
+      10-seat org succeed, and the eleventh acceptance is `409 seat_limit_reached`.
 - [ ] Removing the last owner is refused; removing a non-last owner succeeds.
 - [ ] A member cannot `PATCH` their own role.
 - [ ] Changing an org slug is refused.
