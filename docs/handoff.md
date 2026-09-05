@@ -126,8 +126,8 @@ it once, then §5b for each surface.
 ### 5a. The first session — foundation only
 
 `apps/web/` does not exist yet, and neither do the surface specs. Both are fine:
-everything in this session is specified by `docs/specs/web/README.md` §2–§12,
-none of which is surface-specific, and building it first is what makes the
+everything in this session is specified by [web/README.md](specs/web/README.md) §2
+onwards, none of which is surface-specific, and building it first is what makes the
 surface sessions short. Do not build the board, the backlog or the issue view in
 this session — their specs are being written, and a screen built against a
 guessed spec has to be rebuilt.
@@ -145,7 +145,8 @@ guessed spec has to be rebuilt.
 >
 > Stack, decided: React 19 + TypeScript, Vite, TanStack Query v5, Zustand,
 > React Router. Vitest + Testing Library + MSW for tests, Playwright for E2E.
-> No component library — see the spec's §8 and §11.
+> No component library — see [web/README.md](specs/web/README.md) §8, which says
+> why, and the design system that replaces it below.
 >
 > Deliver, and nothing beyond it:
 >
@@ -153,29 +154,30 @@ guessed spec has to be rebuilt.
 >   `tsconfig.base.json`, `vite.config.ts`, `vitest.config.ts`. `apps/*` is
 >   already in `pnpm-workspace.yaml`, and root `pnpm typecheck`, `lint`, `test`
 >   and `format:check` must all pass with your package in the workspace.
-> - `src/api/` — the typed request layer of spec §3. `request()` with the
+> - `src/api/` — the typed request layer of [web/README.md](specs/web/README.md) §3. `request()` with the
 >   `/api/v1` prefix in one place, `ApiErrorSchema` parsing and throwing on
 >   non-2xx, and one endpoint module per contract group. Every response
 >   `.parse()`d by its contract schema. This is the whole point; nothing else in
 >   the app may call `fetch`, and lint enforces it.
-> - `src/queries/` — the query-key registry of §5, and the hooks for bootstrap.
+> - `src/queries/` — the query-key registry of [web/README.md](specs/web/README.md) §5, and the bootstrap
+>   hooks.
 > - `src/stores/` — Zustand stores for client state only. No server data.
-> - `src/design/` — the token layer of §11: colour, type scale, spacing, radius,
+> - `src/design/` — the token layer of [web/README.md](specs/web/README.md) §11: colour, type scale, spacing,
 >   elevation, motion, density. Light and dark from the start.
 > - `src/components/` — the primitives every surface needs: Button, Menu, Dialog,
 >   Field, Tooltip, Toast, Avatar, Badge, Skeleton, VirtualList. Real ARIA, real
 >   focus management, keyboard-operable.
 > - `src/keyboard/` — the shortcut registry, focus utilities, and the `?` sheet
->   generated from the registry rather than hand-maintained (§9).
+>   generated from the registry rather than hand-maintained ([web/README.md](specs/web/README.md) §9).
 > - `src/test/` — MSW handlers built from `@flux/mocks`, a browser worker and a
 >   node server, and a `renderWithProviders` helper. **These handlers are yours,
 >   deliberately**: they are not in the frozen package, so you can express any
 >   error or empty state without a change request.
 > - The app shell and one route: mount, providers, error boundary, the bootstrap
->   request of §4, and a routed skeleton with the nav, org switcher and command
+>   request of [web/README.md](specs/web/README.md) §4, and a routed skeleton with the nav, org switcher and
 >   palette entry point. Every other route is a placeholder.
 > - Tests: the request layer's parse-and-throw behaviour, the error mapping of
->   §7, the keyboard registry, and one component test per primitive queried by
+>   [web/README.md](specs/web/README.md) §7, the keyboard registry, and one component test per primitive
 >   role and label.
 >
 > The rules below apply to this and every later session.
