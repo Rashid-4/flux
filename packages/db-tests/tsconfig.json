@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // `vitest.config.ts` is included deliberately: its `include` glob is what
+  // decides whether this suite runs any files at all, and a config that
+  // compiles to "match nothing" is the failure mode
+  // scripts/check-integration-suites.mjs cannot see. No `rootDir` — there is no
+  // emit to lay out, and setting one makes tsc reject the config file for
+  // sitting outside `src`.
+  "include": ["src/**/*.ts", "vitest.config.ts"]
+}

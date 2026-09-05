@@ -23,12 +23,22 @@ import pg from 'pg'
 
 // Tables that legitimately have organization_id but no RLS policy.
 // Each entry needs a reason, and adding one should be a reviewed decision.
-const EXEMPT = new Map([
-  [
-    'event_outbox',
-    'Written by tenant transactions, read only by the cross-tenant relay (flux_relay, BYPASSRLS). flux_app holds INSERT only and cannot read it back. See 0009.',
-  ],
-])
+//
+// This map had exactly one entry — event_outbox — and it was wrong, in a way
+// worth keeping on the record. The reason quoted 0009 and argued, correctly,
+// that flux_app cannot READ the outbox because it holds no SELECT. It said
+// nothing about writes. flux_app holds INSERT, and without a policy there is no
+// WITH CHECK, so the application could insert an event carrying another
+// tenant's organization_id — which the relay then dutifully delivers to that
+// tenant. This check printed "exempt: event_outbox — <the incomplete reason>"
+// on every CI run and exited 0. 0017 enables RLS; the entry is gone.
+//
+// The mechanism stays, because a genuine exemption may exist one day. But an
+// entry here is now a claim that gets verified rather than a comment that gets
+// trusted: see the EXEMPT privilege assertion below. An RLS-exempt table may
+// not grant flux_app anything, because without a policy every grant on it is
+// unconstrained by tenant.
+const EXEMPT = new Map()
 
 const connectionString = process.env.DATABASE_MIGRATOR_URL ?? process.env.DATABASE_URL
 if (!connectionString) {
@@ -68,6 +78,34 @@ try {
       problems.push(`${t.table_name}: RLS enabled but not FORCED (owner bypasses the policy)`)
     } else if (Number(t.policy_count) === 0) {
       problems.push(`${t.table_name}: RLS enabled but no policy exists (denies everything)`)
+    }
+  }
+
+  // 1b. An exemption is a claim, so verify it instead of printing it.
+  //
+  // A table with organization_id and no policy has nothing constraining which
+  // tenant a row belongs to. That is only safe if the application role cannot
+  // touch the table at all: no SELECT (it would read every tenant) and no
+  // INSERT/UPDATE/DELETE (it could write into any tenant). The one entry this
+  // map ever held failed exactly this test — it granted flux_app INSERT — and
+  // the prose reason gave no hint of it, because the reason only discussed
+  // reads. See 0017.
+  if (EXEMPT.size) {
+    const { rows: exemptGrants } = await client.query(
+      `SELECT table_name, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
+         FROM information_schema.table_privileges
+        WHERE table_schema = 'public'
+          AND grantee = 'flux_app'
+          AND table_name = ANY($1::text[])
+        GROUP BY table_name`,
+      [[...EXEMPT.keys()]],
+    )
+    for (const g of exemptGrants) {
+      problems.push(
+        `${g.table_name}: exempt from RLS but grants flux_app ${g.privileges} — ` +
+          `without a policy those privileges are not confined to one tenant. ` +
+          `Either enable RLS or revoke the grant.`,
+      )
     }
   }
 
@@ -213,6 +251,10 @@ try {
   }
 
   console.log(`Checked ${tenantTables.length} tenant-scoped table(s).`)
+  // Printed even when zero. "0 exempt" is the number that should stay zero, and
+  // a line that only appears when something is exempt is a line nobody misses
+  // when an exemption is added.
+  console.log(`  ${EXEMPT.size} exempt from RLS.`)
   for (const [table, reason] of EXEMPT) {
     console.log(`  exempt: ${table} — ${reason}`)
   }

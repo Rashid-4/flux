@@ -1,0 +1,84 @@
+-- ════════════════════════════════════════════════════════════════════
+-- 0017 — event_outbox is a tenant table after all
+--
+-- 0009 created `event_outbox` with organization_id and no RLS, and said so
+-- explicitly:
+--
+--   "NO RLS on this table, deliberately. It is written by tenant-scoped
+--    transactions (which supply organization_id) but read by the relay,
+--    which is cross-tenant by definition and connects as flux_relay
+--    (BYPASSRLS). flux_app is granted INSERT only — it can never read the
+--    stream back, so a compromised API request cannot enumerate other
+--    tenants' events through it."
+--
+-- Every sentence of that is true, and it is an argument about READS only.
+-- The write path is one parenthetical — "(which supply organization_id)" —
+-- and that is not a constraint, it is an assumption about application code.
+-- flux_app holds INSERT directly on the table. With no policy there is no
+-- WITH CHECK, so nothing stops:
+--
+--   INSERT INTO event_outbox (event_id, organization_id, event_type,
+--                             aggregate_type, aggregate_id, payload)
+--   VALUES (..., '<some other tenant>', 'issue.updated', ...);
+--
+-- The relay then drains that row — correctly, as flux_relay, which holds
+-- BYPASSRLS precisely so it can — and delivers it to the *victim* tenant's
+-- webhook subscriptions, notification stream and automation rules. So the
+-- exposure the comment ruled out (reading another tenant's events) was
+-- indeed closed, while its mirror image (writing INTO another tenant's
+-- event stream, with an attacker-controlled jsonb payload) was left open.
+-- Injection rather than exfiltration, arriving through the one component
+-- that is cross-tenant by design.
+--
+-- ── Why this costs nothing ───────────────────────────────────────────
+--
+-- Every legitimate emit goes through flux_emit_event(), which does not take
+-- organization_id as a parameter — it fills the column from
+-- flux_current_org(). The new policy's WITH CHECK is
+-- `organization_id = flux_current_org()`, so it is satisfied by
+-- construction on every correct call and can only ever reject a raw INSERT
+-- that names a different tenant. A policy that is a no-op for every correct
+-- caller and a hard stop for the one incorrect one.
+--
+-- The relay is unaffected: flux_relay has BYPASSRLS, so its SELECT and its
+-- UPDATE of published_at/attempts still see and touch every tenant's rows.
+-- That is asserted in packages/db-tests/src/outbox.integration.test.ts
+-- rather than assumed here.
+--
+-- ── How this was missed, and the check that missed it ────────────────
+--
+-- scripts/check-rls.mjs has an EXEMPT map for tables that carry
+-- organization_id without a policy, and event_outbox was its only entry —
+-- with the reason quoted verbatim from 0009. So the check reported "Tenant
+-- isolation intact" on every CI run while restating the incomplete
+-- argument as if it were a finding. This is the third instance of the same
+-- pattern in this repository: a check that passes over a blind spot is
+-- worse than no check, because it licenses the belief that the question was
+-- asked.
+--
+-- Found by packages/db-tests/src/isolation.integration.test.ts, whose
+-- structural backstop enumerates tenant tables from pg_class directly and
+-- has no exemption list to consult. The exemption existed in the script and
+-- not in the property, so the property caught it.
+--
+-- The exemption is removed in this commit. The mechanism stays, because a
+-- genuine exemption may exist one day — but it now has to survive a second
+-- assertion: an RLS-exempt table may not grant flux_app any privilege at
+-- all. Without a policy, every grant is unconstrained by tenant, so
+-- "exempt from RLS" and "reachable by the application role" cannot both be
+-- true. Re-adding event_outbox to EXEMPT to dodge this migration therefore
+-- fails the check on the grant instead.
+--
+-- Note that neither mechanism is now redundant. Privileges stop the
+-- application reading the stream (it holds no SELECT). The policy stops it
+-- writing to another tenant's stream. They fail separately and are tested
+-- separately, exactly as in 0014.
+-- ════════════════════════════════════════════════════════════════════
+
+-- Same spelling as the other 43 tenant tables: ENABLE, FORCE, and one
+-- `tenant_isolation` policy. Going through the procedure rather than
+-- hand-writing the policy is what keeps them identical.
+CALL flux_enable_tenant_rls('event_outbox');
+
+COMMENT ON TABLE event_outbox IS
+  'Transactional outbox. Events are inserted in the same tx as the domain write; the relay publishes them. Delivery is at-least-once — consumers MUST dedupe on event_id. RLS confines writes to the emitting tenant (0017); reads are confined by privilege — flux_app holds INSERT only, the relay reads across tenants via BYPASSRLS.';

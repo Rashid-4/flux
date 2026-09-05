@@ -44,11 +44,12 @@ the code that consumes them.
 
 | Layer | Status |
 | --- | --- |
-| `db/bootstrap`, `db/migrations` 0001–0016 | applied and verified against `postgres:17-alpine` |
+| `db/bootstrap`, `db/migrations` 0001–0017 | applied from scratch and verified against `postgres:17-alpine` |
 | `packages/contracts` | builds with declaration emit; 51 unit tests passing |
+| `packages/db-tests` | **42 integration tests passing** against a real Postgres, in 6 files. No `test` script, deliberately — `pnpm test` is the DB-free job |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | **not started.** `pnpm check:docs` lists it, and the other six docs cited by path that do not exist yet — read that output instead of trusting this table |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
 | `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
 | `apps/web` | **not created.** Owned by the UI agent, on the same terms |
 
@@ -60,7 +61,8 @@ drift in **either** direction — verified by planting a value in `PlanSchema` a
 watching it fail.
 
 What was proven empirically about the database, and therefore must not silently
-regress: 43 tenant-scoped tables all carry forced RLS; `flux_app` has
+regress — now by `packages/db-tests` on every commit rather than by a hand audit
+once: **43 of 43** tenant-scoped tables carry forced RLS; `flux_app` has
 `bypassrls = false` and `usesuper = false`; a cross-tenant SELECT returns only
 own-tenant rows; a session with no tenant context returns nothing rather than
 everything; a cross-tenant INSERT raises
@@ -139,6 +141,42 @@ rewritten to it; `seat_limit_reached` was a genuine gap and was added. Both erro
 tables now carry a Status column so both halves of the check apply. When adding a
 check, ask what shape of citation it *cannot* see, and write that down in its
 header — every one of these scripts now does.
+
+Two more instances have appeared since, and they are worth reading together
+because they are the same failure at opposite ends of the pipeline.
+
+**The step that ran nothing.** The first CI run on GitHub reported a green
+"Integration tests" step in a job that finished in forty seconds.
+`pnpm -r test:integration` prints `None of the selected packages has a
+"test:integration" script` and **exits 0** — so a step whose name is the entire
+evidence for ten specs' "against a real Postgres" DoD passed by executing
+nothing. `scripts/check-integration-suites.mjs` now fails when there are no
+suites to run, and `packages/db-tests` is the suite.
+
+**The exemption nobody verified.** `check:rls` has an `EXEMPT` map for tables
+that carry `organization_id` without a policy. It had one entry, `event_outbox`,
+whose stated reason argued — correctly — that `flux_app` cannot *read* the
+outbox because it holds no `SELECT`. It said nothing about writes. `flux_app`
+holds `INSERT`, and with no policy there was no `WITH CHECK`, so the application
+could emit an event carrying **another tenant's** `organization_id`, which the
+relay then delivers to that tenant. Injection rather than exfiltration, through
+the one component that is cross-tenant by design. The check printed the
+incomplete reason as a finding on every green run, and the sentence above this
+section claiming "43 tenant-scoped tables all carry forced RLS" was false when
+written: it was 42.
+
+Found by the integration suite's structural backstop, which enumerates tenant
+tables from `pg_class` and has no exemption list to consult. That is the general
+lesson: **the exemption lived in the script, not in the property**, so a check
+written against the property caught what the script was told to ignore. Prefer
+asserting the invariant over asserting the invariant-minus-known-exceptions.
+
+0017 enables RLS on `event_outbox` and the entry is gone. The mechanism stays,
+but an entry in it is now verified rather than trusted — an RLS-exempt table may
+not grant `flux_app` anything, since without a policy no grant is confined to a
+tenant. Re-adding `event_outbox` there to dodge the migration fails the check on
+the grant instead. Both halves were negative-tested: with the policy dropped
+exactly one test fails, and with the exemption restored `check:rls` exits 1.
 
 ## Commit messages
 

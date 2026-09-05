@@ -19,6 +19,7 @@ trust. A pull request that edits a path it does not own **fails the build**.
 | `db/migrations/**` | Architecture (Claude Opus) | **read-only** |
 | `db/bootstrap/**` | Architecture | **read-only** |
 | `packages/contracts/**` | Architecture | **read-only** |
+| `packages/db-tests/**` | Architecture | **read-only** |
 | `scripts/**` | Architecture | **read-only** |
 | `docs/adr/**` | Architecture | **read-only** |
 | `docs/specs/**` | Architecture | **read-only** |
