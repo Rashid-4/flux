@@ -113,6 +113,30 @@ function byteAt(bytes: Uint8Array, i: number): number {
 }
 
 /**
+ * The only platform API this package requires, declared here rather than
+ * acquired from `@types/node` or the DOM lib.
+ *
+ * `@flux/contracts` is consumed as *source* (`exports: "./src/index.ts"`), so
+ * it is compiled inside every consumer's program: `apps/web` under DOM types,
+ * the API and the workers under node types, and `@flux/mocks` under
+ * deliberately **no** ambient types at all. Anything this package needed from
+ * a global type set would therefore have to be present in all of them — and
+ * `types: ["node"]` here, which is what used to make this line compile, was
+ * the wrong way to get it twice over: it broke `@flux/mocks` outright, and it
+ * would have let `process.env` or `Buffer` into a schema file, compile
+ * cleanly, and fail in the browser bundle.
+ *
+ * A local `declare` shadows rather than redeclares, so it coexists with the
+ * node globals the test configs still pull in. The surface is one function,
+ * and it is the same function in the browser, in node ≥ 19, in Deno and in a
+ * worker. `randomUUID` is deliberately not declared: ids here are v7 for the
+ * ordering reason below, and the platform's v4 would silently discard it.
+ */
+declare const crypto: {
+  getRandomValues<T extends Uint8Array>(array: T): T
+}
+
+/**
  * UUIDv7 — time-ordered, so ids generated in sequence land in adjacent
  * B-tree pages instead of scattering random inserts across the index.
  * On a table as write-heavy as `issues` that is the difference between

@@ -5,12 +5,26 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     /**
-     * Node types only — this package must never depend on the DOM. If a
-     * schema here started referencing `File` or `HTMLElement`, it would stop
-     * being importable by the API and the workers, and the "one source of
-     * truth" property would quietly break.
+     * **No ambient types at all**, and `lib` is `ES2023` with no DOM (see
+     * `tsconfig.base.json`). This package is imported by the browser app, by
+     * the API and workers under node, and by `@flux/mocks` — as *source*, not
+     * as built declarations — so it must typecheck under the intersection of
+     * all three environments, which is the bare language.
+     *
+     * This used to be `types: ["node"]`, justified as "node only, never the
+     * DOM". Half of that was enforced by `lib`; the other half was backwards.
+     * Node types are what a browser consumer does not have, so the config
+     * permitted exactly the import that breaks the bundle — a schema file
+     * reaching for `process.env` or `Buffer` would have compiled here and
+     * failed there. It also broke `@flux/mocks`, whose own `types: []` is the
+     * same guarantee stated deliberately: `crypto.getRandomValues` in
+     * `ids.ts` resolved under this setting and nowhere else.
+     *
+     * The one platform API this package genuinely needs is declared at its
+     * call site instead. Test files get node back via `tsconfig.test.json`,
+     * where it is true.
      */
-    "types": ["node"]
+    "types": []
   },
   /**
    * Build config: tests are excluded so they never end up in dist/ or in the
