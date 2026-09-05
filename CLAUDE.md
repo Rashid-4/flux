@@ -44,10 +44,10 @@ the code that consumes them.
 
 | Layer | Status |
 | --- | --- |
-| `db/bootstrap`, `db/migrations` 0001–0011 | applied and verified against `postgres:17-alpine` |
+| `db/bootstrap`, `db/migrations` 0001–0015 | applied and verified against `postgres:17-alpine` |
 | `packages/contracts` | builds with declaration emit; 40 unit tests passing |
 | `docs/specs/api/` | 7 of 10 modules written: issues, workflows, permissions, fields, search, boards-sprints, events |
-| `.github/workflows/ci.yml` | frozen-paths + lint + typecheck + test + RLS audit + enum-drift audit |
+| `.github/workflows/ci.yml` | frozen-paths + lint + typecheck + test + RLS/append-only audit + enum-drift audit + field-drift audit |
 | `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
 | `apps/web` | **not created.** Owned by the UI agent, on the same terms |
 
@@ -65,12 +65,28 @@ own-tenant rows; a session with no tenant context returns nothing rather than
 everything; a cross-tenant INSERT raises
 `new row violates row-level security policy`; the `status_category` trigger
 overrides a lying caller; `blocked_by_count` stays correct across link and
-unlink; the `audit_log` hash chain verifies with zero broken entries; and
-`UPDATE`/`DELETE` on `audit_log` affect 0 rows.
+unlink; `flux_app` holds neither `UPDATE` nor `DELETE` on `audit_log` or
+`issue_history_events`; the guard trigger refuses an owner's attempt to edit a
+history row while permitting attribution to be cleared; the hash chain detects an
+altered entry *and* a removed one, by seq, with distinct reasons; and clearing
+attribution for right-to-erasure leaves the chain clean.
 
-`pnpm check:rls` re-asserts the structural half of that list on every CI run, and
-`pnpm check:enums` re-asserts that the contracts still describe the schema they
-claim to.
+The last three replaced weaker claims in 0014 and 0015. What this file used to
+say was "`UPDATE`/`DELETE` on `audit_log` affect 0 rows" — true, because 0009
+enforced append-only with `DO INSTEAD NOTHING` rules. Those rules also swallowed
+the `UPDATE`/`DELETE` PostgreSQL issues to enforce a foreign key, which made
+`organizations`, `users` and `issues` **permanently undeletable** — verified, and
+unconditionally, not just once history existed. Removing them exposed that
+`flux_verify_audit_chain()` only ever compared `prev_hash` against
+`lag(entry_hash)` and never recomputed the digest, so an altered entry was
+undetectable and the "tamper-evident" claim in 0009 was false as written. Read
+both headers before touching either table.
+
+`pnpm check:rls` re-asserts the structural half of that list on every CI run —
+including the invariant that the columns the guard permits clearing are exactly
+the columns the digest omits, checked behaviourally and negative-tested four
+ways. `pnpm check:enums` and `pnpm check:columns` re-assert that the contracts
+still describe the schema they claim to, by enum value and by field name.
 
 ## Commit messages
 
