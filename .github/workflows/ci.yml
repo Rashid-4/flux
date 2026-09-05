@@ -62,7 +62,11 @@ jobs:
           # either one.
           FROZEN_PATHS_OVERRIDE: ${{ (startsWith(github.head_ref, 'arch/') || contains(github.event.pull_request.labels.*.name, 'architecture')) && '1' || '0' }}
         run: |
-          git fetch --no-tags --depth=0 origin "${{ github.base_ref }}"
+          # fetch-depth: 0 above already has the history, but on a PR the
+          # base branch is not guaranteed to exist as a local remote-tracking
+          # ref, and the script needs one to find the merge base.
+          git fetch --no-tags origin \
+            "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
           node scripts/check-frozen-paths.mjs "origin/${{ github.base_ref }}"
 
   # ──────────────────────────────────────────────────────────────────
@@ -192,11 +196,11 @@ jobs:
       - name: Migrations are idempotent
         run: pnpm db:migrate
 
-      # Re-running must be a no-op. If someone edits an already-applied
-      # migration in place, every environment that ran the old version
-      # diverges permanently and nothing tells you.
-      - name: No pending migrations
-        run: pnpm db:status
+      # Fails on anything pending, and on any applied migration whose
+      # file no longer hashes to what was recorded — an edited migration
+      # silently diverges every environment that ran the old version.
+      - name: Schema is up to date
+        run: pnpm db:check
 
       - name: Audit tenant isolation
         run: pnpm check:rls

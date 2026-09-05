@@ -111,17 +111,51 @@ async function up() {
   }
 }
 
-async function status() {
+/**
+ * `status` reports and always succeeds — it is the command you run to
+ * see where things stand.
+ *
+ * `check` reports and fails if anything is pending or MODIFIED. That is
+ * the one CI runs, because a step called "no pending migrations" that
+ * cannot fail is worse than no step: it reads as a passing assertion
+ * while asserting nothing.
+ *
+ * MODIFIED means an applied migration's file no longer hashes to what
+ * was recorded. Every environment that ran the old version has now
+ * silently diverged from every environment that ran the new one, and
+ * nothing else in the system will tell you.
+ */
+async function status({ strict = false } = {}) {
   const client = new pg.Client({ connectionString })
   await client.connect()
   try {
     const migrations = await loadMigrations()
     const applied = await appliedMigrations(client)
+    let pending = 0
+    let modified = 0
     for (const m of migrations) {
       const prior = applied.get(m.version)
       const mark = !prior ? 'pending' : prior === m.checksum ? 'applied' : 'MODIFIED'
+      if (mark === 'pending') pending++
+      if (mark === 'MODIFIED') modified++
       console.log(`${mark.padEnd(9)} ${m.version}`)
     }
+
+    if (!strict) return
+
+    if (modified > 0) {
+      console.error(
+        `\n✗ ${modified} applied migration(s) have been edited since they ran.\n` +
+          '  Applied migrations are immutable. Revert the edit and add a new\n' +
+          '  migration instead — see docs/conventions.md §Migrations.',
+      )
+      process.exitCode = 1
+    }
+    if (pending > 0) {
+      console.error(`\n✗ ${pending} migration(s) not applied. Run: pnpm db:migrate`)
+      process.exitCode = 1
+    }
+    if (modified === 0 && pending === 0) console.log('\n✓ Schema is up to date.')
   } finally {
     await client.end()
   }
@@ -131,8 +165,9 @@ const command = process.argv[2] ?? 'up'
 try {
   if (command === 'up') await up()
   else if (command === 'status') await status()
+  else if (command === 'check') await status({ strict: true })
   else {
-    console.error(`Unknown command: ${command}. Use "up" or "status".`)
+    console.error(`Unknown command: ${command}. Use "up", "status" or "check".`)
     process.exit(1)
   }
 } catch (err) {
