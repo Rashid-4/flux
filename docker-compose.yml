@@ -1,0 +1,108 @@
+# Local development topology. Mirrors production service boundaries
+# (docs/architecture.md) so integration tests exercise the real shape:
+# Postgres + Redis + Meilisearch + NATS + Temporal + MinIO.
+#
+# Bring up only what you need:
+#   pnpm db:up        → postgres + redis  (enough for Phase 1 core work)
+#   pnpm infra:up     → everything
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: flux
+      POSTGRES_USER: flux_migrator
+      POSTGRES_PASSWORD: flux_migrator_dev
+    ports: ['5432:5432']
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/bootstrap:/docker-entrypoint-initdb.d:ro
+    command:
+      # Surface slow queries in dev so we notice SLO regressions early.
+      - postgres
+      - -c
+      - log_min_duration_statement=200
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U flux_migrator -d flux']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ['6379:6379']
+    command: redis-server --save '' --appendonly no
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    environment:
+      MEILI_MASTER_KEY: flux_dev_master_key_change_me
+      MEILI_ENV: development
+    ports: ['7700:7700']
+    volumes:
+      - meili_data:/meili_data
+
+  nats:
+    image: nats:2.10-alpine
+    # JetStream = durable streams, required for at-least-once event delivery.
+    command: ['-js', '-sd', '/data']
+    ports: ['4222:4222', '8222:8222']
+    volumes:
+      - nats_data:/data
+
+  temporal:
+    image: temporalio/auto-setup:1.25
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: flux_migrator
+      POSTGRES_PWD: flux_migrator_dev
+      POSTGRES_SEEDS: postgres
+    ports: ['7233:7233']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:2.30.1
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+    ports: ['8233:8080']
+    depends_on: [temporal]
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: flux_dev
+      MINIO_ROOT_PASSWORD: flux_dev_secret
+    command: server /data --console-address ':9001'
+    ports: ['9000:9000', '9001:9001']
+    volumes:
+      - minio_data:/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    command: ['start-dev', '--http-port=8080']
+    ports: ['8080:8080']
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports: ['16686:16686', '4318:4318']
+
+volumes:
+  postgres_data:
+  meili_data:
+  nats_data:
+  minio_data:

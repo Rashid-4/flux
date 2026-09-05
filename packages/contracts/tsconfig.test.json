@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    /** composite + noEmit are incompatible; this config only ever checks. */
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node", "vitest/globals"]
+  },
+  /**
+   * Checks tests as well as source. Vitest strips types with esbuild and
+   * never typechecks, so without this config a test could reference a field
+   * that no longer exists and still pass — which is exactly the kind of rot
+   * that makes people stop trusting the suite.
+   */
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

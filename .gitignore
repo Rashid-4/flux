@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Editor and IDE state. Deliberately not committed: several agents work
+# in different tools, and a shared .idea/ or .vscode/ means every session
+# produces a diff that has nothing to do with the code.
+.idea/
+.vscode/
+*.swp
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+playwright-report/
+test-results/
+.vite/

@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    /**
+     * Node types only — this package must never depend on the DOM. If a
+     * schema here started referencing `File` or `HTMLElement`, it would stop
+     * being importable by the API and the workers, and the "one source of
+     * truth" property would quietly break.
+     */
+    "types": ["node"]
+  },
+  /**
+   * Build config: tests are excluded so they never end up in dist/ or in the
+   * emitted .d.ts. They are still typechecked — see tsconfig.test.json,
+   * which is what `pnpm typecheck` runs.
+   */
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}
