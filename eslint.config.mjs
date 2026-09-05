@@ -12,6 +12,8 @@
 // ════════════════════════════════════════════════════════════════════
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
 
 export default tseslint.config(
   {
@@ -110,6 +112,79 @@ export default tseslint.config(
       'object-shorthand': ['error', 'properties'],
       'no-throw-literal': 'error',
     },
+  },
+
+  // ── Browser apps ────────────────────────────────────────────────────
+  // `apps/**` is bundled by Vite, not resolved by Node, so the ESM
+  // extension rule above does not apply there — and worse, it is wrong
+  // there: it demanded `./Card.js` for a file that is `Card.tsx`, which
+  // Vite cannot resolve. Every relative import in a React component
+  // failed lint, in a config the UI agent is not allowed to edit, and
+  // the only fix the message offered broke the build. Verified by
+  // linting a representative component before this block existed.
+  //
+  // `no-restricted-syntax` is redeclared rather than disabled, because
+  // the randomUUID selector matters *more* in the UI than anywhere
+  // else: optimistic writes mint ids client-side, and a v4 id there
+  // lands in the database and destroys the cursor ordering that
+  // `newId()` exists to guarantee.
+  {
+    files: ['apps/**/*.ts', 'apps/**/*.tsx'],
+    plugins: { 'react-hooks': reactHooks, 'jsx-a11y': jsxA11y },
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression > MemberExpression[property.name="randomUUID"]',
+          message:
+            'Use newId<Brand>() from @flux/contracts/ids (UUIDv7). randomUUID() is v4 and is not time-ordered.',
+        },
+        {
+          // The one rule in docs/specs/web/README.md §3 that a machine
+          // can check. A single inline fetch is how the parse boundary
+          // stops being a boundary — the response reaches a component
+          // unvalidated and the field the API renamed renders as
+          // `undefined` four components deep instead of throwing here.
+          selector: 'CallExpression > Identifier[name="fetch"]',
+          message:
+            'No fetch outside apps/web/src/api/. Data access goes through the typed request layer, which parses every response with its contract schema (docs/specs/web/README.md §3).',
+        },
+      ],
+
+      // ── React correctness ───────────────────────────────────────────
+      // Errors, not warnings. A stale closure over a query key or a
+      // missing dependency is not a style question; it is a component
+      // rendering last render's data, which is indistinguishable from a
+      // caching bug and gets debugged as one.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+
+      // ── Accessibility ───────────────────────────────────────────────
+      // §9 commits to WCAG 2.2 AA and §8 forbids the component library
+      // that would have supplied the ARIA. That combination is only
+      // honest if something checks it, and a lint rule catches the
+      // mechanical half — a div with a click handler and no role, an
+      // input with no label — at the moment it is written rather than in
+      // an audit nobody schedules. The half it cannot see (focus order,
+      // whether a live region says something useful) is the keyboard
+      // pass in §12's test table.
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // Custom controls are the point of a bespoke design system, so
+      // these two fire constantly on legitimate code and are downgraded
+      // to visible rather than blocking. The rest stay errors.
+      'jsx-a11y/no-autofocus': 'warn',
+      'jsx-a11y/no-noninteractive-element-interactions': 'warn',
+    },
+  },
+
+  // The api/ layer is the one place fetch belongs — it is what the rule
+  // above is protecting, so it cannot also be bound by it.
+  {
+    files: ['apps/*/src/api/**'],
+    rules: { 'no-restricted-syntax': 'off' },
   },
 
   // Tests get more rope: fixtures cast branded ids from readable

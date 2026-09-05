@@ -119,6 +119,69 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 
 ## 5. Prompt to open a UI session (Grok)
 
+The first UI session is different from the rest: it builds the foundation every
+surface sits on, and it is the only one that does not name a surface. Use §5a for
+it once, then §5b for each surface.
+
+### 5a. The first session — foundation only
+
+`apps/web/` does not exist yet, and neither do the surface specs. Both are fine:
+everything in this session is specified by `docs/specs/web/README.md` §2–§12,
+none of which is surface-specific, and building it first is what makes the
+surface sessions short. Do not build the board, the backlog or the issue view in
+this session — their specs are being written, and a screen built against a
+guessed spec has to be rebuilt.
+
+> You are the UI agent for this repository, and this is the first UI session:
+> `apps/web/` does not exist yet and you are creating it.
+>
+> Read first, in this order, in full:
+>
+> 1. `AGENTS.md` in the repository root. It is binding, and §1 says what you own.
+> 2. `docs/specs/web/README.md`. It is the foundation spec — every surface spec
+>    assumes it, and none of it is repeated per surface.
+> 3. `packages/mocks/src/index.ts` and one builder file next to it. This is what
+>    you build against; there is no API yet.
+>
+> Stack, decided: React 19 + TypeScript, Vite, TanStack Query v5, Zustand,
+> React Router. Vitest + Testing Library + MSW for tests, Playwright for E2E.
+> No component library — see the spec's §8 and §11.
+>
+> Deliver, and nothing beyond it:
+>
+> - `apps/web/` scaffolded — your own `package.json`, `tsconfig.json` extending
+>   `tsconfig.base.json`, `vite.config.ts`, `vitest.config.ts`. `apps/*` is
+>   already in `pnpm-workspace.yaml`, and root `pnpm typecheck`, `lint`, `test`
+>   and `format:check` must all pass with your package in the workspace.
+> - `src/api/` — the typed request layer of spec §3. `request()` with the
+>   `/api/v1` prefix in one place, `ApiErrorSchema` parsing and throwing on
+>   non-2xx, and one endpoint module per contract group. Every response
+>   `.parse()`d by its contract schema. This is the whole point; nothing else in
+>   the app may call `fetch`, and lint enforces it.
+> - `src/queries/` — the query-key registry of §5, and the hooks for bootstrap.
+> - `src/stores/` — Zustand stores for client state only. No server data.
+> - `src/design/` — the token layer of §11: colour, type scale, spacing, radius,
+>   elevation, motion, density. Light and dark from the start.
+> - `src/components/` — the primitives every surface needs: Button, Menu, Dialog,
+>   Field, Tooltip, Toast, Avatar, Badge, Skeleton, VirtualList. Real ARIA, real
+>   focus management, keyboard-operable.
+> - `src/keyboard/` — the shortcut registry, focus utilities, and the `?` sheet
+>   generated from the registry rather than hand-maintained (§9).
+> - `src/test/` — MSW handlers built from `@flux/mocks`, a browser worker and a
+>   node server, and a `renderWithProviders` helper. **These handlers are yours,
+>   deliberately**: they are not in the frozen package, so you can express any
+>   error or empty state without a change request.
+> - The app shell and one route: mount, providers, error boundary, the bootstrap
+>   request of §4, and a routed skeleton with the nav, org switcher and command
+>   palette entry point. Every other route is a placeholder.
+> - Tests: the request layer's parse-and-throw behaviour, the error mapping of
+>   §7, the keyboard registry, and one component test per primitive queried by
+>   role and label.
+>
+> The rules below apply to this and every later session.
+
+### 5b. Per-surface sessions
+
 > You are the UI agent for this repository. Before writing any code:
 >
 > 1. Read `AGENTS.md` in the repository root, in full. It is binding.
@@ -149,11 +212,19 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 > - Accessibility is not a later pass: real focus management, real ARIA on
 >   custom controls, visible focus rings, and drag-and-drop that also works from
 >   the keyboard.
-> - No new dependency without a change request. Notably: no component library —
->   the visual identity is the product.
+> - Build against `@flux/mocks` first, including the surface's error and empty
+>   states. It is read-only, and you do not need to edit it: every builder takes
+>   a deep-partial override, so any scenario is expressible from your own code.
+> - No new dependency in the root `package.json` without a change request, and no
+>   component library at all — the visual identity is the product. Your own
+>   `apps/web/package.json` is yours; add what the surface needs there.
+> - Lint is configured for `apps/**`: `react-hooks/exhaustive-deps` and
+>   `jsx-a11y` are **errors**, and `fetch` outside `src/api/` is an error. If a
+>   rule is wrong for a legitimate pattern, file a change request — do not
+>   disable it inline.
 >
-> Work on branch `feat/ui-<surface>`. Run `pnpm typecheck && pnpm lint` before
-> opening a PR.
+> Work on branch `feat/ui-<surface>`. Run `pnpm format:check && pnpm lint &&
+> pnpm typecheck && pnpm test` before opening a PR.
 >
 > The surface for this session is: **<surface name>**.
 
@@ -166,10 +237,17 @@ schemas, they can generate fixtures directly — so the UI can be built against
 real API will return.
 
 That makes the eventual swap from mock to real a change of base URL, not a
-rewrite. The package is `@flux/mocks` — builders, a seeded scenario, and MSW
-handlers, described in [the web foundation spec](specs/web/README.md) §10. Ask the
-architecture agent for it before starting UI work if it is not in the workspace
-yet.
+rewrite. The package is `@flux/mocks` — **it exists**: builders, a seeded
+scenario, and determinism, described in
+[the web foundation spec](specs/web/README.md) §10. It is architecture-owned and
+frozen, and every builder takes a deep-partial override precisely so that being
+frozen costs the UI agent nothing.
+
+The MSW handlers are deliberately *not* in the package. They belong in
+`apps/web/src/test/`, which Grok owns, because they need a pinned MSW version, a
+browser worker and a node server, and per-surface overrides — and because a
+frozen package must never be the thing standing between the agent that cannot
+edit it and a new error case.
 
 Build every surface against the mocks *including its error and empty states*. A
 UI built only against success paths has no error states, and error states are most
