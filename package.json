@@ -30,6 +30,7 @@
     "check:docs": "node scripts/check-doc-links.mjs",
     "check:tsconfigs": "node scripts/check-tsconfig-coverage.mjs",
     "check:vocab": "node scripts/check-field-vocabularies.mjs",
+    "check:toolchain": "node scripts/check-toolchain-versions.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:integration": "node scripts/check-integration-suites.mjs"

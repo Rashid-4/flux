@@ -80,7 +80,7 @@ does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 | `packages/mocks` | **67 tests passing.** Deterministic, contract-parsed fixtures for the UI to build against before the API exists. Frozen; overrides are the extension point. MSW handlers deliberately live in `apps/web/src/test/` |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type, doc-link and **toolchain-version** drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
 | `services/api` | **not created.** The next major piece of build work, now owned here |
 | `apps/web` | **exists, and is the largest tree in the repo — 677 tests in 50 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 3 of the 4 `lib/` modules are tested *and* reviewed, and **24 shipped modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `src/gallery/` is a second Vite entry at `/gallery.html` — 9 dev-only modules, outside `build.rollupOptions.input` and outside `ROUTE_PATTERNS`, so it never ships. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
 | `apps/marketing` | **not created** |
@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Ten distinct kinds of drift have now been found here, and each one was
-**invisible to the checks that catch the other nine**. That is the pattern worth
+Eleven distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other ten**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -142,6 +142,7 @@ because none of them are visible to `tsc`, to review, or to each other.
 | a **utility** that resolves to no token, so it emits no CSS | ~30 + a vocabulary | `design/palette.test.ts` |
 | a **colour** whose comment describes a colour the browser does not paint | 2 + 7 hexes + 1 ratio | `design/contrast.test.ts` (CR-004) |
 | a **token name in two theme namespaces**, so `cn` stops resolving a conflict | 2, on 5 surfaces | `lib/cn.test.ts` |
+| **two majors of one dev dependency**, so an undeclared import picks by hoist | 1 — vitest 2 *and* 4 | `check:toolchain` |
 
 The **colour** row is the least expected, because the value and its
 documentation were in the *same line of the same file*. `--primary-soft` and
@@ -155,7 +156,34 @@ trustworthy: **every** expected value in it comes from outside this repository, 
 a transposed matrix row would otherwise produce numbers that are wrong and
 self-consistent, and the test would agree with the comments all the way down.
 
-The **two-namespaces** row is the newest, and it is the first one where *adding* a
+The **two-majors** row is the newest, and the first where no file in the repository
+was wrong. `apps/web` declared `vitest@^4`, the three `packages/*` declared `^2.1.0`,
+and both installed happily side by side for as long as nobody looked. The bill
+arrived as **121 failing tests and 6 `TS2339` errors** on a commit that had been
+green minutes earlier in a second working tree — every `@testing-library/jest-dom`
+matcher missing, with `Invalid Chai property: toHaveAttribute` as the message.
+
+The chain, measured rather than guessed. jest-dom declares **no** dependency or peer
+on `vitest`, so `import { expect } from 'vitest'` in its `dist/vitest.mjs` has
+nothing local to resolve. Vite resolves symlinks by default, so that file loads from
+its real path inside `.pnpm/`, and Node walks up from *there* — reaching pnpm's
+hoisted fallback, `node_modules/.pnpm/node_modules/vitest`, which held **2.1.9**.
+jest-dom registered every matcher onto vitest 2's chai instance while the tests
+asserted through vitest 4's. Both halves worked perfectly, on different objects.
+
+Three things generalise, and the third is the uncomfortable one. First, **which
+major wins the hoist is not pinned by the lockfile** — so this reproduces per
+directory, not per commit, and reads as a lost file rather than a version split.
+Second, the invariant is not "vitest must be 4"; it is that a workspace must offer
+exactly *one* major of anything, because a package that imports without declaring
+does not get to choose. Third, `check:toolchain` therefore has a rule for the
+*declarations* and a second for the *installed link*, because after the manifests
+were fixed `pnpm install` said "Already up to date" and left the stale link in
+place: the lockfile was correct and the tests still could not see a matcher. Only
+`pnpm install --force` relinks it. A check reading manifests alone would have
+reported the fix as landed.
+
+The **two-namespaces** row is the first one where *adding* a
 correct declaration is what broke something. `raised` and `overlay` are both
 surface colours and elevations, so declaring both namespaces to `tailwind-merge`
 handed `shadow-overlay` to its colour group — where it conflicts with no

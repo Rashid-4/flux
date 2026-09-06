@@ -94,6 +94,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # First, because it explains failures in every step below it. apps/web was
+      # on vitest 4 and the three packages/* were on vitest 2; both installed and
+      # both were green, until a checkout in a different directory made pnpm hoist
+      # the other major into node_modules/.pnpm/node_modules/. @testing-library
+      # /jest-dom declares no vitest at all, so that fallback is what its
+      # `expect.extend()` found — registering every matcher onto a chai instance
+      # no assertion touched. 121 tests failed with "Invalid Chai property:
+      # toHaveAttribute" and 6 with TS2339, all of which read as a missing setup
+      # file. Which major wins the hoist is not pinned by the lockfile, so the
+      # same commit was green in one working tree and red in another.
+      - name: Audit toolchain versions
+        run: pnpm check:toolchain
+
       # Contracts must be built first: everything else consumes its
       # emitted .d.ts, and declaration emit fails on whole classes of
       # error that `tsc --noEmit` cannot see (TS4023 on unnameable

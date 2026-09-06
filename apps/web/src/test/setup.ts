@@ -12,6 +12,18 @@ import { server } from './server'
  * it `toHaveAccessibleName()` is a type error and `toBeVisible()` is undefined
  * at run time.
  *
+ * If every jest-dom matcher is missing at once — `Invalid Chai property:
+ * toHaveAttribute`, in dozens of files, with `TS2339` beside it — **this line is
+ * almost certainly not the bug.** It happened, and the cause was two majors of
+ * vitest installed in the workspace: jest-dom 6 declared no `vitest` at all, so
+ * `expect.extend()` resolved through pnpm's hoisted fallback to the *other*
+ * major and registered every matcher onto a chai instance no assertion touched.
+ * Both halves worked, on different objects. `pnpm check:toolchain` now fails on
+ * the version split, `scripts/check-toolchain-versions.mjs` has the measured
+ * chain, and jest-dom 7 declares `vitest` as an optional peer so pnpm links it
+ * into jest-dom's own dependencies rather than leaving it to the hoist. Do not
+ * "fix" this file in response to that symptom.
+ *
  * The cleanup is explicit because `globals: false`. Testing Library's automatic
  * cleanup hooks itself onto a global `afterEach`, which does not exist here, so
  * without this every test file leaks its mounted trees into the next one — and
