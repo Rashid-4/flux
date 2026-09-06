@@ -35,6 +35,22 @@ the code that consumes them.
   binaries per package and the path is not where it looks like it should be.
 - **Local git only.** Commit freely; do not add a remote, create a repository, or
   push without the human asking. Pushing publishes the work.
+- **Never delete a directory you do not own. Delete the files you created, by
+  name.** This one is written here because it already cost a whole session of
+  another agent's work. Verifying a new `apps/**` lint rule requires a probe file
+  under `apps/**` — the rule is path-scoped, so a probe anywhere else is not
+  matched by it — and cleaning up afterwards with `rm -rf apps` took Grok's
+  entire `apps/web/` foundation with it. It was untracked and uncommitted, so
+  there was nothing to recover: not a commit, not the index, not a stash, not a
+  dangling object, not a local snapshot, not VS Code's history.
+
+  So, in order: `ls` the directory before creating anything in it, and if it
+  already exists, **stop** — something else is living there. Remove probes with
+  `rm <explicit paths>`, never a recursive remove of a parent. If a probe must
+  live under a path another agent owns, commit the repository state first so the
+  delete is recoverable, or `git add -A` before probing so the index holds a
+  copy. `AGENTS.md` §1 says `apps/` and `services/` are not mine; that has always
+  meant do not *write* there, and it equally means do not remove there.
 - **Amend the contract, then say so.** When a change request in
   `docs/change-requests/` is accepted, change the contract, bump anything that
   needs bumping, and write the resolution into the change-request file so the
