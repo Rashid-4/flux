@@ -77,8 +77,48 @@ describe('IssueKey', () => {
     expect(announcement).toHaveTextContent('Copy failed')
   })
 
-  it('truncates a long key rather than shoving the row', () => {
+  /**
+   * This used to assert `toHaveClass('truncate')` and nothing else, and it passed
+   * for as long as the truncation did nothing at all.
+   *
+   * `truncate` is `overflow: hidden` + `text-overflow: ellipsis` + `white-space:
+   * nowrap`, and `overflow` and `max-width` **do not apply to a non-replaced inline
+   * box**. The `<code>` was `display: inline`, so the only one of the three that
+   * did anything was `nowrap` — which is the half that makes it grow. Measured in
+   * the browser at the time: inside a 96px container the component rendered 149px
+   * wide and overflowed by 53. The class was present, the assertion was green, and
+   * the behaviour it named did not exist.
+   *
+   * jsdom has no layout, so a test here cannot measure a truncated pixel. What it
+   * can do is pin the structural facts that make the class mean something — the
+   * generated box being a block, and every link in the shrink chain being allowed
+   * to shrink. Those are exactly what was missing.
+   */
+  it('gives the key a box that can actually truncate', () => {
     renderWithProviders(<IssueKey issueKey="NORTHWIND-12345678" />)
-    expect(screen.getByText('NORTHWIND-12345678')).toHaveClass('truncate')
+    const code = screen.getByText('NORTHWIND-12345678')
+
+    expect(code).toHaveClass('truncate')
+    // Without this, `truncate` and `max-w-40` are both inert on an inline element.
+    expect(code).toHaveClass('block')
+    expect(code).toHaveClass('max-w-40')
+  })
+
+  /**
+   * The other direction, and the one that produced the worse picture: on a 280px
+   * board card the whole component was crushed to 11px around 58px of content, so
+   * the key was illegible and the copy button was drawn over it. A flex item does
+   * not shrink below its content unless `min-width` says it may, and the floor is
+   * what stops "shrinks" turning into "disappears".
+   */
+  it('may shrink, but not below a legible floor', () => {
+    const { container } = renderWithProviders(<IssueKey issueKey="NORTHWIND-12345678" />)
+
+    const root = container.querySelector('[data-slot="issue-key"]')
+    expect(root).toHaveClass('min-w-0')
+    // Respects a narrower parent instead of growing out of it.
+    expect(root).toHaveClass('max-w-full')
+
+    expect(screen.getByText('NORTHWIND-12345678')).toHaveClass('min-w-10')
   })
 })
