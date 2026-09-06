@@ -317,6 +317,123 @@ class FakePointerEvent extends MouseEvent {
 }
 
 /* -------------------------------------------------------------------------- */
+/* The selector engine's runaway recursion                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The six pseudo-classes nwsapi cannot answer from the DOM and delegates to the
+ * host engine: `:open`, `:closed`, `:fullscreen`, `:modal`,
+ * `:picture-in-picture`, `:popover-open`.
+ *
+ * Measured from `nwsapi@2.2.27/src/nwsapi.js` — the six `matchesNative(node, …)`
+ * call sites at lines 724, 730, 736, 747, 753 and 763 — not from its docs.
+ */
+const HOST_STATE_PSEUDO_CLASSES = new Set([
+  ':open',
+  ':closed',
+  ':fullscreen',
+  ':modal',
+  ':picture-in-picture',
+  ':popover-open',
+])
+
+/** Set on `Element.prototype` so a second `installJsdomGaps()` cannot double-wrap. */
+const RECURSION_GUARD = '__fluxSelectorRecursionGuard'
+
+/**
+ * Stop nwsapi and jsdom recursing into each other until the stack overflows.
+ *
+ * ## The symptom
+ *
+ * Opening any Radix popper — tooltip, select, dropdown, popover — took **6.4
+ * seconds** in jsdom, so every overlay test hit vitest's 5000ms timeout. The
+ * component was not slow and nothing was waiting: a `setTimeout(…, 50)`
+ * scheduled across the open resolved 6371ms late, so the event loop was blocked
+ * *synchronously* for the whole of it.
+ *
+ * ## The cause
+ *
+ * A CPU profile put 6.17 of 6.2 seconds inside `nwsapi`'s selector matching,
+ * reached from `Element.prototype.matches`. There were only **52**
+ * `getComputedStyle` calls in the whole open — ~120ms each, for a document with
+ * zero stylesheets.
+ *
+ * jsdom resolves computed style by walking its default (user-agent) stylesheet
+ * and asking, rule by rule, whether the element matches. Three of those rules
+ * are `:fullscreen`, `:modal` and `:popover-open`. nwsapi has no DOM-level
+ * answer for those, so it asks the host engine:
+ *
+ * ```js
+ * // nwsapi/src/nwsapi.js:707 — "when NWSAPI has installed itself,
+ * //                            _matches retains the native implementation"
+ * matcher = _matches || node.matches || node.webkitMatchesSelector || …
+ * ```
+ *
+ * jsdom never calls nwsapi's `install()`, so `_matches` is undefined and
+ * `matcher` resolves to `node.matches` — which *is* jsdom's, which is nwsapi's.
+ * So `matches(':fullscreen')` calls `isFullscreen()`, which calls
+ * `matchesNative(node, ':fullscreen')`, which calls `matches(':fullscreen')`,
+ * around and around until V8 throws `RangeError: Maximum call stack size
+ * exceeded` — caught by `matchesNative`'s own `try/catch` and returned as
+ * `false`. Roughly ten thousand frames of it, three times per element per
+ * `getComputedStyle`, and the answer that eventually comes back is the same
+ * `false` it would have given on the first frame.
+ *
+ * This is not a flux bug and there is nothing to fix in the product: it is an
+ * upstream interaction, and it costs every test that calls `getComputedStyle` —
+ * which is every `*ByRole` query, since Testing Library's `isInaccessible`
+ * calls it.
+ *
+ * ## Why this shim is not a lie
+ *
+ * It changes no answer. Those six pseudo-classes describe states jsdom does not
+ * implement, and the recursion's terminal value is already `false`; this returns
+ * that same `false` on the first frame instead of the ten-thousandth. The
+ * DOM-level halves that nwsapi *can* answer are untouched, because it evaluates
+ * them before delegating — `isOpen` is
+ * `(details|dialog with [open]) || matchesNative(node, ':open')`, so a
+ * `<dialog open>` still matches `:open` and `dialog:open` through the normal
+ * path.
+ *
+ * The guard is on **re-entrancy**, not on the selector: a top-level
+ * `element.matches(':fullscreen')` from a test still runs nwsapi's real code
+ * path. Only the nested call — nwsapi asking the host engine that is itself —
+ * is answered directly. Recursion therefore stops at depth two.
+ *
+ * Remove this when a released nwsapi stops delegating to a `matcher` that can be
+ * itself. `docs/change-requests/005-nwsapi-selector-recursion.md` has the
+ * upstream detail and the pin to try.
+ */
+function breakSelectorEngineRecursion(): void {
+  const prototype = Element.prototype as unknown as Record<string, unknown>
+  if (prototype[RECURSION_GUARD] === true) return
+
+  const original = Element.prototype.matches
+  let depth = 0
+
+  Object.defineProperty(Element.prototype, 'matches', {
+    configurable: true,
+    writable: true,
+    value: function matches(this: Element, selectors: string): boolean {
+      if (depth > 0 && HOST_STATE_PSEUDO_CLASSES.has(selectors)) return false
+      depth += 1
+      try {
+        return original.call(this, selectors)
+      } finally {
+        depth -= 1
+      }
+    },
+  })
+
+  Object.defineProperty(Element.prototype, RECURSION_GUARD, {
+    value: true,
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  })
+}
+
+/* -------------------------------------------------------------------------- */
 /* Install                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -329,6 +446,12 @@ class FakePointerEvent extends MouseEvent {
  * against a fake has to have asked for it.
  */
 export function installJsdomGaps(): void {
+  /**
+   * First, because it is the difference between an overlay test taking 40ms and
+   * taking 6.4 seconds, and every `*ByRole` query in the file pays it.
+   */
+  breakSelectorEngineRecursion()
+
   defineGlobal('matchMedia', new MatchMediaRegistry(() => false).matchMedia)
   defineGlobal('ResizeObserver', FakeResizeObserver)
   defineGlobal('IntersectionObserver', FakeIntersectionObserver)
