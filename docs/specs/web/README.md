@@ -376,24 +376,54 @@ The visual identity is the product, so there is a design system rather than a
 theme file. Tailwind v4 makes this cleaner than v3 did: the token layer is CSS,
 and it is the *same* declaration that generates the utilities.
 
-`design/tokens.css` holds one `@theme` block, and it is the only place a colour,
-a radius, a shadow, a type step or a duration is defined:
+`design/tokens.css` is the only place a colour, a radius, a shadow, a type step
+or a duration is defined. It has three parts, in this order, and the order is not
+cosmetic:
 
 ```css
 @import 'tailwindcss';
 
+/* 1. Dark is a class, not an OS guess — the theme is a preference we persist. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-surface: oklch(1 0 0);
-  --color-surface-raised: oklch(0.985 0.002 250);
-  --radius-card: 0.5rem;
+/* 2. One semantic name, two values. This is the only place a raw colour
+      appears anywhere in the codebase. */
+:root {
+  --surface: oklch(1 0 0);
+  --surface-raised: oklch(0.985 0.002 250);
+  --radius: 0.5rem;
+}
+.dark {
+  --surface: oklch(0.17 0.005 250);
+  --surface-raised: oklch(0.21 0.006 250);
+}
+
+/* 3. The mapping that turns each name into a utility. `inline` is load-bearing —
+      see below. */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --radius-card: var(--radius);
   --text-body: 0.8125rem;
   --ease-flux: cubic-bezier(0.2, 0, 0, 1);
 }
 ```
 
-Two rules follow from that block, and they are the whole discipline:
+That is also the shape `shadcn init` writes, deliberately — it is not a house
+style you have to reconcile with the generated file. Two notes on it:
+
+- **`inline` is what makes `.dark` work anywhere but the root element.** Without
+  it, `--color-surface` is declared at `:root` with the light value substituted
+  in, so a `.dark` panel *inside* a light page keeps the light colour. With it,
+  the utility compiles to `var(--surface)` and resolves against whatever the
+  element inherits. A themed subtree is not hypothetical here: the command
+  palette, previews and the print view all want one.
+- **Keep exactly one `@custom-variant dark`.** `init` writes `(&:is(.dark *))`,
+  which matches descendants of `.dark` but not the element carrying it, and
+  carries specificity where `:where` carries none. Replace that line — do not add
+  a second one next to it.
+
+Two rules follow, and they are the whole discipline:
 
 - **Every value in a class name comes from a token.** `bg-surface`, not
   `bg-[#fff]` and not `bg-white`. Lint enforces it: a raw hex in a `className`
@@ -403,13 +433,17 @@ Two rules follow from that block, and they are the whole discipline:
   `translate-x-[…]`) are deliberately exempt, because a sidebar width is a layout
   fact and inventing a token for it turns the token file into a dumping ground.
 
-  One consequence to expect rather than be surprised by: shadcn's generated
-  components ship a few of these — `focus-visible:ring-[3px]` is the common one —
-  and they will fail lint the first time you add a component. That is the
-  retuning below happening at the right moment. `ring-3` is the fix.
-- **Never `:root` for a design value.** `@theme` and `:root` both produce a CSS
-  variable, but only `@theme` produces the utility, and a value that exists as a
-  variable without a utility is a value someone reaches with `bg-[var(--x)]`.
+  The rule reads every string literal in the file, not only `className`
+  attributes, because in this stack that is where class names actually live: a
+  `cva()` base string, a variant map, a `cn()` argument. Expect it to fire on the
+  first `shadcn add` — the generated button ships `focus-visible:ring-[3px]`.
+  `ring-3` is the fix, and that is the retuning below happening at the right
+  moment rather than six months late.
+- **Every name in `:root` has a mapping in `@theme inline`.** The pair above is
+  fine — that is the theming mechanism. What is not fine is a variable that never
+  gets mapped, because the only way to reach it is `bg-[var(--x)]`, which is both
+  a lint error and a value with no name anyone can grep for. If it is worth
+  defining, it is worth a utility.
 
 Beyond the token block:
 

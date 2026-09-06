@@ -155,7 +155,7 @@ export default tseslint.config(
 
         // ── Design tokens ─────────────────────────────────────────────
         // docs/specs/web/README.md §11 says every colour, spacing and
-        // type value comes from the `@theme` block, and CLAUDE.md's
+        // type value comes from the theme block, and CLAUDE.md's
         // discipline is that a claimed guarantee is enforced or not
         // claimed. These four selectors are the enforcement.
         //
@@ -165,42 +165,58 @@ export default tseslint.config(
         // assembled rather than designed, and by then the fix is an
         // audit of every file instead of one line in a CSS block.
         //
+        // The arbitrary-value selectors match a string literal ANYWHERE
+        // in the file, not only inside a `className` attribute. That is
+        // deliberate and it was learned the hard way: the first version
+        // of this rule required a `className` ancestor, and a probe
+        // shaped like a real shadcn component — `focus-visible:ring-[3px]`
+        // and `bg-[#18181b]` in a `cva()` call at module scope — passed
+        // with zero errors. Class strings in this stack live in `cva()`
+        // base strings, variant maps and `cn()` arguments far more often
+        // than in a JSX attribute, so a rule scoped to `className` had a
+        // blind spot exactly where the design system is written. The
+        // regexes are specific to Tailwind's bracket syntax, so matching
+        // every literal costs nothing in false positives.
+        //
         // Two things this deliberately does NOT catch. Layout escape
         // hatches — `w-[280px]`, `grid-cols-[240px_1fr]`, `z-[60]`,
         // `translate-x-[…]` — are absent from the utility list, because
         // a sidebar width is a layout fact and inventing a token for it
-        // makes the token file a dumping ground. And a value reached
-        // through `bg-[var(--x)]` matches, on purpose: `@theme` is what
-        // turns a variable into a utility, so a bare `:root` variable
-        // being smuggled in through brackets is the exact bypass §11
-        // names.
+        // makes the token file a dumping ground. And a bare hex outside
+        // JSX (`const BRAND = '#635bff'`) is invisible to the hex rule,
+        // which is scoped to JSX attributes so that a test asserting a
+        // computed colour is not collateral damage; a hex reached through
+        // a class string is caught by the arbitrary-value rule instead.
         //
         // Both severities are `error` rather than error-and-warn because
         // `no-restricted-syntax` carries one severity for all of its
         // selectors. The escape hatch is always available and always the
         // right answer: add the token.
         {
-          selector: 'JSXAttribute[name.name="className"] Literal[value=/#[0-9a-fA-F]{3,8}/]',
+          // `href` is excluded so a three- or six-character anchor
+          // (`href="#abc"`) is not read as a colour.
+          selector:
+            'JSXAttribute:not([name.name="href"]) Literal[value=/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]',
           message:
-            'Raw hex in a className. Colours live in the @theme block of src/design/tokens.css and are used by name (bg-surface, text-muted) — docs/specs/web/README.md §11.',
+            'Raw hex in JSX. Colours are defined once in src/design/tokens.css and used by name (bg-surface, text-muted, fill-current) — docs/specs/web/README.md §11.',
         },
         {
           selector:
-            'JSXAttribute[name.name="className"] TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}/]',
+            'JSXAttribute:not([name.name="href"]) TemplateElement[value.raw=/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]',
           message:
-            'Raw hex in a className. Colours live in the @theme block of src/design/tokens.css and are used by name (bg-surface, text-muted) — docs/specs/web/README.md §11.',
+            'Raw hex in JSX. Colours are defined once in src/design/tokens.css and used by name (bg-surface, text-muted, fill-current) — docs/specs/web/README.md §11.',
         },
         {
           selector:
-            'JSXAttribute[name.name="className"] Literal[value=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
+            'Literal[value=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
           message:
-            'Arbitrary value in a colour, spacing or type utility. Add the value to the @theme block in src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-) are exempt and need no token.',
+            'Arbitrary value in a colour, spacing or type utility. Add the value to src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-, translate-) are exempt and need no token.',
         },
         {
           selector:
-            'JSXAttribute[name.name="className"] TemplateElement[value.raw=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
+            'TemplateElement[value.raw=/(^|[ :])(bg|text|border|fill|stroke|ring|shadow|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y|rounded|leading|tracking)-\\[/]',
           message:
-            'Arbitrary value in a colour, spacing or type utility. Add the value to the @theme block in src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-) are exempt and need no token.',
+            'Arbitrary value in a colour, spacing or type utility. Add the value to src/design/tokens.css and use the generated utility — docs/specs/web/README.md §11. Layout utilities (w-, h-, grid-cols-, inset-, z-, translate-) are exempt and need no token.',
         },
       ],
 

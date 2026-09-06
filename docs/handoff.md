@@ -190,10 +190,13 @@ rebuilt.
 > - `src/queries/` — the query-key registry of
 >   [web/README.md](specs/web/README.md) §5, and the bootstrap hooks.
 > - `src/stores/` — Zustand stores for client state only. No server data.
-> - `src/design/tokens.css` — one `@theme` block, and the only place a colour,
->   radius, shadow, type step, spacing step or duration is defined
->   ([web/README.md](specs/web/README.md) §11). Dark theme in from this commit,
->   via `@custom-variant dark (&:where(.dark, .dark *))` — class-based, not
+> - `src/design/tokens.css` — the only place a colour, radius, shadow, type step,
+>   spacing step or duration is defined. Three parts, in this order:
+>   `@custom-variant dark (&:where(.dark, .dark *))`; the semantic light/dark pair
+>   in `:root` and `.dark`; and `@theme inline` mapping each name to a utility.
+>   `inline` is load-bearing and the reason is in
+>   [web/README.md](specs/web/README.md) §11 — read it before simplifying this.
+>   Dark theme is in from this commit, class-based rather than
 >   `prefers-color-scheme`, because the theme is a preference the app persists.
 >   Retune shadcn's density here rather than per usage: it is spaced for pages
 >   people visit, and this is a tool people stare at for eight hours.
@@ -269,7 +272,7 @@ rebuilt.
 >   runtime and its own opinion about what a table looks like is out, because the
 >   visual identity is the product. No new dependency in the root `package.json`
 >   without a change request; your own `apps/web/package.json` is yours.
-> - Every colour, spacing, radius and type value comes from the `@theme` block in
+> - Every colour, spacing, radius and type value comes from
 >   `src/design/tokens.css`. Icons are `import { Check } from 'lucide-react'`,
 >   one at a time — a dynamic lookup or a barrel of "all our icons" ships the
 >   whole set.
