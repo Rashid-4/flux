@@ -2,6 +2,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { Select as SelectPrimitive } from 'radix-ui'
 import type * as React from 'react'
+import { useId } from 'react'
 import { cn } from '@/lib/cn'
 
 /**
@@ -163,11 +164,60 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 }
 
 /**
- * The selected row is marked three ways: `aria-selected` for assistive
- * technology, `font-medium`, and the check. Colour is the fourth, not the first —
- * `text-primary-accent` on the check measures 5.84:1 light / 6.13:1 dark, where
- * plain `text-primary` would be 3.45:1 in dark and would be carrying the meaning
- * on its own.
+ * ### Marking the current value, and the one signal Radix cannot carry
+ *
+ * `font-medium`, the check, and a screen-reader-only word — deliberately **not**
+ * `aria-selected`, which this doc block used to claim was the non-visual marker.
+ * It is not, and the measurement is unambiguous:
+ * `@radix-ui/react-select@2.3.7` sets `"aria-selected": isSelected && isFocused`
+ * (dist/index.mjs:859). So the chosen row reports `aria-selected="true"` only while
+ * it *also* holds focus. Radix focuses the selected item on open, which is why this
+ * looks right in a casual check — but arrow one row down and the selected row flips
+ * to `false`, and now **no** option in the list reports as the current value.
+ *
+ * The two remaining signals are both visual: `data-[state=checked]:font-medium` is a
+ * paint, and the check is `aria-hidden`. So without something else, a screen-reader
+ * user who arrows through a status list cannot tell which status is currently
+ * applied — the list reads identically whether the issue is `todo` or `done`. That is
+ * `docs/specs/web/README.md` §9's rule (never one carrier of meaning) failing in the
+ * non-visual direction, which is the direction that gets missed because nobody can
+ * see it. axe cannot flag it either: every option has a name and a role, and
+ * "nothing is marked current" is not a rule any linter has.
+ *
+ * So the marker is an `aria-describedby` reference, and the referenced element is
+ * rendered by `ItemIndicator` — which mounts for the selected item and returns
+ * `null` for every other (dist/index.mjs:952-953). Exactly one row therefore owns
+ * the text, and on all the others the reference dangles and is ignored, which is
+ * precisely the semantics wanted. A screen reader reads "In progress, current
+ * selection" wherever focus happens to be sitting.
+ *
+ * Three details that are load-bearing rather than incidental:
+ *
+ * - **`aria-hidden={false}` is belt-and-braces, and was measured to be exactly
+ *   that.** `ItemIndicator` hard-codes `"aria-hidden": true` before spreading props
+ *   (dist/index.mjs:953), which looks like it would hide the marker from the one
+ *   thing it exists for. It does not: the accessible-name-and-description spec
+ *   excludes a hidden node only when it is *not* directly referenced by
+ *   `aria-labelledby` or `aria-describedby`, and this node is referenced directly.
+ *   Negative-tested — deleting the override leaves every assertion in
+ *   `select.test.tsx` green, so nothing here pins it and this comment is the only
+ *   record of why it is present. It stays because that spec exemption is a subtlety
+ *   real screen readers have historically disagreed about and one attribute is a
+ *   cheap way not to depend on it. It is *not* the load-bearing part of this fix,
+ *   and the first draft of this comment said it was.
+ * - **It is a description, not part of the name, and it is outside `ItemText`.**
+ *   Radix names an option with `aria-labelledby={textId}` pointing at the `ItemText`
+ *   node, and separately clones that node's `textContent` into the trigger's value
+ *   and into the type-ahead index. Text placed *inside* `ItemText` would therefore
+ *   appear in the closed trigger ("To do current selection") and would corrupt
+ *   type-ahead. Outside it, neither can happen.
+ * - **A caller who passes their own `aria-describedby` replaces this one.** There is
+ *   no such caller, and merging the two would mean pulling the prop out of the
+ *   spread to string-concatenate it. Written down rather than defended against.
+ *
+ * Colour is the fourth signal, not the first — `text-primary-accent` on the check
+ * measures 5.84:1 light / 6.13:1 dark, where plain `text-primary` would be 3.45:1 in
+ * dark and would be carrying the meaning on its own.
  *
  * `focus:bg-surface-3` is the highlight; the `-outline-offset-2` matters because
  * the content is an `overflow-y-auto` box, so an outline drawn outside an item's
@@ -179,9 +229,12 @@ function SelectItem({
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
+  const currentSelectionId = `${useId()}current`
+
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
+      aria-describedby={currentSelectionId}
       className={cn(
         'relative flex w-full cursor-default items-center gap-2 select-none',
         'rounded-control py-1.5 pr-8 pl-2 text-base',
@@ -202,6 +255,14 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemIndicator
+        data-slot="select-item-current"
+        id={currentSelectionId}
+        aria-hidden={false}
+        className="sr-only"
+      >
+        Current selection
+      </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
 }

@@ -25,13 +25,8 @@ import { cn } from '@/lib/cn'
  * are in a later cascade layer than `@layer base`, it beat the global
  * `:focus-visible` rule rather than losing to it.
  *
- * **Labelling is the caller's job and is not optional.** Radix gives the content
- * `role="dialog"`, and a dialog with no accessible name is announced as "dialog"
- * and nothing else. Either pass `aria-label`, or give `PopoverTitle` an `id` and
- * point `aria-labelledby` at it. This component deliberately does not wire that
- * up automatically: an auto-generated `aria-labelledby` pointing at a title the
- * caller did not render resolves to an empty string, which is worse than an
- * unlabelled dialog because it looks handled.
+ * **Labelling is the caller's job and is not optional — and `PopoverContentProps`
+ * below makes it a type error rather than a paragraph.**
  */
 function Popover({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
@@ -41,12 +36,54 @@ function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimiti
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
+/**
+ * ### A popover must carry a label, and this is where that stops being advice
+ *
+ * Radix gives the content `role="dialog"`, and a dialog with no accessible name is
+ * announced as "dialog" and nothing else. The gap is not symmetrical with `Dialog`,
+ * and the asymmetry is measured rather than assumed:
+ *
+ * - `@radix-ui/react-dialog@1.1.23` wires `"aria-labelledby": context.titlePresent ?
+ *   context.titleId : void 0` (dist/index.mjs:233) — a dialog labels itself from its
+ *   own `Title`, so forgetting one is caught by Radix's own dev warning.
+ * - `@radix-ui/react-popover@1.1.23` sets `role="dialog"` (dist/index.mjs:245) and
+ *   wires **no** labelling attribute at all, and warns about nothing.
+ *
+ * So a popover inherits the strictest role in the library with none of the machinery,
+ * and until now the gap was covered by a paragraph in this file's header — which only
+ * helps a caller who read it. The union below moves the check to the compiler, at the
+ * call site, where the person who knows what the popover is *for* is standing.
+ *
+ * Exactly one of the two, not "at least one". Passing both is rejected on purpose:
+ * `aria-labelledby` wins in the accessible-name algorithm, so an element carrying
+ * both has a label that does nothing and no indication of which one lost.
+ *
+ * `?: undefined` rather than `?: never` on the absent side, because
+ * `exactOptionalPropertyTypes` is on: `?: never` would reject a caller forwarding its
+ * own `string | undefined` even when the value is genuinely absent, which is a real
+ * pattern and not a mistake. `?: undefined` accepts the absence and still rejects a
+ * string.
+ *
+ * Not done, deliberately: auto-generating an `aria-labelledby` pointing at a
+ * `PopoverTitle` the caller may not have rendered. That resolves to an empty string,
+ * which is worse than an unlabelled dialog because it looks handled — to axe as much
+ * as to a reviewer.
+ */
+type PopoverContentProps = Omit<
+  React.ComponentProps<typeof PopoverPrimitive.Content>,
+  'aria-label' | 'aria-labelledby'
+> &
+  (
+    | { 'aria-label': string; 'aria-labelledby'?: undefined }
+    | { 'aria-labelledby': string; 'aria-label'?: undefined }
+  )
+
 function PopoverContent({
   className,
   align = 'center',
   sideOffset = 4,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: PopoverContentProps) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -124,3 +161,4 @@ export {
   PopoverTitle,
   PopoverTrigger,
 }
+export type { PopoverContentProps }

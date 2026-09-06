@@ -69,6 +69,42 @@ describe('Popover', () => {
     expect(trigger).toHaveFocus()
   })
 
+  /**
+   * The label requirement, pinned where it is actually enforced: the compiler.
+   *
+   * Radix warns about a `Dialog` with no title and says nothing at all about a
+   * `Popover` with no label, even though it gives both `role="dialog"` —
+   * `popover.tsx`'s `PopoverContentProps` header has the measurement. So there is no
+   * runtime signal to assert on; the whole guarantee is the type, and the only way to
+   * test a type is to require that the wrong thing *fails*.
+   *
+   * `@ts-expect-error` inverts it: `pnpm typecheck` reports TS2578 ("unused
+   * '@ts-expect-error' directive") the moment either line below starts compiling. So
+   * loosening the union — or widening it to "at least one" — fails CI on this file
+   * rather than silently permitting an unnamed dialog. Two cases, because the union
+   * makes two distinct promises: neither label is rejected, and so is both.
+   *
+   * Neither is rendered. A test body would add nothing a type can give, and mounting
+   * an intentionally-ill-typed element only invites someone to "fix" the error.
+   */
+  it('requires exactly one label at the type level', () => {
+    const neither = (
+      <Popover>
+        {/* @ts-expect-error PopoverContent requires aria-label or aria-labelledby. */}
+        <PopoverContent>Unnamed</PopoverContent>
+      </Popover>
+    )
+    const both = (
+      <Popover>
+        {/* @ts-expect-error aria-label and aria-labelledby are alternatives, not a pair. */}
+        <PopoverContent aria-label="Filters" aria-labelledby="filter-title">
+          Doubly named
+        </PopoverContent>
+      </Popover>
+    )
+    expect([neither, both].every((element) => element.type === Popover)).toBe(true)
+  })
+
   it('does not open from a disabled trigger', async () => {
     const user = setupUser()
     renderWithProviders(

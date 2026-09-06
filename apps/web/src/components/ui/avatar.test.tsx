@@ -12,11 +12,29 @@ import {
 } from './avatar'
 
 /**
- * `AvatarImage` requires `alt` at the type level — Radix types it optional
- * because `<img>` does, and `jsx-a11y/alt-text` matches `img`, not
- * `AvatarPrimitive.Image`. The person's name is the alt text; omitting it is a
- * defect `tsc` has to catch. This file compiling with `alt` present is the pin;
- * the runtime assertion is that the attribute actually reaches the image.
+ * `AvatarImage` requires `alt` at the type level — Radix types it optional because
+ * `<img>` does, and `jsx-a11y/alt-text` matches `img`, not `AvatarPrimitive.Image`.
+ * The person's name *is* the alt text, so a missing one is a real defect and `tsc` is
+ * the only tool positioned to catch it.
+ *
+ * This header used to end "the runtime assertion is that the attribute actually
+ * reaches the image", and there was no such assertion — there cannot be. Radix mounts
+ * the `<img>` only after the image loads, jsdom never loads one, so the element does
+ * not exist to be queried. The test below said so in an inline comment while the
+ * header above it claimed the opposite, which is the worse half: a doc comment
+ * describing coverage that does not exist is read as evidence and costs more than
+ * silence.
+ *
+ * So the pin is now a real one, in the direction that can actually be checked. A
+ * positive test ("this file compiles with `alt` present") is worth very little,
+ * because it also passes when `alt` is optional. What needs pinning is that omitting
+ * it **fails**, and `@ts-expect-error` inverts the check: if `alt` ever stops being
+ * required, the suppression becomes unused and `tsc` reports TS2578 on that line.
+ *
+ * That pin only works because `tsconfig.json` includes the test files. It did not
+ * until the 117-phantom-error fix — this file belonged to no project a language
+ * server could find, and a `@ts-expect-error` here would have been checked by
+ * nothing at all. See that config's header.
  */
 describe('Avatar', () => {
   it('defaults to md and exposes data-slot / data-size', async () => {
@@ -47,13 +65,33 @@ describe('Avatar', () => {
     expect(root).toHaveClass(cls)
   })
 
-  it('forwards a required alt onto the image', () => {
-    // Radix mounts the <img> only after load. jsdom never loads, so the pin is
-    // that `alt` is required at the type level (this file would not compile
-    // without it) and the person is still named via the fallback.
+  it('names the person via the fallback while the image has not loaded', () => {
     const { container } = renderWithProviders(
       <Avatar>
         <AvatarImage src="https://avatars.example/ada.png" alt="Ada Okafor" />
+        <AvatarFallback>AO</AvatarFallback>
+      </Avatar>,
+    )
+    /**
+     * The `<img>` is genuinely absent, not merely unasserted — Radix mounts it on
+     * load and jsdom never loads. Asserting that directly is what keeps the next
+     * reader from adding a `toHaveAttribute('alt', …)` that can only ever fail.
+     */
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('[data-slot="avatar-fallback"]')).toHaveTextContent('AO')
+  })
+
+  /**
+   * The type-level half, and the only one that can fail if `alt` is loosened. `tsc`
+   * reports TS2578 ("unused '@ts-expect-error' directive") the moment the line below
+   * compiles cleanly, so `pnpm typecheck` is what enforces the requirement and this
+   * test body only exists to keep the JSX in a position the compiler visits.
+   */
+  it('will not compile an AvatarImage without alt', () => {
+    const { container } = renderWithProviders(
+      <Avatar>
+        {/* @ts-expect-error alt is required on AvatarImage; omitting it must not compile. */}
+        <AvatarImage src="https://avatars.example/ada.png" />
         <AvatarFallback>AO</AvatarFallback>
       </Avatar>,
     )

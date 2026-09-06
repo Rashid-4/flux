@@ -81,6 +81,71 @@ describe('Select', () => {
     expect(onValueChange).toHaveBeenCalledWith('in_progress')
   })
 
+  /**
+   * The non-visual marker of the current value, and the reason it is not
+   * `aria-selected`. `select.tsx`'s `SelectItem` header has the measurement; what is
+   * asserted here is the consequence, in the state where Radix's own attribute has
+   * already given up:
+   *
+   * 1. `aria-selected` is `true` on the selected row **only while it holds focus** —
+   *    asserted directly, so if a Radix upgrade ever fixes this upstream, this test
+   *    fails and the `sr-only` marker can be reconsidered rather than left as
+   *    permanent dead weight.
+   * 2. Move focus one row down and *nothing* reports `aria-selected="true"`. This is
+   *    the state a keyboard user spends most of their time in.
+   * 3. The accessible description survives that move, on the selected row only.
+   *
+   * `toHaveAccessibleDescription` is the assertion rather than a DOM query for the
+   * span, because what matters is that the description actually *computes* — a
+   * dangling `aria-describedby` and an `aria-hidden` target both leave the element in
+   * the DOM and the description empty, and those are exactly the two ways this fix
+   * could have been written and done nothing.
+   */
+  it('names the current selection for a screen reader once aria-selected has stopped', async () => {
+    const user = setupUser()
+    renderWithProviders(<StatusSelect />)
+    /**
+     * Captured before opening. Radix marks everything outside the content
+     * `aria-hidden` while the list is open, so the trigger is unreachable *by role*
+     * for as long as it is — correctly, since it is not operable then.
+     */
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    await user.click(trigger)
+    await screen.findByRole('listbox')
+
+    const todo = screen.getByRole('option', { name: 'To do' })
+    const inProgress = screen.getByRole('option', { name: 'In progress' })
+
+    /** Radix focuses the selected item on open, so this is the flattering case. */
+    await waitFor(() => {
+      expect(todo).toHaveFocus()
+    })
+    expect(todo).toHaveAttribute('aria-selected', 'true')
+
+    /** One row down, and Radix's marker is gone from every option in the list. */
+    await user.keyboard('{ArrowDown}')
+    await waitFor(() => {
+      expect(inProgress).toHaveFocus()
+    })
+    expect(todo).toHaveAttribute('aria-selected', 'false')
+    expect(
+      screen.getAllByRole('option').filter((o) => o.getAttribute('aria-selected') === 'true'),
+    ).toEqual([])
+
+    /** Ours is not, and it is on the selected row rather than the focused one. */
+    expect(todo).toHaveAccessibleDescription('Current selection')
+    expect(inProgress).toHaveAccessibleDescription('')
+    expect(screen.getByRole('option', { name: 'Done' })).toHaveAccessibleDescription('')
+
+    /**
+     * And it never leaks into the trigger's value or the option's own name — the two
+     * places Radix reuses `ItemText`, and the reason the marker sits outside it.
+     */
+    expect(trigger).toHaveTextContent('To do')
+    expect(trigger.textContent).not.toMatch(/current selection/i)
+    expect(todo).toHaveAccessibleName('To do')
+  })
+
   it('closes on Escape and restores focus to the trigger', async () => {
     const user = setupUser()
     renderWithProviders(<StatusSelect />)
