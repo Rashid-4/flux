@@ -183,12 +183,36 @@ function fromFluxError(err: FluxError, traceId: string): ErrorReport {
     if (key in err.meta) body[key] = err.meta[key]
   }
 
+  /**
+   * `Retry-After` is the header a well-behaved client and every CDN in front of this
+   * service already obey. Sending the value only in the JSON body would mean the one
+   * component that could back off automatically never sees it.
+   *
+   * **Both outputs come from one predicate**, and that is a fix rather than a tidy-up.
+   * The guard used to apply to the header alone, so the loop above copied whatever was
+   * in `meta` into the body unchecked, and the two disagreed in both directions:
+   *
+   *   • a **non-integer** — `remainingMs / 1000` is the obvious way to compute this,
+   *     and it yields `1.5` — is rejected by `ApiErrorSchema.retryAfterSeconds`, so
+   *     `finalise` threw the whole body away and answered **500** to a request that was
+   *     merely rate-limited. The client sees a retryable server error carrying no
+   *     `Retry-After` at all, and retries at once, during the exact event the limiter
+   *     exists to damp;
+   *   • a **negative** passed the parse. Header omitted, body shipped it, and a client
+   *     multiplying it into a `setTimeout` waits no time.
+   *
+   * So a value neither output can carry is on neither. The 429 is the true answer and
+   * it survives; only the hint is lost, and the client falls back to the backoff
+   * `RETRYABLE_CODES` already tells it to have. The rejected value goes to `detail`
+   * instead of raising `level`, because raising it would write one `error` line per
+   * refused request — a log flood produced by the defence against a flood.
+   */
   const headers: Record<string, string> = {}
-  // `Retry-After` is the header a well-behaved client and every CDN in front of
-  // this service already obey. Sending the value only in the JSON body would mean
-  // the one component that could back off automatically never sees it.
-  const retryAfter = err.meta.retryAfterSeconds
-  if (typeof retryAfter === 'number' && Number.isInteger(retryAfter) && retryAfter >= 0) {
+  const retryAfter = retryAfterSecondsOf(err.meta)
+  if (retryAfter === undefined) {
+    delete body.retryAfterSeconds
+  } else {
+    body.retryAfterSeconds = retryAfter
     headers['retry-after'] = String(retryAfter)
   }
 
@@ -205,9 +229,24 @@ function fromFluxError(err: FluxError, traceId: string): ErrorReport {
       // A 5xx we raised ourselves is the case where the stack is the whole
       // diagnosis. A 4xx's stack is noise — the code and the path say everything.
       stack: err.status >= 500 ? err.stack : undefined,
+      // Operator-only, and the only trace of a hint that was asked for and dropped.
+      retryAfterSecondsRejected:
+        retryAfter === undefined && 'retryAfterSeconds' in err.meta
+          ? safeString(err.meta.retryAfterSeconds)
+          : undefined,
     },
     traceId,
   })
+}
+
+/**
+ * `meta.retryAfterSeconds`, when it is a value **both** the body field and the header
+ * can carry: a non-negative integer. `Retry-After`'s delta-seconds form admits nothing
+ * else, and neither does `ApiErrorSchema`.
+ */
+function retryAfterSecondsOf(meta: Record<string, unknown>): number | undefined {
+  const value = meta.retryAfterSeconds
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined
 }
 
 function fromForeignStatus(err: unknown, status: number, traceId: string): ErrorReport {
@@ -278,11 +317,11 @@ function fromUnknown(err: unknown, traceId: string): ErrorReport {
     level: 'error',
     detail: {
       errorCode: 'internal_error',
-      // `String(err)` because a thrown non-Error is real: a rejected promise can
-      // carry a string, and `err.message` on it is `undefined`, which would log an
-      // empty object for the only failure with no other evidence.
+      // Stringified because a thrown non-Error is real: a rejected promise can carry
+      // a string, and `err.message` on it is `undefined`, which would log an empty
+      // object for the only failure with no other evidence.
       thrown: err instanceof Error ? err.name : typeof err,
-      thrownMessage: err instanceof Error ? err.message : String(err),
+      thrownMessage: err instanceof Error ? err.message : safeString(err),
       stack: err instanceof Error ? err.stack : undefined,
       cause: err instanceof Error ? describeCause(err.cause) : undefined,
     },
@@ -350,8 +389,21 @@ function statusOf(err: unknown): number | undefined {
 
   const getStatus = (err as { getStatus?: unknown }).getStatus
   if (typeof getStatus === 'function') {
-    const status = (getStatus as () => unknown).call(err)
-    if (isHttpStatus(status)) return status
+    /**
+     * The only foreign code `reportError` runs, and therefore the only place it can
+     * be made to throw. `writeErrorResponse` documents that it never does — an
+     * exception raised while reporting an exception loses the original, which is the
+     * one somebody needs — and that claim has to hold for *any* object with a method
+     * of this name, not just for `HttpException`, whose `getStatus()` is a field read.
+     * Left unguarded, a throwing accessor takes out the filter, Fastify has nowhere
+     * left to report it, and the request hangs with nothing in the log.
+     */
+    try {
+      const status = (getStatus as () => unknown).call(err)
+      if (isHttpStatus(status)) return status
+    } catch {
+      // Fall through to `statusCode`, and then to `internal_error`.
+    }
   }
 
   const statusCode = (err as { statusCode?: unknown }).statusCode
@@ -376,6 +428,24 @@ function propertyOf(err: unknown, key: string): string | undefined {
 }
 
 /**
+ * `String(value)`, for a value that may refuse to become one.
+ *
+ * `throw` accepts anything, and two of the things it accepts make `String()` itself
+ * throw: an object with a null prototype has no `toString` at all
+ * (`Object.create(null)`), and an object whose `toString` throws is legal. Both land
+ * here as the *only* evidence about a failure that carried no other, so turning them
+ * into a second failure inside the exception filter is the one outcome worse than
+ * losing the text.
+ */
+function safeString(value: unknown): string {
+  try {
+    return String(value)
+  } catch {
+    return `[unstringifiable ${typeof value}]`
+  }
+}
+
+/**
  * Flatten an error's `cause` chain into strings for the log.
  *
  * Depth-limited, because a `cause` cycle is reachable — `a.cause = b; b.cause = a`
@@ -384,7 +454,7 @@ function propertyOf(err: unknown, key: string): string | undefined {
  */
 function describeCause(cause: unknown, depth = 0): unknown {
   if (cause === undefined || cause === null || depth > 4) return undefined
-  if (!(cause instanceof Error)) return String(cause)
+  if (!(cause instanceof Error)) return safeString(cause)
 
   return {
     name: cause.name,
