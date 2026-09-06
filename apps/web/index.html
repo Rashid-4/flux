@@ -22,8 +22,13 @@
       than a module for the same reason — a module script is deferred by
       definition, which is exactly what must not happen here.
 
-      The key and the values match src/stores/theme.ts. `system` stores no
-      preference and follows the OS.
+      The key and the three values match src/stores/theme.ts, which stores a
+      bare string — not a JSON envelope — precisely so this comparison can be a
+      comparison. `system` and a missing key both mean "follow the OS": the
+      store writes `system` explicitly when it is chosen, and a first visit has
+      no key at all. src/stores/theme.test.ts extracts this script and checks its
+      verdict against the store's for every combination, so the two copies of the
+      rule cannot drift.
     -->
     <script>
       ;(function () {
