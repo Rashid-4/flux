@@ -341,20 +341,28 @@ jobs:
   # CodeQL.
   #
   # Code scanning is free on public repositories and part of GitHub Code
-  # Security — a paid add-on — on private ones. This repository is
-  # private, so on the first real CI run `analyze` spent three minutes
-  # building a database and then failed with "Resource not accessible by
-  # integration": a red job that no change to this repository can turn
-  # green.
+  # Security — a paid add-on — on private ones. **This repository is now
+  # public, so CodeQL runs.** The probe below is kept rather than deleted,
+  # for two reasons that outlive the change.
   #
-  # A permanently red job is worse than an absent one. People stop
-  # reading a status they know is always red, and the next genuine
-  # failure arrives inside that noise. But silently skipping is worse
-  # still — that is the blind-spot shape described in CLAUDE.md, where a
-  # green tick means "not analysed" and reads as "analysed, clean".
+  # The first is the history. While the repository was private, `analyze`
+  # spent three minutes building a database and then failed with "Resource
+  # not accessible by integration" — a red job that no change to this
+  # repository could turn green. A permanently red job is worse than an
+  # absent one: people stop reading a status they know is always red, and
+  # the next genuine failure arrives inside that noise. But silently
+  # skipping is worse still — that is the blind-spot shape described in
+  # CLAUDE.md, where a green tick means "not analysed" and reads as
+  # "analysed, clean". So the job asks first, and when the answer is no it
+  # says so in the run summary and as a workflow warning.
   #
-  # So the job asks first, and when the answer is no it says so in the
-  # run summary and as a workflow warning, where somebody sees it.
+  # The second is that visibility is a setting, not a property of the code.
+  # Anyone can flip this repository back to private in two clicks, and the
+  # failure mode that returns is the silent one: the analysis stops and
+  # nothing about the code changed to say so. The probe is what makes that
+  # loud instead. It reads `github.event.repository.private` at run time
+  # rather than trusting this comment, which is the only reason the switch
+  # to public needed no edit here to start working.
   # ──────────────────────────────────────────────────────────────────
   codeql:
     name: CodeQL
@@ -381,15 +389,21 @@ jobs:
             echo 'Static analysis is **not** covering this commit.'
             echo
             echo 'Code scanning is free on public repositories and part of GitHub'
-            echo 'Code Security (paid) on private ones. This repository is private'
-            echo 'and the repository variable `CODE_SCANNING_ENABLED` is not `1`.'
+            echo 'Code Security (paid) on private ones. This repository is **not'
+            echo 'public** and the repository variable `CODE_SCANNING_ENABLED` is'
+            echo 'not `1`.'
             echo
-            echo 'To enable: turn on Code Security for the repository, then set'
-            echo '`CODE_SCANNING_ENABLED=1` as a repository variable. Until then'
-            echo 'this job is a placeholder and every run will say so here.'
+            echo 'This repository *was* public, and CodeQL ran. If you are reading'
+            echo 'this, its visibility changed and static analysis stopped — which'
+            echo 'is a decision, not a bug, but it should be a deliberate one.'
+            echo
+            echo 'To restore coverage: make the repository public again, or turn on'
+            echo 'Code Security for it and set `CODE_SCANNING_ENABLED=1` as a'
+            echo 'repository variable. Until then this job is a placeholder and'
+            echo 'every run will say so here.'
           } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "::warning title=CodeQL skipped::Code scanning is not enabled for this private repository — this commit was not statically analysed. See the run summary."
+          echo "::warning title=CodeQL skipped::This repository is no longer public and code scanning is not enabled — this commit was not statically analysed. See the run summary."
 
       - uses: actions/checkout@v5
         if: steps.probe.outputs.run == 'true'
