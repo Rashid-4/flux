@@ -4,6 +4,7 @@ import type { ShellContext } from '@/components/shell/context'
 import { IconRail } from '@/components/shell/icon-rail'
 import { ProjectSidebar } from '@/components/shell/project-sidebar'
 import { ShellFrame } from '@/components/shell/shell-frame'
+import { ShellKeyboard } from '@/components/shell/shell-keyboard'
 import { ShellChromeSkeleton, ShellMainSkeleton } from '@/components/shell/shell-skeleton'
 import { useBootstrap } from '@/queries/bootstrap'
 import { useSidebarOpen } from '@/stores/chrome'
@@ -95,6 +96,16 @@ export function Shell() {
         </>
       }
     >
+      {/**
+       * The keyboard layer mounts inside the loaded branch, not above the gate.
+       *
+       * Two reasons, and the second is the one that matters. Its shortcuts navigate
+       * and read `bootstrap`, so before the gate resolves half of them have nothing
+       * to act on. And a `?` sheet that opened over the bootstrap *error* screen
+       * would list shortcuts for a shell that is not there — a help dialog that is
+       * confidently wrong, which §8 is written to prevent.
+       */}
+      <ShellKeyboard bootstrap={bootstrap.data} />
       <Outlet context={context} />
     </ShellFrame>
   )
