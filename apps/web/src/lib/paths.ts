@@ -11,9 +11,21 @@
  * only, found by a user rather than by a test.
  *
  * ./paths.test.ts holds the two halves together by round-tripping: every
- * builder's output is fed to react-router's own `matchPath` against its pattern,
- * and the params have to come back out. A renamed segment therefore fails in CI
+ * builder's output is fed to react-router's own matcher against its pattern, and
+ * the params have to come back out. A renamed segment therefore fails in CI
  * rather than in the browser.
+ *
+ * ### To match a path, use `matchRoutes` — not `matchPath`
+ *
+ * They disagree, and the difference is invisible until it is a bug report.
+ * `matchPath` percent-decodes nothing beyond turning `%2F` back into a slash, so
+ * `matchPath(ROUTE_PATTERNS.board, paths.board('ÜRÜN'))` yields the literal
+ * `'%C3%9CR%C3%9CN'`. `matchRoutes` decodes the pathname first, which is why
+ * `useParams()` inside a component yields `'ÜRÜN'`. An encoded key reads perfectly
+ * well in a URL bar and fetches nothing, so the wrong one of these is not visibly
+ * wrong. ./paths.test.ts pins both answers rather than describing them, so a
+ * react-router upgrade that makes the two agree fails a test instead of quietly
+ * outdating this paragraph.
  *
  * ### Why this is in `lib/` and not in `routes/`
  *

@@ -103,7 +103,7 @@ recorded beside the tokens they belong to.
 
 ## State of this tree
 
-**552 tests in 46 files.** That number is not the same as "this tree is
+**625 tests in 48 files.** That number is not the same as "this tree is
 verified", and the difference is the most useful thing this section can tell you.
 Two directories have been reviewed line by line; the rest has been written and
 never read back.
@@ -114,13 +114,13 @@ never read back.
 | `components/data/` — 10 components | all 10 | **yes** |
 | `api/` — 6 modules | all 6 | yes |
 | `queries/` — 3, `design/` — 6, `test/` — 2, `stores/theme` | all | yes |
+| `lib/` — 4 modules | `paths`, `bootstrap` | **yes** — both cited a test that did not exist |
 | `components/shell/` — 6 components | **none** | no |
 | `components/` top level — 9 components | **none** | no |
-| `lib/` — 4 modules | **none** | no |
 | `routes/` — 7 modules | **none** | no |
 | `stores/chrome` | **none** | no |
 
-So **27 modules have no test at all**, including every route and the whole
+So **25 modules have no test at all**, including every route and the whole
 application shell. Treat anything in the lower half of that table as unverified:
 it compiles, it renders, and nobody has checked what it does on an empty list, a
 slow network, a 403, or a keyboard.

@@ -44,16 +44,27 @@ export type OrgPermissions = Bootstrap['orgPermissions']
  * Portal" get different letters where their names would give the same one.
  *
  * `slice(0, 1)` rather than `key[0]`, because `noUncheckedIndexedAccess` types the
- * latter as `string | undefined` — and the reason that flag is on is that a project
- * key really can be an empty string as far as this type is concerned
- * (`z.string()`, no `.min()`). The API will not send one, but a component that
- * renders `undefined` because it trusted an index is a component that crashed for a
- * reason nobody can reproduce. An empty key yields an empty badge, which is
- * unhelpful and not broken.
+ * latter as `string | undefined`, and every fallback that satisfies the compiler has
+ * to invent a letter. `slice` answers `''`, which is the honest answer.
  *
- * `toLocaleUpperCase()` and not `toUpperCase()`: they differ for real alphabets a
- * project key may one day be written in, and the locale-aware form is the one that
- * does not mangle Turkish dotless i.
+ * A *parsed* payload cannot arrive here with an empty key: `ProjectKeySchema` is
+ * `/^[A-Z][A-Z0-9]{1,9}$/`, so a response carrying one fails at the boundary rather
+ * than reaching a component. This paragraph used to claim the opposite —
+ * "`z.string()`, no `.min()`" — and the distinction is the whole point of the guard.
+ * It does not defend against the API. It defends against the *unparsed*: a fixture,
+ * a hand-built object in a test, a future endpoint that types the field as a bare
+ * string. The compiler permits `key: ''` at every one of those sites, because the
+ * regex is a runtime rule and the type it infers is `string`. An empty key yields an
+ * empty badge, which is unhelpful and not broken; a component that renders
+ * `undefined` because it trusted an index is a component that crashed for a reason
+ * nobody can reproduce.
+ *
+ * `toLocaleUpperCase()` and not `toUpperCase()`. On every key the contract admits
+ * this is a no-op — that regex allows `A-Z0-9` and nothing else — so it is a cheap
+ * decision taken early rather than a live requirement: if project keys ever widen to
+ * another alphabet, the locale-aware form is the one that does not mangle Turkish
+ * dotless i. The empty argument list means the *reader's* locale, which is the right
+ * default for a letter that is only ever displayed.
  */
 export function projectInitial(project: ProjectSummary): string {
   return project.key.slice(0, 1).toLocaleUpperCase()
@@ -73,6 +84,10 @@ export function projectInitial(project: ProjectSummary): string {
  * equal by name would otherwise land in whatever order the input happened to have,
  * and a list that reorders itself between renders of the same data is a list nobody
  * trusts.
+ *
+ * `numeric: true` puts `Release 2` before `Release 10`. Character by character, `1`
+ * precedes `2`, so the plain comparison sorts ten before two — and teams number
+ * things, so this is the case that makes a sorted list look unsorted.
  *
  * Returns a new array. `Array.prototype.sort` mutates, and the input here is
  * TanStack Query's cached data — sorting it in place would rewrite the cache
