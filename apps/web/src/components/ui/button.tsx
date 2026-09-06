@@ -47,8 +47,9 @@ const buttonVariants = cva(
         contrast: 'bg-contrast text-contrast-fg shadow-xs hover:bg-contrast-hover',
         /**
          * The workhorse. `border-control` rather than `border` because this
-         * border *is* the control's boundary — 3.05:1 light, 4.0:1 dark, which
-         * is what SC 1.4.11 asks for and what decorative `border` does not meet.
+         * border *is* the control's boundary — 4.03:1 light, 3.99:1 dark on the
+         * `surface` it fills with, which is what SC 1.4.11 asks for and what
+         * decorative `border` (1.3:1) does not meet.
          */
         secondary:
           'border border-border-control bg-surface text-fg shadow-xs hover:bg-surface-2 focus-visible:border-ring',

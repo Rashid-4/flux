@@ -431,12 +431,18 @@
 
   /* -- Radius -------------------------------------------------------------- */
   /* Named after what they are on, because "which of rounded-lg and rounded-xl
-     is a card" is not a question anyone should have to answer twice. */
-  --radius-control: 0.5rem; /* 8px  — buttons, inputs, menu items */
-  --radius-card: 0.75rem; /* 12px — issue cards, list rows */
-  --radius-panel: 1rem; /* 16px — sidebars, columns, popovers */
-  --radius-window: 1.25rem; /* 20px — dialogs, the app frame */
-  --radius-chip: 9999px; /* labels, priority pills, avatars */
+     is a card" is not a question anyone should have to answer twice.
+
+     The ladder nests: an inner corner is its outer corner minus the padding
+     between them, which is what stops a 12px item inside a 12px panel from
+     looking like it is bulging out of it. A menu is `card` (12px) with `p-1`
+     (4px), so its items are 8px — `control`. The tab strip is the same sum one
+     rung down. `components/ui/README.md` §3 has the full table. */
+  --radius-control: 0.5rem; /* 8px  — buttons, inputs, menu and select items, tab chips, tooltips */
+  --radius-card: 0.75rem; /* 12px — menu/select/popover panels, tab troughs, issue cards, list rows */
+  --radius-panel: 1rem; /* 16px — dialogs, sidebars, board columns */
+  --radius-window: 1.25rem; /* 20px — the app frame */
+  --radius-chip: 9999px; /* labels, priority pills, avatars, switches, radio dots */
 
   /* -- Layout sizes -------------------------------------------------------- */
   /* The measured widths of the reference chrome, as spacing tokens so they are

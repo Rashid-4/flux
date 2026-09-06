@@ -10,6 +10,9 @@ directory.** It overwrites, and everything on this page is what gets lost. To
 pull in a component that does not exist yet, generate it into a scratch path,
 read it, and port it — or just add it here by hand against the tables below.
 
+And before copying any snippet off `ui.shadcn.com`: **six of these components
+take a different API from the one documented there.** They are all in §9.
+
 ---
 
 ## 1. Why they needed rewriting at all
@@ -71,7 +74,8 @@ sRGB WCAG values, light / dark, against the surface each pair actually sits on.
 | `destructive` | `danger-solid` (fill) or `danger-accent` (text) | Two tokens because the requirements differ: a solid fill needs 3:1 against its neighbours, text on a surface needs 4.5:1. `danger-solid` `#d92d33` carries white at 4.9:1; `danger-accent` `#c4262c` is 5.9:1 on white |
 | `destructive/90` | `danger-hover` | Same reasoning as `primary-hover` |
 | `destructive/10`, `/20` | `danger-soft` | A measured tint, `#fdeced` / `#2d1618`, rather than an alpha blend |
-| `input` (border) | `border-control` | 3.05:1 / 4.0:1. This token exists exactly for WCAG 2.2 SC 1.4.11: a control's boundary must be 3:1, which `border` (`#e2e6eb`, decorative) is not |
+| `input` (border) | `border-control` | `#777f8c` / `#707881`. Exists for WCAG 2.2 SC 1.4.11 — a control's boundary must clear 3:1 against whatever is behind it, which `border` (`#e2e6eb`, decorative) does not. Measured on all four backgrounds a control actually sits on: `surface` 4.03 / 3.99, `surface-2` 3.79 / 3.63, `surface-3` 3.62 / 3.20, `canvas` 3.55 / 4.39. Both values were retuned; read the token's own comment for what they were and why that was a bug |
+| — | `raised` | Added. `#ffffff` / `#272b30`. The segment lifted *out of* a trough: the active chip in the Kanban / Table / List switcher. It cannot just be `surface`, and that is the whole reason it exists — in dark mode `surface` (`#16181b`) is **darker** than the `surface-2` trough (`#1e2125`), so a `bg-surface` chip reads as pressed *in* rather than raised *out*, inverting the one thing the control communicates. `fg` on it: 17.76:1 / 12.92:1 |
 | `border` | `border` | Unchanged. Decorative edges — card outlines, separators — are exempt from 1.4.11 |
 | `ring` | `ring` | Unchanged name, see §4 |
 | `black/50` (scrim) | `overlay` | `oklch(0.209 0.009 264.4 / 0.42)` light, `oklch(0 0 0 / 0.62)` dark. A 50%-black scrim over a dark app is nearly invisible; the token is theme-aware |
@@ -97,11 +101,17 @@ icon button, so a filter row lines up without per-component nudging:
 | --- | --- | --- | --- | --- | --- |
 | `xs` | `h-6` 24px | `px-2` | `text-xs` 11px | 14px | Inline row actions, card affordances |
 | `sm` | `h-7` 28px | `px-2.5` | `text-sm` 12px | 14px | Toolbars, filter bars, the reference's view switcher |
-| default | `h-8` 32px | `px-3` | `text-base` 13px | 16px | Everything else |
+| `md` (the default) | `h-8` 32px | `px-3` | `text-base` 13px | 16px | Everything else |
 | `lg` | `h-10` 40px | `px-4` | `text-md` 14px | 18px | Empty-state and dialog primary actions |
 
-Icon-only variants are the square of their row: `size-6` / `size-7` / `size-8` /
-`size-10`.
+Icon-only sizes are the square of their row — `icon-xs` `size-6`, `icon-sm`
+`size-7`, `icon` `size-8`, `icon-lg` `size-10`.
+
+32px is load-bearing beyond the button. `--spacing-row` is 32px, a table row is
+32px, and a menu or select item is 32px — 13px text on a 20px line box plus
+`py-1.5` — so a five-item dropdown is 4 + 5 × 32 + 4 = **168px** and a filter bar
+of buttons, inputs and select triggers lines up with the list below it without a
+single per-component nudge.
 
 **Radius ladder.** Named after the thing, and nested so an inner corner is the
 outer corner minus its padding — the rule that stops a 12px item inside a 12px
@@ -109,15 +119,36 @@ panel from looking like it is bulging out of it:
 
 | Token | Value | Used by |
 | --- | --- | --- |
-| `rounded-sm` (Tailwind's) | 4px | Checkbox — the one control small enough that 8px reads as a circle |
-| `rounded-control` | 8px | Button, input, select trigger, menu item, tooltip |
-| `rounded-card` | 12px | Menu / select / popover panel, skeleton block |
-| `rounded-panel` | 16px | Dialog, sidebar, board column |
-| `rounded-window` | 20px | The app frame |
-| `rounded-chip` | 9999px | Badge, avatar, switch, radio, scrollbar thumb |
+| `rounded-sm` (Tailwind's) | 4px | Checkbox — the one control small enough that 8px reads as a circle, and a circle means radio |
+| `rounded-control` | 8px | Button, input, select trigger, menu item, select item, tab chip, tooltip |
+| `rounded-card` | 12px | Menu / select / popover panel, tab strip trough, skeleton block — and the issue card and list row, once the board exists |
+| `rounded-panel` | 16px | Dialog. Sidebar and board column when they land |
+| `rounded-window` | 20px | The app frame. Not yet used — nothing has mounted |
+| `rounded-chip` | 9999px | Badge, avatar, switch, radio dot, scrollbar thumb |
+| `rounded-inherit` | — | Not a value. An `@utility` in `tokens.css` that sets `border-radius: inherit`, for an inner box that must not square off a rounded parent — the scroll-area viewport inside a rounded panel is the live case |
 
 A dropdown panel is `rounded-card` (12px) with `p-1` (4px), so its items are
 12 − 4 = **8px** = `rounded-control`. That is not a coincidence, it is the rule.
+The tab strip is the same arithmetic one rung down: a 32px `rounded-card` trough
+with `p-1` gives a 24px chip at 8px.
+
+**Elevation.** Five rungs, mapped from `--elevation-*` to Tailwind's
+`--shadow-*` namespace. The indirection is not stylistic: `--shadow-card`
+defined as `var(--shadow-card)` is self-referential and resolves to nothing, so
+the semantic layer has to use a different name.
+
+| Token | What it seats | Geometry |
+| --- | --- | --- |
+| `shadow-xs` | Input, select trigger — a hairline, not a lift. Replaces Tailwind's `xs` | `0 1px 1px` |
+| `shadow-card` | Issue card, list row at rest | `0 1px 2px`, `0 1px 3px -1px` |
+| `shadow-raised` | The active chip in a switcher, with `bg-raised` | `0 1px 2px`, `0 2px 6px -1px` |
+| `shadow-drag` | A card lifted by a pointer | `0 10px 24px -6px`, `0 2px 6px -1px` |
+| `shadow-overlay` | Dialog, menu, select, popover | `0 14px 34px -10px`, `0 4px 10px -3px` |
+
+Light and dark share the geometry and differ only in alpha — 0.05–0.20 light,
+0.35–0.65 dark. Elevation in a dark theme comes mostly from the surface step, so
+the shadow only seats the panel rather than doing the lifting. A large blur at a
+low alpha reads as fog, not height, which is why every rung is tight.
 
 **Type.** `text-base` is **13px** here, not 16px. The scale is 10 / 11 / 12 /
 13 / 14 / 16 / 18 / 22 / 28. Anywhere the generator said `text-sm` meaning
@@ -158,6 +189,24 @@ repeated in eleven files), for three reasons:
 3. `ring-[3px]` is an arbitrary value in a banned utility. Rewriting it as
    `ring-3` would satisfy the linter and keep problems 1 and 2.
 
+**And no component suppresses it, either.** `outline-none` and `outline-hidden`
+appeared in six of the generated files, and both read as harmless resets — the
+shadcn convention is to strip the browser outline because a ring is drawn
+instead. Here they are neither harmless nor cosmetic. The `:focus-visible` rule
+lives in `@layer base`; **utilities are emitted into a later cascade layer**, so
+`outline-none` on a component does not lose to that rule, it beats it outright.
+The element ends up with no focus indicator at all.
+
+In three of the six — `TabsContent`, `PopoverContent`, `DialogContent` — that
+element is precisely the one Radix moves focus to when the panel opens. A
+keyboard user tabbed into a panel and nothing happened on screen. Nothing catches
+this: it compiles, it renders, it looks correct with a mouse, and `jsx-a11y`
+reasons about markup rather than about cascade layers. So `palette.test.ts`
+asserts the absence of both classes across every file in `src/`, and the
+assertion is absolute. If a suppressed outline is ever genuinely needed, it needs
+a documented replacement indicator on the same element and a line in this
+section — not a quiet exception in that test.
+
 What components *do* add:
 
 - `focus-visible:border-ring` where they already have a border. That is a colour
@@ -186,10 +235,16 @@ never satisfy SC 2.4.11 on its own. The outline is what satisfies it.
   16px; `<meta name="viewport" content="…maximum-scale=1">` is not an option
   (it breaks pinch-zoom, SC 1.4.4), so the honest fix is that mobile input
   sizing is a decision for the responsive pass, not a stray breakpoint here.
-- **`CircleIcon`** as the radio indicator. A 8px `rounded-chip` span is the same
-  pixels without a lucide import.
-- **`outline-hidden`** on menu items — replaced by the negative offset in §4, so
-  keyboard focus stays visible.
+- **`CircleIcon`** as the radio indicator. A 6px `rounded-chip` span is the same
+  pixels without a lucide import: `size-1.5` inside a `size-4` control leaves a
+  14px interior and 4px of ring on every side. Used identically by
+  `radio-group.tsx` (`bg-primary-fg`, on the filled violet control) and
+  `dropdown-menu.tsx` (`bg-primary-accent`, on a plain menu row).
+- **`outline-hidden` and `outline-none`** — see §4. This is a rule, not a
+  simplification, and it is machine-enforced.
+- **`tracking-widest`** on `DropdownMenuShortcut`. Letter-spacing on a string of
+  symbols pushes `⌘⇧M` apart into three unrelated marks rather than one
+  chord.
 
 ---
 
@@ -245,7 +300,7 @@ value names and would have the same gap.
 
 Two mergers in one app is the drift pattern in `CLAUDE.md` with extra steps: a
 `className` override would work on a hand-written component and quietly not work
-on a generated one. So there is one, and `no-cn-package.test.ts` fails if a
+on a generated one. So there is one, and `design/palette.test.ts` fails if a
 future `shadcn add` reintroduces the dependency — which it will.
 
 ---
@@ -261,3 +316,115 @@ Radix supplies the behaviour these files do not: focus trapping, typeahead,
 collision-aware positioning, `aria-*` wiring, scroll locking. It supplies **no
 virtualisation and no drag-and-drop** — the board and the backlog are hand-built
 on `@tanstack/react-virtual`, and nothing in this directory helps with them.
+
+---
+
+## 9. Where the API differs from shadcn's documentation
+
+Read this before copying a snippet off `ui.shadcn.com`. Everything else here is
+visual; these are behavioural, and three of them are bugs the generated code
+shipped with — each one compiled, rendered, and looked correct.
+
+**`Select`.** It is a select, not a combobox: correct for a closed list (status,
+priority, issue type), wrong for anything that grows (assignee, label, sprint,
+parent, project), which belongs in the command palette instead.
+
+- `position` defaults to **`'popper'`**, not Radix's `'item-aligned'`. Under
+  `item-aligned` Radix ignores `side` and `sideOffset` and never sets
+  `--radix-select-content-transform-origin` — so every `data-[side=…]:pop-from-*`
+  and `origin-(…)` class the generator wrote was inert. The animation looked
+  specified and did nothing.
+- The viewport's `h-[var(--radix-select-trigger-height)]` is **gone**. It pinned
+  the scroll container to one row, so an eight-option menu rendered as a 32px box
+  the user had to scroll through one item at a time.
+- The trigger is `w-full`, not `w-fit`. `w-fit` re-measures on selection, so
+  choosing a longer value widens the control and reflows the filter bar around
+  it.
+- `line-clamp-1` on the value is replaced by `min-w-0 truncate`. `line-clamp`
+  sets `display: -webkit-box` and the trigger sets `display: flex`; one of them
+  wins and neither truncation happened.
+- Exports the `selectTrigger` cva and `SelectTriggerVariants`, so a custom
+  trigger can match without duplicating the class list.
+
+**`DropdownMenu`.**
+
+- The destructive item is `variant="danger"`, not `"destructive"` — `Button`
+  already spells it `danger` and one product should not have two words for one
+  idea. One per menu, last, behind a separator.
+- `checked` is **not** destructured out of the props and passed back on
+  `CheckboxItem`. The generated `checked={checked}` was a no-op that also broke
+  the component: an explicitly-passed `undefined` made Radix treat a controlled
+  item as uncontrolled, and under `exactOptionalPropertyTypes` it does not even
+  compile. Letting it arrive through `{...props}` is both correct and typed.
+- Destructive icons use `[&_svg]:text-current` rather than the generated `!`
+  important override.
+
+**`Dialog`.** Use them sparingly — modal overload is one of the Jira failure
+modes `docs/product-quality-bar.md` names.
+
+- `max-h-[calc(100dvh-4rem)] overflow-y-auto` is **new**. Without it a long form
+  ran off the top and bottom of the viewport at once, which puts the submit
+  button somewhere unreachable. `dvh` rather than `vh` because a mobile URL bar
+  changes the answer.
+- Centred with `top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2` instead of
+  the four arbitrary percentages the generator emits.
+- `w-[calc(100%-2rem)] max-w-lg` replaces the `sm:` breakpoint pair: the width
+  binds below 544px, `max-w-lg` (512px) above it, with no breakpoint involved.
+- The close button is a real `Button variant="ghost" size="icon-sm"`, so it
+  hovers and focuses like every other button.
+- `DialogTitle` carries `pr-8` to reserve the close-button corner, and dropped
+  `leading-none`, which clips descenders as soon as the title wraps to two lines.
+
+**`Tabs`.** `variant` is on **`Tabs`**, not on `TabsList` — the one place this
+directory diverges from shadcn's *shape* rather than its styling. The variant has
+to reach the triggers, and threading it down through markup means
+`group-data-[variant=line]/tabs-list:` on twelve of the trigger's classes. A
+context is one line, and there is exactly one Tabs context per subtree. `solid`
+(a 32px `rounded-card` trough with `p-1`, giving a 24px chip) is the default;
+`line` is the underlined strip.
+
+**`Tooltip`.** `delayDuration` defaults to **400ms**. Radix ships 700, which
+feels broken, and shadcn ships 0, which fires tooltips at a pointer merely
+crossing the toolbar. It also has a real `Arrow` (10 × 5, `fill-contrast`) and
+sits at `z-60` — a tooltip on a control *inside* a dialog has to clear the
+dialog, and `z-50` does not.
+
+**`Popover`.** `PopoverTitle` renders an `h2` with its `children` written out
+explicitly rather than arriving through the spread. `jsx-a11y/heading-has-content`
+cannot see content that comes in through `{...props}`, and it is right to
+complain: `<PopoverTitle />` compiles and puts an empty heading into the document
+outline. Writing the child out makes the rule able to check it.
+
+---
+
+## 10. The checks that keep this honest
+
+Three test files, none of which tests rendering. They exist because the whole
+failure mode of this directory is silence — an unknown Tailwind class emits no
+CSS and raises nothing, so `tsc`, eslint and review are all blind to it.
+
+| File | What it asserts |
+| --- | --- |
+| `design/theme-keys.test.ts` | `tokens.css` and `design/theme-keys.ts` describe the same tokens, each `--animate-*` names a real `@keyframes`, every exit animation has a fill mode, and the easing curves in `motion.ts` are character-identical to the CSS |
+| `design/palette.test.ts` | Every utility in `src/` and `index.html` resolves to a token that exists — colour, radius, shadow, animation, easing, duration. Plus the two absolute rules: no `outline-none`/`outline-hidden` anywhere (§4), and the npm `cn` package is not a dependency (§7) |
+| `design/scan-classes.test.ts` | The tokenizer `palette.test.ts` reads the source with |
+
+That last one deserves its reason stated. `palette.test.ts` asserts that sets of
+offenders are empty — which is also exactly what a scanner that collected nothing
+produces. So a bug in the scanner does not make the palette test fail, it makes it
+**stop checking while still reporting green**, and the first version had such a
+bug: no regex-literal handling, so a `"` inside a character class opened a string
+and the next forty lines were read in the wrong state. It was caught only because
+the garbage it happened to pick up matched a prefix, which is luck.
+
+Verified by blinding the scanner deliberately: **23 of 24 palette assertions
+still passed.** Only the anti-vacuity guard at the top of the file fired. That
+guard, and the tokenizer's own unit tests, are the reason the other 23 mean
+anything — CLAUDE.md's "a check that passes over a blind spot is worse than no
+check", in this directory.
+
+**Adding a token.** Put it in `tokens.css` *and* in `theme-keys.ts`, in both
+themes, with the measured ratio in a comment beside it. Both tests fail if you do
+one and not the other, which is the point. **Adding a value to an allowlist in
+`palette.test.ts` is not a fix** — those lists hold Tailwind's own non-colour
+keywords (`text-center`, `border-2`, `bg-cover`), nothing project-shaped.

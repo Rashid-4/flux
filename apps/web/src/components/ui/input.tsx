@@ -14,8 +14,11 @@ import { cn } from '@/lib/cn'
  *
  * `border-border-control` carries the SC 1.4.11 requirement: a text field's
  * boundary is the only thing that says where to click, so it needs 3:1 against
- * its surroundings. It measures 3.05:1 light and 4.0:1 dark. Decorative `border`
- * (`#e2e6eb`) is 1.3:1 and would fail.
+ * its surroundings. It measures 4.03:1 light and 3.99:1 dark on `surface`, and
+ * 3.79:1 / 3.63:1 on the `bg-surface-2` fill above — both cases matter, which is
+ * why the token was retuned. Before that, a `bg-surface-2` search field in dark
+ * mode had a 2.48:1 boundary and no compliant edge at all. Decorative `border`
+ * (`#e2e6eb`) is 1.3:1 and would fail everywhere.
  *
  * Two generated declarations are gone. `md:text-sm` was an iOS zoom workaround
  * and is a responsive decision, not a stray breakpoint here (README §5).
