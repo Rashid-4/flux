@@ -157,10 +157,10 @@ function collect(
     }
 
     // A union's real detail is in the nested errors, not in "Invalid input".
-    const nested = nestedErrors(issue)
-    if (nested.length > 0) {
+    const nested = nestedErrors(issue, prefix, path)
+    if (nested.errors.length > 0) {
       const before = out.length
-      for (const inner of nested) collect(inner, path, part, out, depth + 1)
+      for (const inner of nested.errors) collect(inner, nested.prefix, part, out, depth + 1)
       // Only fall through to the outer issue if the nested walk found nothing —
       // a union whose members all failed at the union level itself. Reporting both
       // would show the same field twice, once uselessly.
@@ -176,23 +176,61 @@ function collect(
 }
 
 /**
- * The nested `ZodError`s an issue can carry.
+ * The nested `ZodError`s an issue can carry, **and the path their issues are relative
+ * to** — which is not the same for all three, and assuming it was produced a defect.
  *
  * Three of zod's issue codes hide their detail this way. `invalid_union` is the one
  * that matters in practice — `@flux/contracts` uses `discriminatedUnion` for rule
  * nodes, filter ASTs and event payloads, so a malformed automation rule reports
  * "Invalid input" at the root and nothing else without this.
+ *
+ * ### The two kinds have different roots. Measured, not inferred.
+ *
+ * `invalid_union.unionErrors` issues carry the **full path from the root of the
+ * parse** — the same path as the outer issue, extended. For `z.object({ v: z.union([
+ * z.number(), z.boolean() ]) })` against `{ v: 'x' }`, the outer issue is at `['v']`
+ * and *both* member issues are also at `['v']`, not at `[]`. So the walk must recurse
+ * with the prefix it already had; adding `path` again produced `v.v`, and one level
+ * deeper `a.v.a.v`. A union inside an array was worse still — `a[1].a[1]`.
+ *
+ * `invalid_arguments.argumentsError` is the opposite: its issues are relative to the
+ * **arguments tuple**, so a bad first argument to a function at `nested.fn` reports
+ * `[0]` and the prefix is what makes it `nested.fn[0]`. `invalid_return_type` behaves
+ * the same way.
+ *
+ * That difference is why this returns the prefix rather than letting the caller pick
+ * one. It is also why the defect survived review and the header's own example: a union
+ * at the *root* of a schema has an empty prefix, so doubling it is invisible, and every
+ * hand-written example is a union at the root. It only shows up nested — which is where
+ * all five `z.union` sites in `@flux/contracts` actually sit:
+ *
+ *   • `QuerySchema.filter` → a `cmp` node's `value` is `FilterValueSchema`, so a bad
+ *     filter value in a search or a saved view reported
+ *     `filter.value.filter.value`;
+ *   • `ImportMappingSchema.users`, `.projects` and `.fields` are records of unions, so
+ *     a bad mapping reported `mapping.users.alice.mapping.users.alice`.
+ *
+ * Both are the two most union-heavy request bodies in the product, and the failure they
+ * produced was not a wrong message but an **unattachable** one: no input on the form
+ * has that path, so the user saw a red banner with no field marked and nothing to
+ * correct — §13's "a control that silently does nothing", applied to an error.
  */
-function nestedErrors(issue: ZodIssue): ZodError[] {
+function nestedErrors(
+  issue: ZodIssue,
+  prefix: (string | number)[],
+  path: (string | number)[],
+): { errors: ZodError[]; prefix: (string | number)[] } {
   switch (issue.code) {
     case 'invalid_union':
-      return issue.unionErrors
+      // Same root as the error we are already walking, so the same prefix.
+      return { errors: issue.unionErrors, prefix }
     case 'invalid_arguments':
-      return [issue.argumentsError]
+      // A new root: the arguments tuple, which lives at `path`.
+      return { errors: [issue.argumentsError], prefix: path }
     case 'invalid_return_type':
-      return [issue.returnTypeError]
+      return { errors: [issue.returnTypeError], prefix: path }
     default:
-      return []
+      return { errors: [], prefix }
   }
 }
 
