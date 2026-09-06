@@ -66,10 +66,36 @@ describe('UserAvatar', () => {
     expect(root).toHaveClass('opacity-50')
   })
 
-  it('matches the avatar box while loading', () => {
+  /**
+   * `BoardCard.assignee` is nullable and the null means unassigned — the commonest
+   * state on a real board. It used to render a skeleton, so those cards pulsed
+   * forever; the `animate-pulse` assertion is the guard against that returning.
+   */
+  it('draws an unassigned slot rather than pulsing forever', async () => {
     const { container } = renderWithProviders(<UserAvatar user={null} size="sm" />)
-    const skeleton = container.querySelector('[data-slot="user-avatar-skeleton"]')
-    expect(skeleton).toHaveAttribute('aria-hidden', 'true')
-    expect(skeleton).toHaveClass('size-avatar', 'rounded-chip')
+    const absent = container.querySelector('[data-slot="user-avatar-absent"]')
+    expect(absent).toHaveAttribute('aria-label', 'Unassigned')
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+    await expectNoAxeViolations(container)
+  })
+
+  /**
+   * Assigning someone must not reflow the row, so the box is the same either way.
+   * It comes from the `Avatar` primitive's own size ladder rather than a repeated
+   * class list, which is what keeps the two in step.
+   */
+  it('reserves the same box whether or not anyone is assigned', () => {
+    const { container: absent } = renderWithProviders(<UserAvatar user={null} size="sm" />)
+    const { container: present } = renderWithProviders(<UserAvatar user={ada} size="sm" />)
+    expect(absent.querySelector('[data-slot="user-avatar-absent"]')).toHaveClass('size-avatar')
+    expect(present.querySelector('[data-slot="user-avatar"]')).toHaveClass('size-avatar')
+  })
+
+  it('takes a caller-supplied name for the absent state', () => {
+    const { container } = renderWithProviders(<UserAvatar user={null} absentLabel="Any assignee" />)
+    expect(container.querySelector('[data-slot="user-avatar-absent"]')).toHaveAttribute(
+      'aria-label',
+      'Any assignee',
+    )
   })
 })

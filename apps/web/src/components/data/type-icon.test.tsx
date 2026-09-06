@@ -19,8 +19,15 @@ describe('TypeIcon', () => {
     )
   })
 
-  it('matches the glyph box while loading', () => {
-    const { container } = renderWithProviders(<TypeIcon issueTypeKey={null} />)
-    expect(container.querySelector('[data-slot="type-icon-skeleton"]')).toHaveClass('size-3.5')
+  /**
+   * `BoardCardSchema.issueTypeKey` is not nullable — an issue always has a type — so
+   * there is no absent state and no loading state to assert. The guard that matters
+   * is that nothing here animates: the null branch used to render a skeleton, which
+   * is a promise of data on a component whose data cannot be missing.
+   */
+  it('never renders a pending placeholder, because the key is always present', () => {
+    const { container } = renderWithProviders(<TypeIcon issueTypeKey="story" />)
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+    expect(screen.getByRole('img', { name: 'Story' })).toBeTruthy()
   })
 })

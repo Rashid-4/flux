@@ -1,3 +1,4 @@
+import type { StatusCategory } from '@flux/contracts'
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { expectNoAxeViolations } from '@/test/axe'
@@ -45,11 +46,22 @@ describe('StatusChip', () => {
     expect(chip).toHaveClass('truncate')
   })
 
-  it('matches the chip shape while loading', () => {
-    const { container } = renderWithProviders(<StatusChip category={null} />)
-    expect(container.querySelector('[data-slot="status-chip-skeleton"]')).toHaveClass(
-      'h-5',
-      'rounded-chip',
+  /**
+   * There is no loading state and no absent state here, on purpose.
+   * `BoardCardSchema.statusCategory` is not nullable and the column is NOT NULL with
+   * a trigger behind it, so "an issue in no status" is not a thing the product can
+   * represent. This asserts the type, which is the actual guarantee: the four
+   * categories are exhaustive, so a fifth branch would be dead code.
+   */
+  it('accepts exactly the four categories the contract defines', () => {
+    const categories: StatusCategory[] = ['todo', 'in_progress', 'done', 'cancelled']
+    renderWithProviders(
+      <div>
+        {categories.map((category) => (
+          <StatusChip key={category} category={category} />
+        ))}
+      </div>,
     )
+    expect(screen.getAllByText(/To do|In progress|Done|Cancelled/)).toHaveLength(4)
   })
 })

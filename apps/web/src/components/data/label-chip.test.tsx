@@ -20,10 +20,14 @@ describe('LabelChip', () => {
     expect(screen.getByText(long)).toHaveClass('truncate')
   })
 
-  it('renders nothing for an empty label, and a matching skeleton while loading', () => {
-    const { rerender, container } = renderWithProviders(<LabelChip label="" />)
+  /**
+   * A stray `''` in `BoardCard.labels` would otherwise draw an empty outlined pill
+   * that cannot be read or clicked. There is no null case: the array's elements are
+   * `z.string()`, and an empty array simply renders no chips.
+   */
+  it('renders nothing for an empty label', () => {
+    const { container } = renderWithProviders(<LabelChip label="" />)
     expect(container.querySelector('[data-slot="label-chip"]')).toBeNull()
-    rerender(<LabelChip label={null} />)
-    expect(container.querySelector('[data-slot="label-chip-skeleton"]')).toHaveClass('h-5')
+    expect(container.querySelector('.animate-pulse')).toBeNull()
   })
 })

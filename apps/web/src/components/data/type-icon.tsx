@@ -9,7 +9,6 @@ import {
   SquareCheck,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/cn'
 
 /**
@@ -23,6 +22,15 @@ import { cn } from '@/lib/cn'
  *
  * Icons are named imports, not `lucide-react[name]`. A string-to-module map
  * ships the whole set; AGENTS.md's Lucide rule exists to stop that.
+ *
+ * ### The key is required, because an issue always has a type
+ *
+ * `BoardCardSchema.issueTypeKey` is `z.string()`, not nullable. This prop used to
+ * accept `null` and render a `Skeleton` for it, which gave one value a meaning the
+ * contract does not have — and the same `null` means *absent* in
+ * `./relative-time.tsx`, `./user-avatar.tsx` and `./priority-icon.tsx`, where the
+ * contract genuinely is nullable. See `./status-chip.tsx` for the full reasoning;
+ * loading is composed by the caller in the shape of what is loading.
  */
 const KNOWN: Record<string, { label: string; Icon: ComponentType<{ className?: string }> }> = {
   bug: { label: 'Bug', Icon: Bug },
@@ -35,19 +43,13 @@ const KNOWN: Record<string, { label: string; Icon: ComponentType<{ className?: s
 }
 
 export interface TypeIconProps {
-  issueTypeKey: string | null
+  issueTypeKey: string
   /** The type's display name, when the caller has it. Otherwise the key. */
   name?: string | undefined
   className?: string | undefined
 }
 
 export function TypeIcon({ issueTypeKey, name, className }: TypeIconProps) {
-  if (issueTypeKey === null) {
-    return (
-      <Skeleton data-slot="type-icon-skeleton" className={cn('size-3.5 rounded-sm', className)} />
-    )
-  }
-
   const reading = KNOWN[issueTypeKey.toLowerCase()] ?? {
     label: name ?? issueTypeKey,
     Icon: CircleDot,
