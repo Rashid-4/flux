@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockMatchMedia } from '../test/dom'
 import {
   applyTheme,
   DARK_CLASS,
@@ -39,54 +40,48 @@ import {
 
 const HTML_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../index.html')
 
-type SchemeListener = (event: MediaQueryListEvent) => void
-
-interface MatchMediaStub {
+interface DarkSchemeController {
   /** Flip the OS scheme and notify whoever subscribed. */
-  change: (systemIsDark: boolean) => void
+  set: (systemIsDark: boolean) => void
   /** How many `change` listeners are attached — the assertion for a teardown. */
   listenerCount: () => number
 }
 
 /**
- * Replace `matchMedia` with one whose answer this test controls and whose
- * listeners it can fire.
+ * A matcher that answers the dark-scheme query and refuses every other one.
  *
- * jsdom supplies a `matchMedia`, but its `matches` is permanently `false` and it
- * never dispatches, so the OS-follows-the-clock behaviour would be untestable
- * against it. `unstubGlobals` in vitest.config.ts restores the real one after
- * each test.
+ * Throwing rather than answering `false`: the query string is duplicated in
+ * `index.html`, and a silent `false` for a typo'd one would make every test in
+ * this file pass while the app followed nothing.
  */
-function stubMatchMedia(systemIsDark: boolean): MatchMediaStub {
-  const listeners = new Set<SchemeListener>()
-  const list = {
-    matches: systemIsDark,
-    media: DARK_SCHEME_QUERY,
-    addEventListener: (type: string, listener: SchemeListener) => {
-      if (type === 'change') listeners.add(listener)
-    },
-    removeEventListener: (type: string, listener: SchemeListener) => {
-      if (type === 'change') listeners.delete(listener)
-    },
-  }
-  /**
-   * Throwing on an unexpected query rather than answering it: the query string
-   * is duplicated in `index.html`, and a silent `false` for a typo'd one would
-   * make every test here pass while the app followed nothing.
-   */
-  vi.stubGlobal('matchMedia', (query: string) => {
+function onlyTheDarkQuery(systemIsDark: boolean) {
+  return (query: string): boolean => {
     if (query !== DARK_SCHEME_QUERY) throw new Error(`unexpected media query: ${query}`)
-    return list
-  })
+    return systemIsDark
+  }
+}
+
+/**
+ * `matchMedia`, with the OS scheme under this test's control.
+ *
+ * The fake itself is ../test/dom.ts's — the event dispatch, the listener
+ * bookkeeping and the "only notify where the answer moved" rule are shared with
+ * every other test that needs a media query, rather than written twice. This adds
+ * only the two things specific to the theme: the single query it will tolerate,
+ * and a `listenerCount` already bound to that query.
+ *
+ * A fake is needed at all because jsdom does not implement `matchMedia` — the
+ * name exists on `globalThis` as an accessor returning `undefined`, which is a
+ * subtlety ../test/dom.ts documents and pins. `unstubGlobals` in vitest.config.ts
+ * unwinds this after each test.
+ */
+function stubDarkScheme(systemIsDark: boolean): DarkSchemeController {
+  const media = mockMatchMedia(onlyTheDarkQuery(systemIsDark))
   return {
-    change: (next: boolean) => {
-      list.matches = next
-      /** Copied, so a listener that detaches itself cannot mutate the iteration. */
-      for (const listener of [...listeners]) {
-        listener({ matches: next } as MediaQueryListEvent)
-      }
+    set: (next) => {
+      media.set(onlyTheDarkQuery(next))
     },
-    listenerCount: () => listeners.size,
+    listenerCount: () => media.listenerCount(DARK_SCHEME_QUERY),
   }
 }
 
@@ -141,10 +136,20 @@ function runPrePaintScript(): void {
   new Function(prePaintScript())()
 }
 
+/**
+ * The OS scheme for the current test. Light, until a test moves it.
+ *
+ * One controller installed here rather than a fresh stub inside each test: what a
+ * test needs is to change the answer, and re-stubbing the same global to do that
+ * confuses "the OS changed" with "the mechanism was replaced" — the second of
+ * which drops any listener the code under test had already attached.
+ */
+let scheme: DarkSchemeController
+
 beforeEach(() => {
   window.localStorage.clear()
   document.documentElement.classList.remove(DARK_CLASS)
-  stubMatchMedia(false)
+  scheme = stubDarkScheme(false)
   resetStore()
 })
 
@@ -190,9 +195,9 @@ describe('readStoredPreference', () => {
 
 describe('systemPrefersDark', () => {
   it('reports what the media query says', () => {
-    stubMatchMedia(true)
+    scheme.set(true)
     expect(systemPrefersDark()).toBe(true)
-    stubMatchMedia(false)
+    scheme.set(false)
     expect(systemPrefersDark()).toBe(false)
   })
 
@@ -233,7 +238,7 @@ describe('applyTheme', () => {
 
 describe('useThemeStore — setPreference', () => {
   it('stores the choice, paints it, and reports both halves of it', () => {
-    stubMatchMedia(true)
+    scheme.set(true)
 
     useThemeStore.getState().setPreference('dark')
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark')
@@ -385,14 +390,13 @@ describe('initTheme', () => {
   })
 
   it('follows the OS from then on', () => {
-    const scheme = stubMatchMedia(false)
     window.localStorage.setItem(THEME_STORAGE_KEY, 'system')
     resetStore()
 
     const stop = initTheme()
     expect(documentIsDark()).toBe(false)
 
-    scheme.change(true)
+    scheme.set(true)
 
     expect(useThemeStore.getState().theme).toBe('dark')
     expect(documentIsDark()).toBe(true)
@@ -400,7 +404,6 @@ describe('initTheme', () => {
   })
 
   it('stops following the OS once torn down', () => {
-    const scheme = stubMatchMedia(false)
     window.localStorage.setItem(THEME_STORAGE_KEY, 'system')
     resetStore()
 
@@ -409,7 +412,7 @@ describe('initTheme', () => {
     stop()
     expect(scheme.listenerCount()).toBe(0)
 
-    scheme.change(true)
+    scheme.set(true)
 
     expect(useThemeStore.getState().theme).toBe('light')
     expect(documentIsDark()).toBe(false)
@@ -505,7 +508,6 @@ describe('the selector hooks', () => {
    * test does not encode how many times React chooses to render on mount.
    */
   it('wake only the consumers whose own value changed', () => {
-    const scheme = stubMatchMedia(false)
     window.localStorage.setItem(THEME_STORAGE_KEY, 'system')
     resetStore()
     const stop = initTheme()
@@ -524,7 +526,7 @@ describe('the selector hooks', () => {
     const themeAtMount = themeRenders
 
     act(() => {
-      scheme.change(true)
+      scheme.set(true)
     })
 
     expect(themeRenders).toBeGreaterThan(themeAtMount)
@@ -533,7 +535,7 @@ describe('the selector hooks', () => {
   })
 
   it('report the current values', () => {
-    stubMatchMedia(true)
+    scheme.set(true)
     useThemeStore.getState().setPreference('system')
 
     const preference = renderHook(() => useThemePreference())
@@ -577,7 +579,7 @@ describe("index.html's pre-paint script", () => {
         window.localStorage.clear()
         if (value !== null) window.localStorage.setItem(THEME_STORAGE_KEY, value)
         document.documentElement.classList.remove(DARK_CLASS)
-        stubMatchMedia(systemIsDark)
+        scheme.set(systemIsDark)
 
         runPrePaintScript()
 
@@ -606,7 +608,6 @@ describe("index.html's pre-paint script", () => {
    */
   it('leaves the page light instead of throwing where storage is denied', () => {
     denyStorage()
-    stubMatchMedia(false)
 
     expect(() => {
       runPrePaintScript()

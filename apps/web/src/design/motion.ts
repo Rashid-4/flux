@@ -48,7 +48,15 @@ export const EASE = {
 
 export type EaseName = keyof typeof EASE
 
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+/**
+ * The media query, exported so it can be checked rather than trusted.
+ *
+ * `tokens.css` has the same query as an `@media` block, and a typo in either copy
+ * is silent: an unmatched query answers `false` forever, which looks exactly like
+ * a user who never asked for reduced motion. ./motion.test.ts asserts the two
+ * strings are identical and that this is the query actually subscribed to.
+ */
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 /**
  * Whether the operating system asks for reduced motion.

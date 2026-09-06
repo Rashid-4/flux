@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
+import { installJsdomGaps } from './dom'
 import { server } from './server'
 
 /**
@@ -16,6 +17,20 @@ import { server } from './server'
  * without this every test file leaks its mounted trees into the next one — and
  * the symptom is `getByRole` finding two buttons in a test that rendered one.
  */
+
+/**
+ * At module scope, not in `beforeAll`.
+ *
+ * `@testing-library/user-event` and Radix both feature-detect at *import* time in
+ * places — `typeof PointerEvent !== 'undefined'` decides which event constructor a
+ * module closes over — and a module imported by a test file is evaluated before any
+ * hook this file registers. Installing in `beforeAll` would leave those decisions
+ * already made against the unpatched environment.
+ *
+ * These are `defineProperty`, not `vi.stubGlobal`, so `unstubGlobals` cannot unwind
+ * them between tests. ./dom.ts explains why that distinction matters.
+ */
+installJsdomGaps()
 
 beforeAll(() => {
   /**
