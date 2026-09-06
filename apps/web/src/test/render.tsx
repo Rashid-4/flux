@@ -8,6 +8,8 @@ import {
   type RenderResult,
 } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -23,7 +25,35 @@ import type { ReactElement, ReactNode } from 'react'
  * **The provider list here must mirror `main.tsx`'s.** Nothing enforces that, and
  * a divergence is how "works in the app, fails in tests" (or, worse, the reverse)
  * begins. When a provider is added to the app it is added here in the same commit.
- * Right now the app mounts one, so this mounts one.
+ * As of the shell commit the app mounts three, so this mounts three:
+ * `QueryClientProvider`, `TooltipProvider`, and a router — in that order, which is
+ * `main.tsx`'s order.
+ *
+ * ### The two things in `main.tsx` that are deliberately *not* here
+ *
+ * **`AppErrorBoundary`.** A boundary in the test wrapper would swallow the throw a
+ * test is asserting on and turn a useful stack trace into a rendered error state.
+ * The boundary is tested directly, by rendering it around a component that throws.
+ *
+ * **`Toaster`.** It is a sibling component, not a provider — it carries its own
+ * `Toast.Provider` internally, so nothing needs it mounted in order to work. Mounting
+ * it in every test would add a permanent live region to every tree, which is enough to
+ * make `getByRole('status')` ambiguous in any test of a component that has one of its
+ * own (`ErrorState`'s copy feedback, for instance). A test that asserts on a toast
+ * renders `<Toaster />` itself and calls `resetToasts()` afterwards.
+ *
+ * ### The router is `MemoryRouter`, not the app's
+ *
+ * A component test wants the cheapest thing that makes `Link`, `useLocation` and
+ * `useNavigate` work, and `MemoryRouter` is it — no `window.history`, no URL to reset
+ * between tests, and an explicit starting entry.
+ *
+ * What it deliberately does not give is a **data** router, so `useRouteError`,
+ * `useLoaderData` and `errorElement` are unavailable under it. That is not a gap to
+ * paper over: a test of a surface that needs those builds a real one from the real
+ * table — `createMemoryRouter(routes, { initialEntries: ['/projects/ACME/board'] })`
+ * against the `routes` export in ../routes/router.tsx — which also proves the route is
+ * actually wired up, something no wrapper here can check.
  */
 
 /**
@@ -58,11 +88,80 @@ export function createTestQueryClient(): QueryClient {
   })
 }
 
-function Providers({ client, children }: { client: QueryClient; children: ReactNode }) {
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+/**
+ * The URL a test starts at when it does not say.
+ *
+ * `/` and not `/projects` or anything else meaningful, because a default that matches
+ * one of the app's real routes invites a test to depend on it without declaring it.
+ */
+const DEFAULT_INITIAL_PATH = '/'
+
+interface ProvidersProps {
+  client: QueryClient
+  initialPath: string
+  routePattern: string | undefined
+  children: ReactNode
 }
 
-export interface RenderWithProvidersOptions extends Omit<RenderOptions, 'wrapper'> {
+function Providers({ client, initialPath, routePattern, children }: ProvidersProps) {
+  return (
+    <QueryClientProvider client={client}>
+      {/**
+       * No props, so the 400ms hover delay from `components/ui/tooltip.tsx` is the same
+       * delay the app has. Overriding it to `0` here would make every tooltip test pass
+       * against timing the user never experiences.
+       *
+       * A test that wants a tooltip open without waiting should **focus** the trigger
+       * rather than hover it: Radix's `onFocus` calls `onOpen` directly and only
+       * `onPointerEnter` goes through the delay timer. That is also the more valuable
+       * assertion, since keyboard access to a tooltip is the part that regresses.
+       */}
+      <TooltipProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          {/**
+           * With no `routePattern`, the children sit at the router's root: `Link`,
+           * `useLocation` and `useNavigate` all work, and `useParams` returns `{}`
+           * because nothing has been matched — which is the honest answer, since
+           * nothing has.
+           *
+           * A test of a component that reads a URL parameter passes the pattern from
+           * `ROUTE_PATTERNS` and gets real params. It is opt-in rather than a splat
+           * default because a splat route changes how a relative `<Link to="x">`
+           * resolves, and a helper should not silently alter link resolution for the
+           * tests that never asked about routing.
+           */}
+          {routePattern === undefined ? (
+            children
+          ) : (
+            <Routes>
+              <Route path={routePattern} element={children} />
+            </Routes>
+          )}
+        </MemoryRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  )
+}
+
+/** The routing options, shared by the component and hook helpers. */
+interface RouterTestOptions {
+  /**
+   * The entry the memory history starts at. `/` by default.
+   *
+   * Pass the concrete URL — `/projects/ACME/board`, not the pattern.
+   */
+  initialPath?: string | undefined
+  /**
+   * A pattern to match `initialPath` against, so `useParams` resolves.
+   *
+   * Pass an entry from `lib/paths.ts`' `ROUTE_PATTERNS` rather than a literal, so a
+   * renamed segment is a compile error in the test too.
+   */
+  routePattern?: string | undefined
+}
+
+export interface RenderWithProvidersOptions
+  extends Omit<RenderOptions, 'wrapper'>, RouterTestOptions {
   /** Pass one to seed the cache or assert on it afterwards. */
   queryClient?: QueryClient | undefined
 }
@@ -84,18 +183,25 @@ export function renderWithProviders(
   ui: ReactElement,
   options: RenderWithProvidersOptions = {},
 ): RenderedWithProviders {
-  const { queryClient = createTestQueryClient(), ...rest } = options
+  const {
+    queryClient = createTestQueryClient(),
+    initialPath = DEFAULT_INITIAL_PATH,
+    routePattern,
+    ...rest
+  } = options
   const result = render(ui, {
     ...rest,
-    wrapper: ({ children }) => <Providers client={queryClient}>{children}</Providers>,
+    wrapper: ({ children }) => (
+      <Providers client={queryClient} initialPath={initialPath} routePattern={routePattern}>
+        {children}
+      </Providers>
+    ),
   })
   return { ...result, queryClient }
 }
 
-export interface RenderHookWithProvidersOptions<Props> extends Omit<
-  RenderHookOptions<Props>,
-  'wrapper'
-> {
+export interface RenderHookWithProvidersOptions<Props>
+  extends Omit<RenderHookOptions<Props>, 'wrapper'>, RouterTestOptions {
   queryClient?: QueryClient | undefined
 }
 
@@ -114,10 +220,19 @@ export function renderHookWithProviders<Result, Props>(
   hook: (initialProps: Props) => Result,
   options: RenderHookWithProvidersOptions<Props> = {},
 ): RenderedHookWithProviders<Result, Props> {
-  const { queryClient = createTestQueryClient(), ...rest } = options
+  const {
+    queryClient = createTestQueryClient(),
+    initialPath = DEFAULT_INITIAL_PATH,
+    routePattern,
+    ...rest
+  } = options
   const result = renderHook(hook, {
     ...rest,
-    wrapper: ({ children }) => <Providers client={queryClient}>{children}</Providers>,
+    wrapper: ({ children }) => (
+      <Providers client={queryClient} initialPath={initialPath} routePattern={routePattern}>
+        {children}
+      </Providers>
+    ),
   })
   return { ...result, queryClient }
 }

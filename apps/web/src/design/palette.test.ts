@@ -242,6 +242,26 @@ describe('colour utilities resolve to a token in tokens.css', () => {
   }
 })
 
+/**
+ * Tailwind's radius side and corner segment, e.g. the `r-` in `rounded-r-chip`.
+ *
+ * `rounded-<token>` is only the shorthand. Every radius utility also has a per-side
+ * form (`t r b l`, plus the logical `s e`) and a per-corner form (`tl tr br bl`, plus
+ * the logical `ss se ee es`), and all of them take the same token on the end — so
+ * `rounded-r-chip` is `--radius-chip` applied to two corners, not a different value.
+ * Without this peel the guard read the value as `r-chip`, found no such token, and
+ * flagged `before:rounded-r-chip` in `shell/icon-rail.tsx` — the 3px accent bar on the
+ * active rail item, rounded on its outer edge only.
+ *
+ * This is the same shape as the colour guard's `^(offset|[xytrbles])-` peel above, and
+ * it is deliberately *not* an allowlist entry: the header calls that the wrong fix, and
+ * it would be — an entry for `r-chip` would say nothing about `rounded-tl-panel` the
+ * first time someone writes it, and would let `rounded-r-md` through unchallenged. What
+ * was missing is the parser's knowledge of the shape. Anchored and exhaustive, so a
+ * misspelling like `rounded-rt-chip` still fails.
+ */
+const RADIUS_CORNER = /^(t|r|b|l|s|e|tl|tr|br|bl|ss|se|ee|es)-/
+
 describe('the other token namespaces', () => {
   /**
    * `rounded-sm` and `rounded-full` are Tailwind's, not ours, and both are
@@ -254,7 +274,10 @@ describe('the other token namespaces', () => {
   it('rounded-*', () => {
     const allowed = new Set<string>([...RADIUS_KEYS, 'sm', 'full', 'none', 'inherit'])
     const offenders = withPrefix('rounded')
-      .filter(([u]) => !allowed.has(value('rounded', u)))
+      .filter(([u]) => {
+        const v = value('rounded', u)
+        return !allowed.has(v) && !allowed.has(v.replace(RADIUS_CORNER, ''))
+      })
       .map(([u, f]) => `${u}  (${f})`)
     expect(offenders, `not in RADIUS_KEYS:\n  ${offenders.join('\n  ')}`).toEqual([])
   })

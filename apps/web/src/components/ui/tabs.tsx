@@ -46,7 +46,14 @@ function Tabs({
   variant = 'solid',
   orientation = 'horizontal',
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root> & { variant?: TabsVariant }) {
+  /**
+   * `| undefined` explicitly, because `exactOptionalPropertyTypes` is on: without it
+   * `variant?: TabsVariant` accepts an *absent* prop but rejects an explicit
+   * `variant={someVariantOrUndefined}`, which is what every caller that forwards the
+   * prop from its own optional one writes. The default below still applies — an
+   * explicit `undefined` triggers a parameter default exactly as an absent prop does.
+   */
+}: React.ComponentProps<typeof TabsPrimitive.Root> & { variant?: TabsVariant | undefined }) {
   const style = React.useMemo(() => ({ variant, orientation }), [variant, orientation])
 
   return (
