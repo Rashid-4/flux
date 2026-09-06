@@ -80,7 +80,7 @@ does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 | `packages/mocks` | **67 tests passing.** Deterministic, contract-parsed fixtures for the UI to build against before the API exists. Frozen; overrides are the extension point. MSW handlers deliberately live in `apps/web/src/test/` |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type, doc-link and **toolchain-version** drift audits. The repository is **public**, so CodeQL runs; the probe that made its absence loud while it was private is kept, because visibility is a setting and turning it back would otherwise stop the analysis silently |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type, doc-link, **toolchain-version** and **publicDir-asset** drift audits. The repository is **public**, so CodeQL runs; the probe that made its absence loud while it was private is kept, because visibility is a setting and turning it back would otherwise stop the analysis silently. Its first run found a real one — see the **static-asset** row below |
 | `services/api` | **not created.** The next major piece of build work, now owned here |
 | `apps/web` | **exists, and is the largest tree in the repo — 677 tests in 50 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 3 of the 4 `lib/` modules are tested *and* reviewed, and **24 shipped modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `src/gallery/` is a second Vite entry at `/gallery.html` — 9 dev-only modules, outside `build.rollupOptions.input` and outside `ROUTE_PATTERNS`, so it never ships. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
 | `apps/marketing` | **not created** |
@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Eleven distinct kinds of drift have now been found here, and each one was
-**invisible to the checks that catch the other ten**. That is the pattern worth
+Twelve distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other eleven**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -143,6 +143,7 @@ because none of them are visible to `tsc`, to review, or to each other.
 | a **colour** whose comment describes a colour the browser does not paint | 2 + 7 hexes + 1 ratio | `design/contrast.test.ts` (CR-004) |
 | a **token name in two theme namespaces**, so `cn` stops resolving a conflict | 2, on 5 surfaces | `lib/cn.test.ts` |
 | **two majors of one dev dependency**, so an undeclared import picks by hoist | 1 — vitest 2 *and* 4 | `check:toolchain` |
+| a **dev-only static asset** that ships, because tree-shaking cannot see it | 1 — msw's service worker | `check:public` |
 
 The **colour** row is the least expected, because the value and its
 documentation were in the *same line of the same file*. `--primary-soft` and
@@ -156,7 +157,34 @@ trustworthy: **every** expected value in it comes from outside this repository, 
 a transposed matrix row would otherwise produce numbers that are wrong and
 self-consistent, and the test would agree with the comments all the way down.
 
-The **two-majors** row is the newest, and the first where no file in the repository
+The **static-asset** row is the newest, and the first found by a tool rather than by
+a failure — CodeQL's first run on this repository, minutes after it went public.
+`apps/web/public/` held `mockServiceWorker.js`, Vite copies `publicDir` verbatim, and
+so every production build emitted `dist/mockServiceWorker.js`: a service worker on
+the application's own origin, registerable by any script on the page, answering
+every request the page makes from a list of fabricated fixtures until something
+unregisters it.
+
+What makes it belong in this table is *why* it was invisible for so long.
+`src/test/browser.ts` carried a section headed "It is never in the production
+bundle", and every word of it was true — `main.tsx` reaches MSW through a dynamic
+`import()` behind `import.meta.env.DEV`, Rollup folds the condition and drops the
+chunk, and the bundle contains zero occurrences of `msw`, `setupWorker` or
+`@flux/mocks`. The reasoning was sound and the verification was real. The word doing
+the damage was *it*: **tree-shaking is a property of imports, and a static asset has
+none**, so the mechanism everyone trusted was silent rather than wrong about the one
+file that mattered. A verified claim about one representation of a thing is not a
+claim about its others, and confident prose is exactly where that gap hides.
+
+The fix is a pair that must stay a pair. `copyPublicDir: false` stops the copy, and
+because that flag is blunt — a future `favicon.ico` would go missing from the build
+with no warning at all — `check:public` fails on anything in `publicDir` that is not
+a declared dev-only artifact, *and* on any declared artifact found in a build. One
+silent failure was not worth trading for another. The CodeQL exclusion for the
+generated file (`.github/codeql/codeql-config.yml`) is defensible only while that
+guard holds, which is written down in both places.
+
+The **two-majors** row is the first where no file in the repository
 was wrong. `apps/web` declared `vitest@^4`, the three `packages/*` declared `^2.1.0`,
 and both installed happily side by side for as long as nobody looked. The bill
 arrived as **121 failing tests and 6 `TS2339` errors** on a commit that had been
