@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -18,6 +19,7 @@ import { describe, expect, it } from 'vitest'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SRC = join(HERE, '..')
+const PACKAGE_ROOT = join(SRC, '..')
 
 /**
  * Every first-party `.ts`/`.tsx` under `src/`, tests included.
@@ -100,6 +102,16 @@ const FILES = sourceFiles().map(
  *    resolves to `string | undefined` is reported as an offence. Only a type checker
  *    could tell, and there is no such alias in the tree today; if one is introduced,
  *    widen the alias rather than the guard.
+ * 4. **A quoted name, or several members sharing one line.** The match is anchored to
+ *    the start of a line and requires an identifier, so
+ *    `| { 'aria-label': string; 'aria-labelledby'?: undefined }` — the shape
+ *    `ui/popover.tsx` uses to require exactly one of two ARIA attributes — is invisible
+ *    twice over: the name is quoted, and it is not the first thing on its line. Left
+ *    open rather than widened, because the two instances in the tree are both *correct*
+ *    and would be false positives: their annotation is literally `undefined`, which
+ *    admits an explicit `undefined` for the same reason `unknown` and `any` do. Closing
+ *    this would mean adding `undefined` to the exemptions above and rewriting the
+ *    anchor, for a construct that is rare and reads wrong when it is wrong.
  */
 function optionalPropOffence(line: string): string | null {
   const match = /^\s{2,}([A-Za-z]\w*)\?: (.+)$/.exec(line)
@@ -178,5 +190,100 @@ describe('source conventions', () => {
     ])('accepts %s (%s)', (line) => {
       expect(optionalPropOffence(line)).toBeNull()
     })
+  })
+})
+
+/**
+ * ### Every file is in the project a language server discovers
+ *
+ * This one was found from a screenshot, which is the reason it now exists.
+ *
+ * `tsconfig.json` used to `exclude` the tests and hand them to a
+ * `tsconfig.test.json`; `pnpm typecheck` invoked both, so CI was green and every
+ * test file in the package was red in the editor — 117 problems, none of them real.
+ * A language server discovers a project only through a file *named* `tsconfig.json`
+ * (or `jsconfig.json`). Any other name is a config that only a command line will
+ * ever pass with `-p`, so a file the discovered project excludes belongs to no
+ * project at all and is checked in an **inferred** one: default options, no
+ * `paths`, no `types`, no `strict`. On
+ * `components/data/confirm-dialog.test.tsx` that was exactly seven errors — three
+ * unresolved `@/…` imports and four missing jest-dom matchers.
+ *
+ * Phantom errors are not a cosmetic problem. 117 of them is a haystack, and the two
+ * real defects found in `data/` the same week would have been invisible inside it.
+ * `docs/product-quality-bar.md` §13 — never show an error that is not true — holds
+ * for the build as much as for the UI, because the cost is identical: people stop
+ * reading them.
+ *
+ * What this can and cannot see:
+ *
+ * - It reads the file **by that exact name** and parses it with TypeScript's own
+ *   config parser, so `include`/`exclude` globs, `extends` and `files` are resolved
+ *   the way `tsc` resolves them rather than by re-implementing the glob rules.
+ * - It cannot prove a language server behaves this way; that is a property of the
+ *   filename, which is why the name is hard-coded in the assertion rather than
+ *   taken from a variable.
+ * - It says nothing about *whether the program compiles* — `pnpm typecheck` does
+ *   that. This is only about coverage: a file nobody checks and a file checked
+ *   under the wrong options fail here identically.
+ */
+function projectFiles(configName: string): string[] {
+  const configPath = join(PACKAGE_ROOT, configName)
+  const read = ts.readConfigFile(configPath, (path) => readFileSync(path, 'utf8'))
+  expect(
+    read.error === undefined ? null : ts.flattenDiagnosticMessageText(read.error.messageText, ' '),
+  ).toBeNull()
+
+  const parsed = ts.parseJsonConfigFileContent(
+    read.config,
+    ts.sys,
+    PACKAGE_ROOT,
+    undefined,
+    configPath,
+  )
+  expect(
+    parsed.errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, ' ')),
+  ).toEqual([])
+
+  return parsed.fileNames.filter((path) => !path.includes('node_modules'))
+}
+
+describe('tsconfig coverage', () => {
+  it('puts every source file in tsconfig.json, the only name a language server looks for', () => {
+    const covered = new Set(projectFiles('tsconfig.json'))
+    const orphans = sourceFiles()
+      .filter((path) => !covered.has(path))
+      .map((path) => relative(PACKAGE_ROOT, path))
+
+    expect(orphans).toEqual([])
+  })
+
+  /**
+   * The build configs are the other half of the same failure: excluded from every
+   * discovered project, `vitest.config.ts`'s `node:url` import is an unresolved
+   * module in the editor and nothing else says so.
+   */
+  it('covers the build configs too, not just src', () => {
+    const covered = projectFiles('tsconfig.json').map((path) => relative(PACKAGE_ROOT, path))
+
+    expect(covered).toContain('vite.config.ts')
+    expect(covered).toContain('vitest.config.ts')
+    expect(covered).toContain('playwright.config.ts')
+  })
+
+  /**
+   * And the guard that moving the tests here gave up, so it cannot quietly become a
+   * no-op. `tsconfig.json` carries node types for the harness's sake, so a stray
+   * `node:fs` inside a component typechecks there; `tsconfig.app.json` is the
+   * project that describes what ships, and it is the one that rejects it. If it ever
+   * stops excluding the tests, it gains node types by proxy and the boundary is gone
+   * with nothing failing.
+   */
+  it('keeps tsconfig.app.json narrow, or the node boundary stops meaning anything', () => {
+    const shipped = projectFiles('tsconfig.app.json').map((path) => relative(PACKAGE_ROOT, path))
+
+    expect(shipped.filter((path) => /\.test\.tsx?$/.test(path))).toEqual([])
+    expect(shipped.filter((path) => path.startsWith(join('src', 'test')))).toEqual([])
+    expect(shipped).toContain(join('src', 'main.tsx'))
   })
 })

@@ -6,9 +6,9 @@
   "description": "The flux web application. Built against @flux/mocks until the API exists; the swap is a base-URL change.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node.json && vite build",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.app.json && tsc -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.app.json && tsc -p tsconfig.node.json",
     "lint": "eslint src vite.config.ts vitest.config.ts playwright.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
