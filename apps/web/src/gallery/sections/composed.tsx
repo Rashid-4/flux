@@ -75,7 +75,16 @@ function BoardCard({
         </Button>
       </div>
 
-      <p className="text-base leading-snug text-fg">{summary}</p>
+      {/*
+        No `leading-snug`. The relative leading utilities multiply the font size,
+        and with a 13px base every one of them lands on a fraction — `snug` is
+        1.375 × 13 = 17.875px. A fractional line box puts every baseline in the
+        block on a half pixel, which is a real softness on text, and it made the
+        card's own height fractional too (175.63px). The type step already
+        carries an integer line-height; taking it is both crisper and less to
+        say.
+      */}
+      <p className="text-base text-fg">{summary}</p>
 
       {/*
         Two rows, not one, and this is the shape `UI Images/JIRA 3.webp` uses.

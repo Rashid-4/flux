@@ -802,6 +802,37 @@
     outline-offset: 2px;
   }
 
+  /* Icon weight, once, instead of on 89 call sites.
+
+     Lucide ships `stroke-width="2"`, which is drawn for a 24px icon. This
+     product draws almost all of them at 14px (`[&_svg]:size-3.5`), where 2px is
+     14% of the box — measured against the 13px text they sit beside, whose stems
+     are about 1.2px, the icons were roughly 65% heavier than their own labels.
+     That mismatch is most of what makes a hand-built UI read as heavier and
+     muddier than the reference in `UI Images/`, and it is invisible one icon at
+     a time; it only shows in a row of them.
+
+     1.5 at 14px lands the stroke at ~1.5px, which sits with the text rather than
+     shouting over it. It is a weight decision, not a colour one, so there is no
+     token: one number, one place, and it is here rather than in a wrapper
+     component because a wrapper is a thing every future icon import has to
+     remember, and this is not.
+
+     `[stroke-width='2']` is doing real work. Lucide always emits the attribute,
+     so `:not([stroke-width])` would match nothing — but a component that has
+     deliberately chosen a different weight emits a different value, and this
+     selector leaves it alone. `checkbox.tsx` is the live case: its tick is
+     `strokeWidth={3}`, because a check at 14px needs the extra weight to read as
+     a check at all. Without the attribute value in the selector, a CSS rule
+     would outrank that presentation attribute and quietly undo it.
+
+     Scoped to `svg.lucide` so it cannot reach Radix's own SVGs — the tooltip
+     arrow is a filled path with no stroke, and a stroke on it would outline the
+     arrow. */
+  svg.lucide[stroke-width='2'] {
+    stroke-width: 1.5;
+  }
+
   /* Slim, unobtrusive scrollbars — a board with four columns and a backlog has
      a lot of them. Set on `html` rather than `*`: both properties inherit, so
      the universal selector would be the same result at more cost. */

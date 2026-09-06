@@ -308,3 +308,48 @@ describe('tailwind v4 setup', () => {
     }
   })
 })
+
+/**
+ * Icon weight is set once, in `@layer base`, and it is the only global visual
+ * decision in this file that is not a token.
+ *
+ * Lucide ships `stroke-width="2"`, drawn for a 24px icon. Almost every icon here
+ * is 14px, where 2px is 14% of the box — measured against the 13px text beside
+ * them, whose stems are about 1.2px, the icons were roughly 65% heavier than
+ * their own labels. It reads as muddiness rather than as a bug, one icon at a
+ * time it looks fine, and nothing in the toolchain has an opinion about it.
+ *
+ * Two properties are worth holding, and neither is visible to `palette.test.ts`
+ * (which checks that a utility resolves to a token, and this is not a utility).
+ */
+describe('icon stroke weight', () => {
+  const rule = /svg\.lucide\[stroke-width='2'\]\s*\{([^}]*)\}/.exec(css)
+
+  it('sets one weight for every default-weight lucide icon', () => {
+    expect(rule, 'the svg.lucide base rule is missing from tokens.css').not.toBeNull()
+    expect(rule?.[1]).toMatch(/stroke-width:\s*1\.5\s*;/)
+  })
+
+  /**
+   * The attribute value in the selector is load-bearing. Lucide always emits
+   * `stroke-width`, so `:not([stroke-width])` would match nothing — but a
+   * component that has deliberately chosen a different weight emits a different
+   * value, and this selector has to leave it alone. `checkbox.tsx` is the live
+   * case: its tick is `strokeWidth={3}` because a check at 14px needs the weight
+   * to read as a check. A CSS rule outranks a presentation attribute, so a bare
+   * `svg.lucide` would silently flatten it back to 1.5 and nothing would fail.
+   */
+  it('only overrides the default weight, leaving a deliberate one alone', () => {
+    expect(css).not.toMatch(/svg\.lucide\s*\{/)
+    expect(css).toMatch(/svg\.lucide\[stroke-width='2'\]/)
+  })
+
+  /**
+   * Scoped to lucide so it cannot reach Radix's own SVGs. The tooltip arrow is a
+   * filled path with no stroke; giving it one would draw an outline around the
+   * arrow.
+   */
+  it('does not reach non-lucide SVGs', () => {
+    expect(css).not.toMatch(/^\s*svg\s*\{/m)
+  })
+})
