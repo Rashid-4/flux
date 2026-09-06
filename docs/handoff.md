@@ -106,15 +106,46 @@ contract.
 ## 2. The rules of engagement
 
 1. **One agent per branch. One branch per agent. Never two on one branch.**
-2. **Every session starts with `git pull` and ends with a pushed branch.** An
+2. **One working tree per agent, not just one branch.** See below — this one was
+   learned the direct way.
+3. **Every session starts with `git pull` and ends with a pushed branch.** An
    agent working on stale contracts writes code against a treaty that has moved.
-3. **Never let an agent run `git reset --hard`, `git checkout .`, or force-push.**
+4. **Never let an agent run `git reset --hard`, `git checkout .`, or force-push.**
    Agents delete work they did not write with total confidence.
-4. **Merge only on green CI.** Not "green except the flaky one".
-5. **When two agents need the same new thing, the architecture agent adds it
+5. **Merge only on green CI.** Not "green except the flaky one".
+6. **When two agents need the same new thing, the architecture agent adds it
    once** to `packages/contracts`. Never let both add their own copy.
-6. **Read the change-requests folder before starting an architecture session.**
+7. **Read the change-requests folder before starting an architecture session.**
    It is the queue.
+
+### Why rule 2 is separate from rule 1
+
+A branch is not the unit of isolation. **An index is.**
+
+Cursor took `ui/cursor-polish` in `~/Desktop/flux` and began writing the gallery
+while this session was three edits into `apps/web/src/lib/paths.test.ts` in the same
+checkout. Nothing collided textually — the file scopes are disjoint by design, which
+was the whole point of scoping the session by file. It was still wrong three ways:
+
+- `git commit` from either session commits whatever the *other* one has staged, and
+  an untracked file of mine lands in Cursor's PR under Cursor's name.
+- An in-flight test file is red for minutes at a time, and the handback gate is
+  `pnpm test` over the whole workspace. My half-written file fails **Cursor's** run,
+  which invites it to fix a file it was told not to touch — and it would be right to
+  try, because from inside that tree the failure is real.
+- A `git switch` to my own branch pulls the tree out from under a session that is
+  actively writing to it.
+
+The fix costs one command and no coordination at all:
+
+```bash
+git worktree add ../flux-arch arch/handoff-docs
+```
+
+Two checkouts, two indexes, one object store, one `pnpm install` each (pnpm hardlinks
+from its store, so the second is cheap). Each session commits to its own branch
+without touching the other's HEAD, and `git worktree list` is the record of who is
+where.
 
 ## 3. Order of work
 

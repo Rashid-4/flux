@@ -5,6 +5,12 @@ coverage/
 .turbo/
 *.tsbuildinfo
 
+# A pnpm store inside the repository. `pnpm install --store-dir .pnpm-store` puts one
+# here, which is a reasonable thing to do on a machine with several checkouts — it is
+# 19 MB of content-addressed tarballs that nothing builds from, and `git add -A` would
+# otherwise commit every one of them.
+.pnpm-store/
+
 .env
 .env.local
 .env.*.local
