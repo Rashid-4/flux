@@ -1,0 +1,59 @@
+{
+  /**
+   * The application project: everything under src/.
+   *
+   * There is no tsconfig.app.json / tsconfig.node.json *solution* split of the
+   * kind `create-vite` scaffolds, because this repository already has a shared
+   * base and the solution file in that template exists only to hold references.
+   * The two configs here are the two real environments — `src/` runs in a
+   * browser, the config files run in node — and `pnpm typecheck` checks both.
+   *
+   * `composite: false` + `noEmit: true` follows packages/mocks: the two are
+   * incompatible, nothing consumes this project's declarations, and Vite does
+   * the emitting.
+   */
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+
+    /**
+     * The base sets `lib: ["ES2023"]` with no DOM, deliberately: @flux/contracts
+     * is imported by node, by the browser and by a worker, so it must typecheck
+     * under the intersection. This project is the browser end, so it adds the
+     * DOM back — and `vite/client` for `import.meta.env`, which is the only
+     * ambient the app relies on.
+     */
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+
+    /**
+     * `@/*` is the alias shadcn's generated components import through, and it
+     * has to agree with `resolve.alias` in vite.config.ts and vitest.config.ts.
+     *
+     * Redeclaring `paths` here replaces the base's `@flux/contracts` mapping.
+     * That is deliberate and costs nothing: `@flux/contracts` and `@flux/mocks`
+     * are both workspace links whose package.json `exports` point at their
+     * source, which `moduleResolution: bundler` follows — @flux/mocks has never
+     * had a path mapping and resolves fine. One resolution mechanism for both
+     * packages is better than two that can disagree.
+     */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  /**
+   * Tests are excluded here and picked up by tsconfig.test.json, which adds node
+   * types — the same split as packages/mocks, and for the same reason. The
+   * guarantee it buys is that application code cannot reach for `node:fs` or
+   * `process.env`: if it does, this config fails even though the test config
+   * would have passed. `src/test/` is excluded on the same grounds — it imports
+   * `msw/node` and `vitest`, neither of which may appear in a shipped bundle.
+   */
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**", "dist", "node_modules", "e2e"]
+}

@@ -1,0 +1,55 @@
+{
+  "name": "@flux/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The flux web application. Built against @flux/mocks until the API exists; the swap is a base-URL change.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.node.json",
+    "lint": "eslint src vite.config.ts vitest.config.ts playwright.config.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@flux/contracts": "workspace:*",
+    "@tanstack/react-query": "^5.66.0",
+    "@tanstack/react-virtual": "^3.13.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.2.0",
+    "tailwind-merge": "^3.0.1",
+    "zod": "^3.25.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@flux/mocks": "workspace:*",
+    "@playwright/test": "^1.50.0",
+    "@tailwindcss/vite": "^4.0.6",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "axe-core": "^4.10.0",
+    "jsdom": "^26.0.0",
+    "msw": "^2.7.0",
+    "tailwindcss": "^4.0.6",
+    "typescript": "^5.6.0",
+    "vite": "^7.0.0",
+    "vitest": "^4.0.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}

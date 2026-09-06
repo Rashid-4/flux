@@ -24,3 +24,15 @@ pnpm-debug.log*
 playwright-report/
 test-results/
 .vite/
+
+# UI reference material, kept locally and out of history on purpose.
+#
+# These are the screenshots and the screen recording the UI is designed against.
+# `JIRA 5.mp4` alone is 11 MB, and git stores every version of a binary forever —
+# one re-record and the clone is 22 MB heavier permanently, for a file nothing
+# builds from. They are read by whoever is designing a surface, which is a local
+# activity.
+#
+# If a reference ever needs to be shared, the right move is a compressed still
+# committed next to the spec that cites it, not the source recording.
+UI Images/

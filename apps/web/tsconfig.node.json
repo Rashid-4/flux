@@ -1,0 +1,19 @@
+{
+  /**
+   * The build tooling: vite.config.ts, vitest.config.ts, playwright.config.ts.
+   *
+   * These run in node, not in the browser, so they get node types and no DOM.
+   * Checking them at all is the point — a `process.env` typo in a Vite config
+   * is otherwise found by the build failing with no type error to point at.
+   */
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+}
