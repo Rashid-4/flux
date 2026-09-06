@@ -237,9 +237,32 @@ never satisfy SC 2.4.11 on its own. The outline is what satisfies it.
   sizing is a decision for the responsive pass, not a stray breakpoint here.
 - **`CircleIcon`** as the radio indicator. A 6px `rounded-chip` span is the same
   pixels without a lucide import: `size-1.5` inside a `size-4` control leaves a
-  14px interior and 4px of ring on every side. Used identically by
-  `radio-group.tsx` (`bg-primary-fg`, on the filled violet control) and
-  `dropdown-menu.tsx` (`bg-primary-accent`, on a plain menu row).
+  14px interior and 4px of ring on every side. Used by `radio-group.tsx`
+  (`bg-primary-fg`, on the filled violet control) and `dropdown-menu.tsx`
+  (`bg-primary-accent`, on a plain menu row).
+
+  This entry used to say the two files used it **identically**, and that sentence
+  cost the menu its radio indicator. They did not: `radio-group.tsx` puts
+  `flex size-full items-center justify-center` on the Radix `Indicator`, and
+  `dropdown-menu.tsx` left the `ItemIndicator` bare with the flex box one level
+  further out. A bare `ItemIndicator` is `display: inline`, and **width and height
+  do not apply to a non-replaced inline box** — so the dot computed to 0×0 with a
+  perfectly correct `background-color`, and a selected radio row in a menu showed
+  nothing at all.
+
+  Two things kept it hidden. The sibling `CheckboxItem` is written the same way and
+  works, because its tick is a lucide `<svg>` and dimensions *do* apply to those; so
+  the difference between the two rows read as intentional. And there was no
+  radio-item test — the file covered items, checkbox items, separators and
+  shortcuts. Both are fixed, and the test asserts the block box rather than the
+  class, because the class was never the thing that was missing.
+
+  It is the same root cause as the `max-w-40 truncate` that did nothing on
+  `IssueKey`'s inline `<code>`, found in the same session. **Inline boxes ignoring
+  box properties is a recurring shape here, and it is silent every time:** the class
+  is present, the computed colour is right, and only layout disagrees. When a
+  utility that sets a width, a height or an overflow appears to do nothing, check
+  the element's `display` before anything else.
 - **`outline-hidden` and `outline-none`** — see §4. This is a rule, not a
   simplification, and it is machine-enforced.
 - **`tracking-widest`** on `DropdownMenuShortcut`. Letter-spacing on a string of

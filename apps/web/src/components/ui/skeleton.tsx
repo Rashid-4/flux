@@ -37,4 +37,43 @@ function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-export { Skeleton }
+/**
+ * A skeleton exactly one line of text tall.
+ *
+ * ### The problem it solves
+ *
+ * "A skeleton must occupy exactly the box its real content will, or the page jumps
+ * when data lands" is easy to state and, with a plain `Skeleton`, is guesswork: the
+ * caller picks `h-3.5` or `h-4` for a line of body text and is wrong by a couple of
+ * pixels per line. Measured in the gallery on a two-line list row, the loading
+ * state came out **58px against the loaded row's 70** — a 12px jump on every row of
+ * a list, which is the exact failure the rule exists to prevent, produced by a
+ * caller following the rule as written.
+ *
+ * `h-[1lh]` is the fix, and it is not a magic number: `lh` is the CSS unit for *one
+ * line box of the current element's line-height*. Because the height is inherited
+ * rather than chosen, a `SkeletonText` inside a `text-base` block is one line of
+ * body text, and inside a `text-sm` block it is one line of small text, with
+ * nothing to keep in step. Change the type scale and this follows.
+ *
+ * The arbitrary value is deliberate and permitted: `h-` is on the layout side of
+ * the lint rule's exemption list, precisely because geometry sometimes has no token
+ * and this is a unit rather than a value.
+ *
+ * `rounded-control` rather than the block's `rounded-card`: 12px corners on a 20px
+ * bar read as a lozenge, and a line of text is not a card.
+ *
+ * `width` stays the caller's — a skeleton line is meant to be ragged, because four
+ * bars of identical width read as a table rather than as prose.
+ */
+function SkeletonText({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <Skeleton
+      data-slot="skeleton-text"
+      className={cn('h-[1lh] rounded-control', className)}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton, SkeletonText }

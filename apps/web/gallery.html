@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+
+    <title>flux — component gallery</title>
+
+    <!--
+      A second Vite entry, not a route.
+
+      Vite serves any HTML file in the package root, so this is reachable at
+      /gallery.html in `pnpm dev` with no configuration. It is deliberately not
+      in build.rollupOptions.input (which is unset, so `vite build` takes
+      index.html alone), and deliberately not in ROUTE_PATTERNS — a dev-only URL
+      does not belong in the product's route table, and routes/ is owned by
+      another session.
+
+      What it is for: until the board and the backlog exist there is nowhere to
+      look at the 27 components, and pixel work without a rendered frame turns
+      into asserting class names instead of looking at the result.
+    -->
+
+    <!--
+      The same pre-paint theme resolution as index.html, and the same reason: the
+      alternative is a light flash on every load for a dark-theme user. It reads
+      the identical key and the identical three values, because the gallery drives
+      the real store in src/stores/theme.ts — a second theme mechanism here would
+      be a second thing to keep true.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('flux.theme')
+          var dark =
+            stored === 'dark' ||
+            ((stored === null || stored === 'system') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (_) {
+          /* Private mode can throw on localStorage access. Light is the default. */
+        }
+      })()
+    </script>
+  </head>
+  <body class="h-full">
+    <div id="gallery-root" class="h-full"></div>
+    <script type="module" src="/src/gallery/main.tsx"></script>
+  </body>
+</html>

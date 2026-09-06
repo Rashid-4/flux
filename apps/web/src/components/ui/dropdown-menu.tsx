@@ -203,9 +203,23 @@ function DropdownMenuRadioItem({
       className={cn(menuItemBase, 'pr-2 pl-8', className)}
       {...props}
     >
+      {/*
+        The centring lives on the `ItemIndicator`, not only on the box around it.
+        `ItemIndicator` renders a bare `<span>`, which is `display: inline` — and
+        width and height **do not apply to a non-replaced inline box**, so the 6px
+        dot inside it computed to 0×0 and the selected radio item showed no marker
+        at all. Measured: the dot had the right `background-color` and a
+        `getBoundingClientRect` of 0×0.
+
+        It survived because the sibling `CheckboxItem` looks identical and works —
+        its tick is a lucide `<svg>`, and dimensions do apply to those. README §5
+        says the two files use this span "identically"; they did not, and that
+        sentence is why nobody looked. `radio-group.tsx` has always had the flex
+        box in the right place, which is the shape copied here.
+      */}
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <span className="size-1.5 rounded-chip bg-primary-accent" />
+        <DropdownMenuPrimitive.ItemIndicator className="flex size-full items-center justify-center">
+          <span className="block size-1.5 rounded-chip bg-primary-accent" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

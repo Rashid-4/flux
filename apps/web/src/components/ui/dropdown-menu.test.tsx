@@ -9,6 +9,8 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
@@ -164,5 +166,62 @@ describe('DropdownMenu', () => {
     await user.keyboard('{Enter}')
     await user.keyboard('{ArrowDown}')
     expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  /**
+   * There was no radio-item test at all, and the selected item drew nothing.
+   *
+   * `ItemIndicator` renders a bare `<span>`, which is `display: inline`, and width
+   * and height do not apply to a non-replaced inline box — so the 6px dot inside it
+   * computed to **0×0** while carrying the correct background colour. Measured in a
+   * browser, because jsdom has no layout to measure and this is invisible without
+   * one.
+   *
+   * The reason it went unnoticed for so long is worth keeping: the sibling
+   * `CheckboxItem` is written the same way and works, because its tick is a lucide
+   * `<svg>` and dimensions do apply to those. README §5 states the dot is used
+   * "identically" by this file and `radio-group.tsx`, which made the difference
+   * between them look intentional.
+   *
+   * So this asserts the mechanism rather than a pixel: the dot must generate a
+   * block box, and the indicator around it must be the flex centring box.
+   */
+  it('gives the selected radio item a dot that can render', async () => {
+    const user = setupUser()
+    const { container } = renderWithProviders(
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label="Density">⋯</Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuRadioGroup value="comfortable">
+            <DropdownMenuRadioItem value="comfortable">Comfortable</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Density' }))
+
+    const selected = await screen.findByRole('menuitemradio', { name: 'Comfortable' })
+    expect(selected).toHaveAttribute('data-state', 'checked')
+    expect(screen.getByRole('menuitemradio', { name: 'Compact' })).toHaveAttribute(
+      'data-state',
+      'unchecked',
+    )
+
+    const dot = selected.querySelector('.bg-primary-accent')
+    expect(dot).not.toBeNull()
+    /** Without `block`, `size-1.5` on this span is inert and the dot is 0×0. */
+    expect(dot).toHaveClass('block')
+    expect(dot).toHaveClass('size-1.5')
+
+    /** The indicator itself has to be the sized flex box, as in radio-group.tsx. */
+    expect(dot?.parentElement).toHaveClass('flex')
+    expect(dot?.parentElement).toHaveClass('size-full')
+
+    /** The unselected row still reserves the column, so labels do not shift. */
+    await expectNoAxeViolations(container)
   })
 })

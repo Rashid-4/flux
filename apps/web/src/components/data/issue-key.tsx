@@ -87,10 +87,33 @@ export function IssueKey({ issueKey, linked = true, className }: IssueKeyProps) 
     }, reportFailure)
   }
 
+  /**
+   * ### Why `block` is on a `<code>`, and why it is load-bearing
+   *
+   * This was `max-w-40 truncate` on a default-`display:inline` element, and **both
+   * halves were inert.** `max-width` and `overflow` do not apply to a non-replaced
+   * inline box, so the key never truncated and never capped — it simply grew, and
+   * pushed itself out of whatever it was inside. Measured on a 96px container: the
+   * component rendered 149px wide and overflowed by 53px, with `scrollWidth`
+   * reporting 0 because an inline box has no scroll box to report.
+   *
+   * `min-w-0` matters for the opposite direction. Squeezed onto a 280px board card
+   * beside a status chip and an avatar, the whole component was crushed to **11px
+   * with 58px of content** — the key illegible and the copy button drawn over it.
+   * A flex item will not shrink below its content unless told it may, and the
+   * ellipsis is what makes shrinking survivable.
+   *
+   * The floor is the other half of that. Truncating an identifier is already a
+   * cost — `FLUX-12…` and `FLUX-128` are different issues — so it degrades to
+   * something readable and stops, rather than to a sliver. Past the floor the key
+   * overflows its parent visibly, which is a layout that needs fixing at the
+   * surface rather than a defect this component can absorb quietly. `title` and
+   * `select-all` keep the full value reachable either way.
+   */
   const keyNode = (
     <code
       data-slot="issue-key-text"
-      className="max-w-40 truncate font-mono text-sm text-fg-muted select-all"
+      className="block max-w-40 min-w-10 truncate font-mono text-sm text-fg-muted select-all"
       title={issueKey}
     >
       {issueKey}
@@ -100,12 +123,12 @@ export function IssueKey({ issueKey, linked = true, className }: IssueKeyProps) 
   return (
     <span
       data-slot="issue-key"
-      className={cn('inline-flex min-w-0 items-center gap-0.5', className)}
+      className={cn('inline-flex max-w-full min-w-0 items-center gap-0.5', className)}
     >
       {linked ? (
         <Link
           to={paths.issue(issueKey)}
-          className="min-w-0 text-fg-muted hover:text-fg hover:underline"
+          className="block min-w-0 text-fg-muted hover:text-fg hover:underline"
         >
           {keyNode}
         </Link>

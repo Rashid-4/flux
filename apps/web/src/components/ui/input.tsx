@@ -1,3 +1,4 @@
+import { cva, type VariantProps } from 'class-variance-authority'
 import type * as React from 'react'
 import { cn } from '@/lib/cn'
 
@@ -25,29 +26,64 @@ import { cn } from '@/lib/cn'
  * `focus-visible:ring-[3px]` is an arbitrary value the lint rule rejects, and the
  * global focus outline replaces it — `focus-visible:border-ring` stays, because
  * tinting an edge that already exists is not a second indicator.
+ *
+ * ### Why there is a `size` variant now
+ *
+ * There was not one, and the height was a hardcoded `h-8`. README §3 says the
+ * ladder is shared by button, input and select trigger *"so a filter row lines up
+ * without per-component nudging"* — but with no `sm` rung here, the 28px filter bar
+ * in the reference could only be built by passing `className="h-7 text-sm"` at
+ * every call site. That is per-component nudging with extra steps, and it is the
+ * exact shape AGENTS.md forbids: a local override repeated until the design system
+ * stops being one. Measured in the gallery's "one ladder, four components" row,
+ * where the button, the icon button and the select trigger were 28px and the input
+ * was 32.
+ *
+ * The variant names are `sm` / `default`, matching `SelectTrigger` rather than
+ * `Button`'s `sm` / `md`. Those two are the pair that must agree — they sit beside
+ * each other in every filter bar — and `SelectTrigger` set the spelling first.
+ * Inventing a third one here to be closer to `Button` would leave two of the three
+ * disagreeing either way.
  */
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+const inputVariants = cva(
+  [
+    'w-full min-w-0 rounded-control border border-border-control bg-surface',
+    'text-fg shadow-xs transition-colors duration-90 ease-out',
+    'placeholder:text-fg-subtle',
+    'selection:bg-primary-soft selection:text-primary-soft-fg',
+    // A file input's own button is a second control inside the field, so it
+    // gets the field's text colour and none of its chrome.
+    'file:inline-flex file:border-0 file:bg-transparent file:font-medium file:text-fg',
+    'focus-visible:border-ring',
+    'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+    'aria-invalid:border-danger-accent',
+  ],
+  {
+    variants: {
+      size: {
+        sm: 'h-7 px-2.5 text-sm file:h-5 file:text-xs',
+        default: 'h-8 px-2.5 text-base file:h-6 file:text-sm',
+      },
+    },
+    defaultVariants: { size: 'default' },
+  },
+)
+
+function Input({
+  className,
+  type,
+  size,
+  ...props
+}: Omit<React.ComponentProps<'input'>, 'size'> & VariantProps<typeof inputVariants>) {
   return (
     <input
       type={type}
       data-slot="input"
-      className={cn(
-        'h-8 w-full min-w-0 rounded-control border border-border-control bg-surface px-2.5',
-        'text-base text-fg shadow-xs transition-colors duration-90 ease-out',
-        'placeholder:text-fg-subtle',
-        'selection:bg-primary-soft selection:text-primary-soft-fg',
-        // A file input's own button is a second control inside the field, so it
-        // gets the field's text colour and none of its chrome.
-        'file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm',
-        'file:font-medium file:text-fg',
-        'focus-visible:border-ring',
-        'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
-        'aria-invalid:border-danger-accent',
-        className,
-      )}
+      data-size={size ?? 'default'}
+      className={cn(inputVariants({ size }), className)}
       {...props}
     />
   )
 }
 
-export { Input }
+export { Input, inputVariants }
