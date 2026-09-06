@@ -109,7 +109,17 @@ export const TEXT_KEYS = ['2xs', 'xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3
 /** `--radius-*` — named after the thing they round, not after a size. */
 export const RADIUS_KEYS = ['control', 'card', 'panel', 'window', 'chip'] as const
 
-/** `--shadow-*` — `xs` replaces Tailwind's; the rest are additions. */
+/**
+ * `--shadow-*` — `xs` replaces Tailwind's; the rest are additions.
+ *
+ * `raised` and `overlay` are also in `COLOR_KEYS`, and that collision is the one
+ * case where declaring a namespace here made the merge *worse* than not
+ * declaring it: tailwind-merge classifies `shadow-overlay` from the name alone,
+ * and its colour group wins the name, so the two most-used elevations stopped
+ * conflicting with any box-shadow at all. `lib/cn.ts` carries the fix and the
+ * measurements; `lib/cn.test.ts` is exhaustive over the intersection, so a third
+ * dual-namespace token is covered the moment it is added here.
+ */
 export const SHADOW_KEYS = ['xs', 'card', 'raised', 'drag', 'overlay'] as const
 
 /** `--spacing-*` — the measured widths of the reference chrome. */

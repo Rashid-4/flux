@@ -60,7 +60,7 @@ const APP = join(SRC, '..')
 const COLORS: ReadonlySet<string> = new Set(COLOR_KEYS)
 
 /**
- * The one exclusion: files that *declare* the vocabulary rather than consume it.
+ * The exclusions: files that *declare* the vocabulary rather than consume it.
  *
  * `theme-keys.ts` is a list of token names as string data, and two of those names
  * begin with a utility prefix — `'border-control'` and `'border-strong'`. Read as
@@ -69,13 +69,22 @@ const COLORS: ReadonlySet<string> = new Set(COLOR_KEYS)
  * strings just are not classes. Nothing in this file has a `className`, an element
  * or a component in it.
  *
- * Kept to one entry on purpose. An exclusion list is a blind spot with a comment
+ * `lib/cn.ts` is the same thing one layer on: it configures `tailwind-merge` with
+ * those namespaces, and the one string it holds that reads as a utility is
+ * `'shadow-color'` — a tailwind-merge *class-group id*, which is the merger's name
+ * for a CSS property and not a class anyone can write. It is also the only string
+ * in the file that could offend, because everything else is a key list imported
+ * from `theme-keys.ts`.
+ *
+ * Kept short on purpose. An exclusion list is a blind spot with a comment
  * attached, and CLAUDE.md's "a check that passes over a blind spot is worse than no
  * check" is about exactly this shape — the `check:rls` exemption that licensed a
- * cross-tenant write for months. So: entries are paths, never globs, and the test
- * below asserts each one still exists, so a rename cannot leave a silent hole here.
+ * cross-tenant write for months. So the bar for an entry is that the file contains
+ * no `className`, no element and no component, which is checkable by reading it;
+ * entries are paths, never globs; and the test below asserts each one still exists,
+ * so a rename cannot leave a silent hole here.
  */
-const VOCABULARY_FILES: readonly string[] = ['src/design/theme-keys.ts']
+const VOCABULARY_FILES: readonly string[] = ['src/design/theme-keys.ts', 'src/lib/cn.ts']
 
 /**
  * Every utility found in the app, with the files it appears in.

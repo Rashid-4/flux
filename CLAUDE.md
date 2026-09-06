@@ -82,7 +82,7 @@ does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
 | `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
 | `services/api` | **not created.** The next major piece of build work, now owned here |
-| `apps/web` | **exists, and is the largest tree in the repo — 625 tests in 48 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 2 of the 4 `lib/` modules are tested *and* reviewed, and **25 modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
+| `apps/web` | **exists, and is the largest tree in the repo — 657 tests in 49 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 3 of the 4 `lib/` modules are tested *and* reviewed, and **24 modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
 | `apps/marketing` | **not created** |
 
 Migration 0011 is the alignment pass: reconciling ~25 divergences between the
@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Nine distinct kinds of drift have now been found here, and each one was
-**invisible to the checks that catch the other eight**. That is the pattern worth
+Ten distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other nine**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -141,8 +141,9 @@ because none of them are visible to `tsc`, to review, or to each other.
 | **section references** that resolve to the wrong section | 2 | `check:docs` |
 | a **utility** that resolves to no token, so it emits no CSS | ~30 + a vocabulary | `design/palette.test.ts` |
 | a **colour** whose comment describes a colour the browser does not paint | 2 + 7 hexes + 1 ratio | `design/contrast.test.ts` (CR-004) |
+| a **token name in two theme namespaces**, so `cn` stops resolving a conflict | 2, on 5 surfaces | `lib/cn.test.ts` |
 
-The last row is the newest and the least expected, because the value and its
+The **colour** row is the least expected, because the value and its
 documentation were in the *same line of the same file*. `--primary-soft` and
 `--danger-soft-fg` were outside sRGB by 0.0024 and 0.0009, so the browser
 gamut-mapped both and the declared colour was never the painted one; six hexes in
@@ -153,6 +154,26 @@ re-derive every claim from the CSS. `design/oklch.test.ts` is what makes that
 trustworthy: **every** expected value in it comes from outside this repository, because
 a transposed matrix row would otherwise produce numbers that are wrong and
 self-consistent, and the test would agree with the comments all the way down.
+
+The **two-namespaces** row is the newest, and it is the first one where *adding* a
+correct declaration is what broke something. `raised` and `overlay` are both
+surface colours and elevations, so declaring both namespaces to `tailwind-merge`
+handed `shadow-overlay` to its colour group — where it conflicts with no
+box-shadow at all. `cn('shadow-card', 'shadow-overlay')` therefore kept both, and
+**stock `tailwind-merge`, which knows neither name, gets it right.** Every
+floating surface in the product (dialog, dropdown, popover, select, toaster) has
+`shadow-overlay` in its base and accepts a `className`, so all five had a
+silently-ignored elevation override.
+
+Two things generalise. First, **a configuration can be a regression**: the check
+that matters compares behaviour against the *unconfigured* library, and
+`lib/cn.test.ts` asserts what bare `tailwind-merge` does on the same input so
+"the extension is what fixed this" is measured in both directions. Second, the
+test is exhaustive over the *intersection* of the two key lists rather than over
+the two names found, so a third dual-namespace token is covered the moment it is
+added to `theme-keys.ts` — and the sibling case (`color` and `text` both answer to
+`text-`) fails there too, at the point the token is added rather than in whichever
+component stops overriding.
 
 The error-code, event-type and section-reference rows are the same shape as the
 first three, one layer up: the specs are what a build agent implements, and a spec
