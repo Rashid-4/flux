@@ -1,34 +1,66 @@
-# Handoff — how to run three AI agents on one repository
+# Handoff — how to run AI agents on one repository
 
 Audience: the human coordinating this build. This is the operating manual.
 
-The problem: the architecture agent (Claude Opus) works in one tool, the build
-agent (GPT-6 Astra) and the UI agent (Grok 4.6) work in GitHub Copilot, and the
-review agent (GPT-5.6 Sol) works in a third place. **None of them can see each
-other's context.** Each starts every session with amnesia about what the others
-just did.
+## Who is actually working on this
 
-That sounds fragile. It is actually fine, for one reason:
+**One agent, end to end: Claude Opus.** Architecture, database, contracts, specs,
+CI, and the product on top — `apps/web`, `services/api`, `apps/marketing`.
 
-> The agents do not need to talk to each other, because they are not making
-> decisions. The decisions are already written down, in a form a compiler can
-> check.
+That is a reduction from what this document was written for, and the history is
+worth keeping because it is the argument for everything below. The original plan
+was four agents that never talk to each other: architecture (Claude Opus), a
+backend build agent (GPT-6 Astra), a UI agent (Grok 4.6), and a review agent
+(GPT-5.6 Sol). Two things happened.
 
-Everything below is the machinery that makes that true.
+- **The UI agent's branch needed a full review anyway.** `feat/ui-primitives`
+  arrived looking finished and was not: six defects in the primitives alone, two
+  of them *tests that could not fail* — one asserted a mock had been called after
+  an earlier click had already satisfied that, so the keyboard path could have
+  been broken outright and stayed green. Reviewing work to that depth costs about
+  what writing it costs. The parallelism was not free; it was deferred.
+- **A path-scoped lint probe was cleaned up with `rm -rf apps`**, which took the
+  UI agent's entire uncommitted foundation with it. §"Never delete a directory you
+  do not own" in `CLAUDE.md` exists because of that afternoon.
+
+A UI agent may still be assigned specific surfaces — Cursor is the candidate, and
+pixel iteration against `UI Images/` is where it is genuinely better, because an
+agent that cannot see a rendered frame pins geometry by asserting class names.
+It gets its own branch and hands back a green gate. It does not get the tree.
+
+**The machinery below did not become pointless when the roster shrank.** It
+changed which problem it solves. It was built for agents with no shared context;
+it now earns its keep because *sessions* have no shared context. Long work gets
+compacted, and the agent that resumes is as amnesiac about the last eight hours as
+a different model would have been. So:
+
+> The decisions are not re-derived from memory, because they are written down in a
+> form a compiler can check.
+
+That is why a contract is a zod schema and not a convention, why drift has six
+machine checks rather than a review checklist, and why the frozen-paths job exists
+even when one agent owns both sides of every boundary it guards.
 
 ---
 
 ## 1. Why this does not descend into chaos
 
-There are exactly three ways three agents can conflict, and each has a specific
-defence.
+There are exactly three ways concurrent work can conflict, and each has a specific
+defence. They applied to four agents; they apply unchanged to one agent across two
+sessions, or to a UI agent working a surface while the main line moves.
 
 **Conflict 1 — two agents edit the same file.**
 Defence: hard directory ownership (`AGENTS.md` §1). Backend touches
 `services/`, UI touches `apps/`, architecture touches `db/`, `packages/`,
 `.github/`. The trees are disjoint, so two agents on two branches produce merges
-that cannot textually conflict. CI's `frozen-paths` job fails any PR that reaches
-outside its lane, so this is enforced rather than hoped for.
+that cannot textually conflict.
+
+Half of that is enforced and half is not, which is worth stating plainly because
+the original version of this paragraph claimed all of it was. CI's `frozen-paths`
+job fails a PR that touches the **architecture** paths — those are the entries in
+`FROZEN` in `scripts/check-frozen-paths.mjs`. `apps/**` and `services/**` are not
+in that list, so nothing fails when a session wanders into one. For those trees
+the defence is the branch and the instruction, not the build.
 
 **Conflict 2 — two agents disagree about what a thing *is*.**
 This is the dangerous one, and it is where multi-agent builds normally die: the
@@ -44,8 +76,8 @@ QA, at the moment the wrong code is written. The type checker is the meeting the
 agents cannot attend.
 
 **Conflict 3 — an agent decides a contract is wrong and "fixes" it.**
-This is the failure that looks like progress. Astra hits a missing field, edits
-`packages/contracts/src/issue.ts`, and now the treaty says something the UI agent
+This is the failure that looks like progress. A build session hits a missing field,
+edits `packages/contracts/src/issue.ts`, and now the treaty says something the UI
 never agreed to.
 
 Defence: `packages/contracts/` and `db/migrations/` are frozen paths. CI rejects
@@ -72,15 +104,21 @@ contract.
 Left to right. Each phase depends on the one before it existing.
 
 ```
-Architecture ──> Backend ──> UI ──> Review
-(contracts,      (Astra:     (Grok:  (Sol:
- schema,          modules     screens  correctness,
- specs, CI)       to spec)    to API)  security, perf)
+Architecture ──────> UI ─────────────> Backend ──────> Review
+(contracts,          (apps/web:        (services/api:  (correctness,
+ schema, specs, CI)   screens against   modules to      security, perf)
+ DONE for 10 API      @flux/mocks)      spec)
+ modules              IN PROGRESS       NOT STARTED
 ```
 
-The UI does not have to wait, though — see §6.
+Two things about this that differ from how it was drawn originally. **UI comes
+before backend, not after** — the contracts are zod schemas, so the UI is built
+against generated fixtures and the eventual swap is a base-URL change (§6). And
+every box is the same agent now, with a UI agent optionally assigned surfaces
+inside the second one; the arrows are a dependency order, not a handoff between
+teams.
 
-## 4. Prompt to open a backend session (Astra)
+## 4. Prompt to open a backend session
 
 Paste this verbatim. It is written to survive an agent that has read nothing.
 
@@ -117,7 +155,7 @@ Paste this verbatim. It is written to survive an agent that has read nothing.
 >
 > The module for this session is: **<module name>**. Implement only that module.
 
-## 5. Prompt to open a UI session (Grok)
+## 5. Prompt to open a UI session
 
 The first UI session is different from the rest: it builds the foundation every
 surface sits on, and it is the only one that does not name a surface. Use §5a for
@@ -223,34 +261,63 @@ rebuilt.
 >
 > One change request is pre-approved, so file it rather than working around it:
 > `prettier-plugin-tailwindcss` sorts class names deterministically and belongs in
-> `.prettierrc.json`, which is frozen and which you must not edit. Write
-> `docs/change-requests/NNN-prettier-tailwind.md` once your Tailwind setup exists
-> and continue; the architecture agent adds it in one commit. Until then, do not
-> hand-sort class names — a hand-sorted file gets reordered the moment the plugin
-> lands and the diff buries whatever else you changed.
+> `.prettierrc.json`, which is frozen and which you must not edit. This has already
+> been filed — `docs/change-requests/001-prettier-plugin-tailwindcss.md`, still
+> **open**. Do not file it again, and **do not hand-sort class names**: a
+> hand-sorted file gets reordered the moment the plugin lands and the diff buries
+> whatever else you changed.
 >
 > The rules in the next section apply to this session and every later one.
 
 ### 5b. Per-surface sessions
 
-> You are the UI agent for this repository. Before writing any code:
+> You are a UI agent working on one surface of this repository. Before writing
+> any code:
 >
 > 1. Read `AGENTS.md` in the repository root, in full. It is binding.
-> 2. Read `docs/specs/web/README.md` and the surface spec named below.
-> 3. Read the contract types for the data you will render from
+> 2. Read `apps/web/README.md` in full — **both** the "State of this tree" and
+>    "Things that look like bugs and are not" sections. The tree is not empty and
+>    not uniformly finished, and that file is the only place the difference is
+>    written down.
+> 3. Read `apps/web/src/components/ui/README.md`. It is the mapping from each
+>    generated shadcn component to this project's tokens.
+> 4. Read `docs/specs/web/README.md` and the surface spec named below.
+> 5. Read the contract types for the data you will render from
 >    `packages/contracts/src/`. These are the exact shapes the API returns —
 >    do not define your own local interfaces that mirror them, import them.
 >
+> What already exists, so you compose rather than rebuild:
+> - **`components/ui/` — 17 primitives**, generated from shadcn then retuned onto
+>   this project's tokens, each with tests. **Never re-run `shadcn add` over one**;
+>   it overwrites and the retuning is what is lost.
+> - **`components/data/` — 10 flux-level components** (issue key, status chip,
+>   priority icon, relative time, user avatar, virtual list, toaster, confirm
+>   dialog). Tested and reviewed.
+> - **`api/` — 6 modules**, tested: one `request()`, `/api/v1` applied once, every
+>   response `.parse()`d, every error a typed `ApiError`. Do not add a second one.
+> - **`design/tokens.css`** — the single source of colour, type, spacing, motion.
+> - Untested and unreviewed: every route, all 6 shell components, the 9 top-level
+>   components, `lib/`, `stores/chrome`. If your surface touches one, it has no
+>   safety net — read it before you trust it.
+>
 > Rules:
-> - You own `apps/web/` and `apps/marketing/`. Everything else is read-only,
->   including `packages/contracts/` and `services/`. If the data you need is not
->   in the contract, write `docs/change-requests/NNN-title.md` and build the rest
->   of the screen against what exists.
+> - **You do not own `apps/web/`.** You are assigned the surface named below.
+>   Editing a primitive in `components/ui/` to make your screen work is how a
+>   design system dies — if one genuinely cannot express what you need, say so
+>   rather than forking it. Everything outside `apps/` is read-only, including
+>   `packages/contracts/` and `services/`. If the data you need is not in the
+>   contract, write `docs/change-requests/NNN-title.md` and build the rest of the
+>   screen against what exists.
+> - **Some checks in this tree fail when the thing they protect starts working.**
+>   `@ts-expect-error` in a test file is an inverted assertion — `tsc` reports
+>   TS2578 the moment the line below it compiles, which is the whole test. Tests
+>   that assert an absence (`classList.filter((c) => c.startsWith('bg-'))`) are the
+>   same shape. Do not tidy either away; `apps/web/README.md` lists them.
 > - Never call `fetch` directly in a component. Data access goes through the
->   hand-written typed request layer in `apps/web/src/api/` — which you own and
->   which parses every response with its contract schema — and TanStack Query
->   hooks on top of it. There is deliberately no OpenAPI codegen: a generator
->   needs a running API, and you are not waiting for one (§6).
+>   hand-written typed request layer in `apps/web/src/api/` — which already exists
+>   and parses every response with its contract schema — and TanStack Query hooks
+>   on top of it. There is deliberately no OpenAPI codegen: a generator needs a
+>   running API, and you are not waiting for one (§6).
 > - All API paths are relative to `/api/v1`. The specs write `POST /issues`; your
 >   request layer adds the prefix in one place.
 > - Server state is TanStack Query. Client state is Zustand. Do not put server
@@ -259,7 +326,10 @@ rebuilt.
 > - Every mutation is optimistic with a rollback path, because the product's
 >   entire pitch is that it feels instant.
 > - Keyboard first. Every action reachable by mouse needs a keyboard path, and
->   `?` opens the shortcut sheet.
+>   `?` opens the shortcut sheet. **Neither the registry nor the sheet exists yet**
+>   — `apps/web/src/keyboard/` is an empty directory. Until it is built, register
+>   nothing globally by hand: a shortcut that is not in the registry cannot appear
+>   in the sheet, which is the one thing the registry is for.
 > - Accessibility is not a later pass: real focus management, real ARIA on
 >   custom controls, visible focus rings, and drag-and-drop that also works from
 >   the keyboard.
@@ -292,7 +362,7 @@ rebuilt.
 
 ## 6. Building the UI before the API exists
 
-Grok should not sit idle waiting for Astra. Because the contracts are zod
+UI work does not wait for the API. Because the contracts are zod
 schemas, they can generate fixtures directly — so the UI can be built against
 `IssueDetailSchema`, `BoardViewSchema`, `BacklogViewSchema`, and
 `BootstrapSchema` with mock data that is *guaranteed* to have the same shape the
@@ -306,7 +376,8 @@ frozen, and every builder takes a deep-partial override precisely so that being
 frozen costs the UI agent nothing.
 
 The MSW handlers are deliberately *not* in the package. They belong in
-`apps/web/src/test/`, which Grok owns, because they need a pinned MSW version, a
+`apps/web/src/test/`, which the UI session owns, because they need a pinned MSW
+version, a
 browser worker and a node server, and per-surface overrides — and because a
 frozen package must never be the thing standing between the agent that cannot
 edit it and a new error case.
@@ -317,7 +388,7 @@ of a real application — `ApiErrorSchema` carries the fields that make them
 actionable, and [the web foundation spec](specs/web/README.md) §7 says what each
 one has to render.
 
-## 7. Prompt to open a review session (Sol)
+## 7. Prompt to open a review session
 
 > You are the review agent. Review the diff on this branch against:
 >

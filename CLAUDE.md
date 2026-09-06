@@ -11,16 +11,30 @@ same constraints drift within a week, and then nobody knows which one is true.
 
 ## Role of this agent
 
-Claude Code owns the **architecture layer**: the database schema, the shared
-contracts, the specs, and the CI that enforces them. It is the only agent
-permitted to change `db/migrations/`, `packages/contracts/`, `scripts/`,
-`docs/adr/`, and `.github/`.
+Claude Code owns the **architecture layer** — the database schema, the shared
+contracts, the specs, and the CI that enforces them — and, under the end-to-end
+mandate, **the product built on it as well**: `apps/web`, `services/api`,
+`apps/marketing`, and the infrastructure. It is the only agent permitted to change
+`db/migrations/`, `packages/contracts/`, `scripts/`, `docs/adr/`, and `.github/`.
 
-It does **not** write feature implementations. Those go to the build agents
-against the specs in `docs/specs/api/<module>.md`. If you are
-tempted to implement a module here because it would be faster, don't — the value
-of the contracts is that one mind wrote all of them and no mind is also editing
-the code that consumes them.
+This section used to say the opposite — "it does **not** write feature
+implementations" — and the sentence it said it in is worth keeping, because the
+reason survives the change: *the value of the contracts is that one mind wrote all
+of them and no mind is also editing the code that consumes them.* That is no
+longer a boundary between agents. It is now a discipline on one agent, and the
+discipline is the harder half:
+
+> When implementing against a contract and finding it wrong, the fix goes through
+> `docs/change-requests/` — a written request, a decision, a resolution. Not an
+> edit to the schema so the component compiles.
+
+Owning both sides removes the ten minutes of friction that made that route
+obviously worth it. It does not remove the reason. A contract quietly widened
+mid-feature is indistinguishable from a contract that was never designed, and the
+change-request file is the only place the *why* survives.
+
+A UI agent may be assigned specific surfaces of `apps/web` on its own branch. It
+does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 
 ## Working agreements
 
@@ -67,8 +81,9 @@ the code that consumes them.
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
 | `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
-| `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
-| `apps/web` | **not created.** Owned by the UI agent, on the same terms |
+| `services/api` | **not created.** The next major piece of build work, now owned here |
+| `apps/web` | **exists, and is the largest tree in the repo — 490 tests in 44 files.** That is not coverage: `components/ui/` (17 primitives) and `components/data/` (10) are tested *and* reviewed, and **27 modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
+| `apps/marketing` | **not created** |
 
 Migration 0011 is the alignment pass: reconciling ~25 divergences between the
 contracts and the schema that had accumulated while both were being written.
