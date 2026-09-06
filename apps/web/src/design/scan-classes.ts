@@ -321,7 +321,20 @@ export function stringLiterals(source: string): string[] {
 export function htmlClassAttributes(source: string): string[] {
   // Comments stripped first, for the same reason as above: index.html explains
   // its own skip-link classes in a comment directly above them.
-  const withoutComments = source.replace(/<!--[\s\S]*?-->/g, '')
+  //
+  // To a fixpoint rather than in one pass. A single `replace` can leave a `<!--`
+  // that was only a comment delimiter because of the text the pass just removed,
+  // and the leftover then swallows a real `class="…"` — CodeQL's
+  // `js/incomplete-multi-character-sanitization`. On well-formed input the second
+  // iteration is a no-op, so this costs one extra scan and removes a class of
+  // wrong answer that would have looked like a missing class rather than a parser
+  // bug.
+  let withoutComments = source
+  let previous: string
+  do {
+    previous = withoutComments
+    withoutComments = withoutComments.replace(/<!--[\s\S]*?-->/g, '')
+  } while (withoutComments !== previous)
   const out: string[] = []
   // `[\s\S]` rather than `.` because the skip link's class list is wrapped across
   // several lines by prettier, and `.` stops at the newline.

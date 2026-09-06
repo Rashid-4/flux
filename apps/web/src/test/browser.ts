@@ -29,14 +29,35 @@ import { handlers } from './handlers'
  * `types: ["vite/client"]` and no node types. That is stricter than the test project,
  * not looser: a `node:` import that strayed in here would fail `pnpm typecheck`.
  *
- * ### It is never in the production bundle
+ * ### This module is never in the production bundle
  *
  * `main.tsx` reaches this through a **dynamic** `import()` inside a condition that
  * constant-folds to `false` in a production build (`import.meta.env.DEV` is replaced with
  * a literal), so Rollup drops the branch and the chunk with it. A static import would
  * ship MSW, `@flux/mocks` and every fixture to real users — roughly the size of the
  * application itself, and a set of handlers sitting next to the real API waiting to be
- * enabled by an environment variable.
+ * enabled by an environment variable. Measured: the production bundle contains zero
+ * occurrences of `msw`, `setupWorker`, `onUnhandledRequest` or `@flux/mocks`.
+ *
+ * ### The worker script was, and that is a different question
+ *
+ * The heading above used to read "It is never in the production bundle", and the word
+ * doing the damage was *it*. Everything in this section is about the **module**, and all
+ * of it is true. `public/mockServiceWorker.js` is not a module: it is a static asset with
+ * no importer, tree-shaking is a property of imports, and so none of the reasoning here
+ * ever applied to it. Vite copied it verbatim and `dist/mockServiceWorker.js` shipped in
+ * every production build — a service worker on the application's own origin, which any
+ * script on the page can register, and which then answers every request the page makes
+ * from a list of fabricated fixtures until something unregisters it. CodeQL's first run
+ * against this repository found the file and flagged its `message` handler
+ * (`js/missing-origin-check`); the handler was the smaller half.
+ *
+ * `vite.config.ts` now sets `copyPublicDir: false`, and
+ * `scripts/check-public-assets.mjs` fails if a dev-only asset appears in a build or if
+ * anything unrecognised appears in `public/` — because `copyPublicDir: false` would
+ * otherwise drop a legitimate future asset just as silently. The lesson worth keeping is
+ * narrower than "check the bundle": a verified claim about one representation of a thing
+ * is not a claim about the others, and confident prose is where that gap hides.
  */
 export const worker = setupWorker(...handlers)
 

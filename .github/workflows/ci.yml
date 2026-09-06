@@ -181,6 +181,17 @@ jobs:
       - name: Audit field vocabularies
         run: pnpm check:vocab
 
+      # The same shape as the step below, one asset type over. `apps/web/public/`
+      # held msw's generated service worker, and Vite copies publicDir verbatim —
+      # so every production build shipped `dist/mockServiceWorker.js`, a
+      # same-origin service worker any script on the page can register, after
+      # which it answers every request from a mock handler list. The module was
+      # correctly tree-shaken and verified absent; tree-shaking is a property of
+      # imports and a static asset has none, so the mechanism everyone trusted was
+      # silent rather than wrong about the one file that mattered.
+      - name: Audit publicDir assets
+        run: pnpm check:public
+
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.
       - name: Assert no test files in build output
@@ -412,5 +423,9 @@ jobs:
         with:
           languages: javascript-typescript
           queries: security-extended
+          # One exclusion, for msw's generated service worker. The file says not
+          # to modify it and it no longer ships; the config explains both, and why
+          # it is a version-controlled exclusion rather than a UI dismissal.
+          config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@v4
         if: steps.probe.outputs.run == 'true'

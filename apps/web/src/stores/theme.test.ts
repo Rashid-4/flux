@@ -114,11 +114,21 @@ function indexHtml(): string {
 /**
  * The body of the first bare `<script>` in `index.html`.
  *
- * `<script>` with the closing angle bracket immediately after the tag name, so
- * this cannot accidentally match `<script type="module" src="/src/main.tsx">`.
+ * `<script>` with nothing but optional whitespace before the closing angle
+ * bracket, so this cannot accidentally match
+ * `<script type="module" src="/src/main.tsx">` — an attribute means at least one
+ * non-space character, which `\s*>` rejects.
+ *
+ * The `\s*` in the *closing* tag and the `i` flag are there because CodeQL's
+ * `js/bad-tag-filter` is right on the narrow point: `</script >` and `</SCRIPT>`
+ * are both valid HTML that the stricter pattern missed. Nothing untrusted is
+ * being filtered here — the input is this repository's own `index.html` — so the
+ * consequence was a confusing `no inline <script> found` rather than a bypass.
+ * It is still cheaper to match what HTML actually permits than to explain why
+ * this one is fine.
  */
 function prePaintScript(): string {
-  const match = /<script>([\s\S]*?)<\/script>/.exec(indexHtml())
+  const match = /<script\s*>([\s\S]*?)<\/script\s*>/i.exec(indexHtml())
   const body = match?.[1]
   if (body === undefined) throw new Error(`no inline <script> found in ${HTML_PATH}`)
   return body
