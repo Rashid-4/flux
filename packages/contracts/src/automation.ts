@@ -1,12 +1,22 @@
 import { z } from 'zod'
-import { AuditStampSchema, InstantSchema } from './common.js'
+import {
+  AuditStampSchema,
+  DisplayedFieldChangeSchema,
+  FieldRefSchema,
+  InstantSchema,
+  LinkTypeSchema,
+} from './common.js'
 import { FilterNodeSchema, RelativeDateSchema } from './query.js'
 import { EventTypeSchema } from './events.js'
 import {
   AutomationRuleIdSchema,
+  EventIdSchema,
   IssueIdSchema,
   IssueKeySchema,
+  IssueTypeKeySchema,
   ProjectIdSchema,
+  ProjectRoleKeySchema,
+  TeamIdSchema,
   UserIdSchema,
 } from './ids.js'
 
@@ -71,7 +81,7 @@ export const AutomationTriggerSchema = z.discriminatedUnion('kind', [
    */
   z.object({
     kind: z.literal('field_unchanged_for'),
-    field: z.string(),
+    field: FieldRefSchema,
     duration: RelativeDateSchema,
     filter: FilterNodeSchema.nullable(),
   }),
@@ -118,8 +128,8 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
       z.object({
         mode: z.literal('balanced'),
         pool: z.discriminatedUnion('from', [
-          z.object({ from: z.literal('project_role'), roleKey: z.string() }),
-          z.object({ from: z.literal('team'), teamId: z.string().uuid() }),
+          z.object({ from: z.literal('project_role'), roleKey: ProjectRoleKeySchema }),
+          z.object({ from: z.literal('team'), teamId: TeamIdSchema }),
         ]),
         strategy: z.enum(['round_robin', 'least_open_issues', 'least_points']),
         /** Skip people who are on PTO — availability data made useful. */
@@ -139,7 +149,7 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('create_issue'),
     projectId: ProjectIdSchema,
-    issueTypeKey: z.string(),
+    issueTypeKey: IssueTypeKeySchema,
     summary: TemplateStringSchema,
     description: TemplateStringSchema.optional(),
     /** Link the new issue back to the trigger issue. */
@@ -149,7 +159,7 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('link_issues'),
     targetFilter: FilterNodeSchema,
-    linkType: z.string(),
+    linkType: LinkTypeSchema,
   }),
   z.object({
     kind: z.literal('notify'),
@@ -160,8 +170,8 @@ export const AutomationActionSchema = z.discriminatedUnion('kind', [
           z.object({ to: z.literal('assignee') }),
           z.object({ to: z.literal('reporter') }),
           z.object({ to: z.literal('watchers') }),
-          z.object({ to: z.literal('project_role'), roleKey: z.string() }),
-          z.object({ to: z.literal('team'), teamId: z.string().uuid() }),
+          z.object({ to: z.literal('project_role'), roleKey: ProjectRoleKeySchema }),
+          z.object({ to: z.literal('team'), teamId: TeamIdSchema }),
         ]),
       )
       .min(1),
@@ -296,7 +306,7 @@ export const AutomationRunSchema = z.object({
   ruleId: AutomationRuleIdSchema,
   ruleName: z.string(),
   /** The event that caused this run; null for scheduled/manual triggers. */
-  triggerEventId: z.string().uuid().nullable(),
+  triggerEventId: EventIdSchema.nullable(),
   triggerIssueId: IssueIdSchema.nullable(),
   status: z.enum(['succeeded', 'partial', 'failed', 'skipped', 'loop_blocked']),
   /** Depth in the rule-triggers-rule chain. Refused past MAX_CAUSATION_DEPTH. */
@@ -343,13 +353,7 @@ export const SimulationReportSchema = z.object({
       issueId: IssueIdSchema,
       issueKey: IssueKeySchema,
       summary: z.string(),
-      changes: z.array(
-        z.object({
-          field: z.string(),
-          fromDisplay: z.string().nullable(),
-          toDisplay: z.string().nullable(),
-        }),
-      ),
+      changes: z.array(DisplayedFieldChangeSchema),
       sideEffects: z.array(z.string()),
     }),
   ),

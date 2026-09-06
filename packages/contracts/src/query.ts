@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ActorKindSchema, FieldRefSchema, type FieldRef } from './common.js'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -95,20 +96,7 @@ export const FilterValueSchema = z.union([
 ])
 export type FilterValue = z.infer<typeof FilterValueSchema>
 
-/**
- * Field references are namespaced so a custom field named `status` can
- * never be confused with the built-in one:
- *   `status`, `assignee`, `project`   → core columns
- *   `cf:severity`                     → field_definitions.key
- *   `parent.status`                   → one-hop relation
- */
-export const FieldRefSchema = z
-  .string()
-  .regex(
-    /^(cf:)?[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/,
-    'e.g. status, assignee, cf:severity, parent.status',
-  )
-export type FieldRef = z.infer<typeof FieldRefSchema>
+/** `FieldRefSchema` moved to `common.ts`; five modules share it. See CR-006. */
 
 export type FilterNode =
   | { op: 'and'; children: FilterNode[] }
@@ -160,7 +148,7 @@ export const FilterNodeSchema: z.ZodType<FilterNode> = z.lazy(() =>
       to: FilterValueSchema.optional(),
       after: FilterValueSchema.optional(),
       before: FilterValueSchema.optional(),
-      byActorKind: z.enum(['user', 'automation', 'import', 'ai', 'system']).optional(),
+      byActorKind: ActorKindSchema.optional(),
     }),
     z.object({
       op: z.literal('time_in_state'),

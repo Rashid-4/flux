@@ -6,6 +6,9 @@
   "arrowParens": "always",
   "endOfLine": "lf",
   "proseWrap": "preserve",
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "tailwindStylesheet": "apps/web/src/design/tokens.css",
+  "tailwindFunctions": ["cn", "cva"],
   "overrides": [
     {
       "files": "*.md",

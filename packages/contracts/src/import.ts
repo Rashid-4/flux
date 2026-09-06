@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { InstantSchema } from './common.js'
+import { FieldRefSchema, InstantSchema, PrioritySchema } from './common.js'
 import { ImportJobIdSchema, ProjectIdSchema, UserIdSchema } from './ids.js'
 
 /**
@@ -121,9 +121,7 @@ export const ImportMappingSchema = z.object({
   /** source issue type name → Flux issue type key. */
   issueTypes: z.record(z.string()).default({}),
   /** source priority name → Flux priority. */
-  priorities: z
-    .record(z.enum(['blocker', 'critical', 'high', 'medium', 'low', 'trivial']))
-    .default({}),
+  priorities: z.record(PrioritySchema).default({}),
   /** source link type name → Flux link type. */
   linkTypes: z.record(z.string()).default({}),
 })
@@ -350,7 +348,7 @@ export const ImportReconciliationSchema = z.object({
       fluxIssueKey: z.string(),
       matchedFields: z.number().int(),
       mismatchedFields: z.array(
-        z.object({ field: z.string(), source: z.string(), flux: z.string() }),
+        z.object({ field: FieldRefSchema, source: z.string(), flux: z.string() }),
       ),
     }),
   ),

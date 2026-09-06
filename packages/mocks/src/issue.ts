@@ -118,7 +118,7 @@ export const anIssueDetail = builder(IssueDetailSchema, () => ({
   ...anIssue(),
   projectKey: 'LOG',
   projectName: 'Logistics Platform',
-  issueTypeKey: 'BUG',
+  issueTypeKey: 'bug',
   issueTypeName: 'Bug',
   hierarchyLevel: 0,
   statusName: 'In progress',

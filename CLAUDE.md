@@ -11,16 +11,30 @@ same constraints drift within a week, and then nobody knows which one is true.
 
 ## Role of this agent
 
-Claude Code owns the **architecture layer**: the database schema, the shared
-contracts, the specs, and the CI that enforces them. It is the only agent
-permitted to change `db/migrations/`, `packages/contracts/`, `scripts/`,
-`docs/adr/`, and `.github/`.
+Claude Code owns the **architecture layer** — the database schema, the shared
+contracts, the specs, and the CI that enforces them — and, under the end-to-end
+mandate, **the product built on it as well**: `apps/web`, `services/api`,
+`apps/marketing`, and the infrastructure. It is the only agent permitted to change
+`db/migrations/`, `packages/contracts/`, `scripts/`, `docs/adr/`, and `.github/`.
 
-It does **not** write feature implementations. Those go to the build agents
-against the specs in `docs/specs/api/<module>.md`. If you are
-tempted to implement a module here because it would be faster, don't — the value
-of the contracts is that one mind wrote all of them and no mind is also editing
-the code that consumes them.
+This section used to say the opposite — "it does **not** write feature
+implementations" — and the sentence it said it in is worth keeping, because the
+reason survives the change: *the value of the contracts is that one mind wrote all
+of them and no mind is also editing the code that consumes them.* That is no
+longer a boundary between agents. It is now a discipline on one agent, and the
+discipline is the harder half:
+
+> When implementing against a contract and finding it wrong, the fix goes through
+> `docs/change-requests/` — a written request, a decision, a resolution. Not an
+> edit to the schema so the component compiles.
+
+Owning both sides removes the ten minutes of friction that made that route
+obviously worth it. It does not remove the reason. A contract quietly widened
+mid-feature is indistinguishable from a contract that was never designed, and the
+change-request file is the only place the *why* survives.
+
+A UI agent may be assigned specific surfaces of `apps/web` on its own branch. It
+does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 
 ## Working agreements
 
@@ -66,9 +80,10 @@ the code that consumes them.
 | `packages/mocks` | **67 tests passing.** Deterministic, contract-parsed fixtures for the UI to build against before the API exists. Frozen; overrides are the extension point. MSW handlers deliberately live in `apps/web/src/test/` |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
-| `services/api` | **not created.** Owned by the build agent, including its `package.json` and framework wiring |
-| `apps/web` | **not created.** Owned by the UI agent, on the same terms |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type, doc-link and **toolchain-version** drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
+| `services/api` | **not created.** The next major piece of build work, now owned here |
+| `apps/web` | **exists, and is the largest tree in the repo — 677 tests in 50 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 3 of the 4 `lib/` modules are tested *and* reviewed, and **24 shipped modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `src/gallery/` is a second Vite entry at `/gallery.html` — 9 dev-only modules, outside `build.rollupOptions.input` and outside `ROUTE_PATTERNS`, so it never ships. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
+| `apps/marketing` | **not created** |
 
 Migration 0011 is the alignment pass: reconciling ~25 divergences between the
 contracts and the schema that had accumulated while both were being written.
@@ -110,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Five distinct kinds of contract drift have now been found here, and each one was
-**invisible to the checks that catch the other four**. That is the pattern worth
+Eleven distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other ten**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -120,14 +135,78 @@ because none of them are visible to `tsc`, to review, or to each other.
 | enum **values** disagree with the CHECK behind them | ~25 | `check:enums` (0011) |
 | field **names** disagree with their column | 15 of 27 schemas | `check:columns` (0012) |
 | column **defaults** the contract would reject | 7 | `check:columns` (0016) |
+| one **field's type** disagrees with the same field elsewhere | 47 | `check:vocab` (CR-006) |
 | **error codes** the specs name and the enum lacks | 45 + 8 | `check:errors` |
 | **event types** the specs name and the enum lacks | 30 | `check:events` |
 | **section references** that resolve to the wrong section | 2 | `check:docs` |
+| a **utility** that resolves to no token, so it emits no CSS | ~30 + a vocabulary | `design/palette.test.ts` |
+| a **colour** whose comment describes a colour the browser does not paint | 2 + 7 hexes + 1 ratio | `design/contrast.test.ts` (CR-004) |
+| a **token name in two theme namespaces**, so `cn` stops resolving a conflict | 2, on 5 surfaces | `lib/cn.test.ts` |
+| **two majors of one dev dependency**, so an undeclared import picks by hoist | 1 — vitest 2 *and* 4 | `check:toolchain` |
 
-The last two are the same shape as the first three, one layer up: the specs are
-what a build agent implements, and a spec naming something the contract does not
-have describes code that cannot be written. The agent then invents a name, and the
-client switches on one that never arrives.
+The **colour** row is the least expected, because the value and its
+documentation were in the *same line of the same file*. `--primary-soft` and
+`--danger-soft-fg` were outside sRGB by 0.0024 and 0.0009, so the browser
+gamut-mapped both and the declared colour was never the painted one; six hexes in
+comments had drifted from the values beside them; and `button.tsx` claimed 4.9:1
+where the pair measures 4.80:1. A comment is not checkable by `tsc` and a colour is
+not checkable by eye — 0.002 of chroma is invisible — so the only way to know was to
+re-derive every claim from the CSS. `design/oklch.test.ts` is what makes that
+trustworthy: **every** expected value in it comes from outside this repository, because
+a transposed matrix row would otherwise produce numbers that are wrong and
+self-consistent, and the test would agree with the comments all the way down.
+
+The **two-majors** row is the newest, and the first where no file in the repository
+was wrong. `apps/web` declared `vitest@^4`, the three `packages/*` declared `^2.1.0`,
+and both installed happily side by side for as long as nobody looked. The bill
+arrived as **121 failing tests and 6 `TS2339` errors** on a commit that had been
+green minutes earlier in a second working tree — every `@testing-library/jest-dom`
+matcher missing, with `Invalid Chai property: toHaveAttribute` as the message.
+
+The chain, measured rather than guessed. jest-dom declares **no** dependency or peer
+on `vitest`, so `import { expect } from 'vitest'` in its `dist/vitest.mjs` has
+nothing local to resolve. Vite resolves symlinks by default, so that file loads from
+its real path inside `.pnpm/`, and Node walks up from *there* — reaching pnpm's
+hoisted fallback, `node_modules/.pnpm/node_modules/vitest`, which held **2.1.9**.
+jest-dom registered every matcher onto vitest 2's chai instance while the tests
+asserted through vitest 4's. Both halves worked perfectly, on different objects.
+
+Three things generalise, and the third is the uncomfortable one. First, **which
+major wins the hoist is not pinned by the lockfile** — so this reproduces per
+directory, not per commit, and reads as a lost file rather than a version split.
+Second, the invariant is not "vitest must be 4"; it is that a workspace must offer
+exactly *one* major of anything, because a package that imports without declaring
+does not get to choose. Third, `check:toolchain` therefore has a rule for the
+*declarations* and a second for the *installed link*, because after the manifests
+were fixed `pnpm install` said "Already up to date" and left the stale link in
+place: the lockfile was correct and the tests still could not see a matcher. Only
+`pnpm install --force` relinks it. A check reading manifests alone would have
+reported the fix as landed.
+
+The **two-namespaces** row is the first one where *adding* a
+correct declaration is what broke something. `raised` and `overlay` are both
+surface colours and elevations, so declaring both namespaces to `tailwind-merge`
+handed `shadow-overlay` to its colour group — where it conflicts with no
+box-shadow at all. `cn('shadow-card', 'shadow-overlay')` therefore kept both, and
+**stock `tailwind-merge`, which knows neither name, gets it right.** Every
+floating surface in the product (dialog, dropdown, popover, select, toaster) has
+`shadow-overlay` in its base and accepts a `className`, so all five had a
+silently-ignored elevation override.
+
+Two things generalise. First, **a configuration can be a regression**: the check
+that matters compares behaviour against the *unconfigured* library, and
+`lib/cn.test.ts` asserts what bare `tailwind-merge` does on the same input so
+"the extension is what fixed this" is measured in both directions. Second, the
+test is exhaustive over the *intersection* of the two key lists rather than over
+the two names found, so a third dual-namespace token is covered the moment it is
+added to `theme-keys.ts` — and the sibling case (`color` and `text` both answer to
+`text-`) fails there too, at the point the token is added rather than in whichever
+component stops overriding.
+
+The error-code, event-type and section-reference rows are the same shape as the
+first three, one layer up: the specs are what a build agent implements, and a spec
+naming something the contract does not have describes code that cannot be written.
+The agent then invents a name, and the client switches on one that never arrives.
 
 Error codes and event types differ in one respect worth remembering. An unknown
 error code fails on the way *out* of a request, where someone sees a status line.
@@ -140,6 +219,40 @@ permanently undeliverable, and nothing said so.
 duplicate entries in an 80-string hand-maintained enum, every type exactly
 `namespace.action` so `flux.<ns>.*` binds one level deep, and no payload schema
 keyed to a type that does not exist. All three were negative-tested.
+
+The **field-type** row is the one whose cost lands *outside* the contracts, which is
+why it survived the other five. `BoardCardSchema.priority` was `z.string()` while
+every other priority was `PrioritySchema`: it compiled, its column matched, and the
+CHECK behind that column holds exactly `PrioritySchema`'s six values — so
+`check:columns` and `check:enums` were both green, correctly. The bill arrived two
+layers away in a component, where the cast the loose type *forced* let an unmapped
+value reach a map lookup, `undefined.Icon` threw, and one odd card blanked the whole
+board through the error boundary. Loose here, crash there, and nothing in between
+could see it. `docs/change-requests/006-board-card-priority-type.md` has the full
+account; two things from writing the check are worth carrying to the next one.
+
+**Measure the instrument's coverage, not just its result.** The first survey walked
+the outermost `z.object` of each exported const — which is what "the schema's own
+fields" sounds like it means — and so never saw a property inside an
+array-of-objects, a nested object, or a `discriminatedUnion` member. That is **601
+of 1037** property sites, and seven further instances of the same defect were living
+in the 42% it could not reach. A survey reporting "601 fields, all clean" over a
+1037-field tree is the blind-spot shape below, one level up: it licenses the belief
+that the vocabulary is clean, and nobody re-reads the schemas by hand once a survey
+has said they are fine. Print the count.
+
+**Prefer the curation-free rule, and hold the curated one to its own standard.**
+`check:vocab` has both. Rule A — an inline `z.enum([...])` whose sorted value set
+equals a declared enum schema's *is* that schema, spelled out — needs no
+maintenance and cannot go stale; it found seven copies. Rule B pins 32 field names
+to one schema each, and only exists because `z.string()` has no values for Rule A to
+compare, which is precisely why the original defect was invisible. Because curation
+rots, the table is itself checked: a pinned name that appears in no schema fails, an
+exception matching no site fails, and an exception with an empty reason fails. That
+last one is not ceremony — "same name, different concept" is a claim, and the next
+reader needs the argument rather than the conclusion. The stale-entry rule proved
+itself on the first run by failing on an `eventId` entry whose real field was
+`triggerEventId`.
 
 ## A check that passes over a blind spot is worse than no check
 

@@ -57,7 +57,7 @@ export const aBoardCard = builder(BoardCardSchema, () => ({
   id: id<'IssueId'>('issue', 1),
   key: 'LOG-101',
   summary: 'Warehouse scanner drops connection on shift change',
-  issueTypeKey: 'BUG',
+  issueTypeKey: 'bug',
   statusId: STATE_TODO,
   statusCategory: 'todo',
   priority: 'high',

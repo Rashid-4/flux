@@ -1,0 +1,55 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * The guarantee. This config is the only place it holds, and
+     * `pnpm typecheck` must keep invoking it.
+     * ═══════════════════════════════════════════════════════════════════
+     *
+     * **NO ambient types AT ALL — not `["node"]`, not `["vite/client"]`.**
+     *
+     * `@flux/contracts` restricts itself to the bare language so it can never
+     * reference the DOM. This package has the harder constraint: it is imported
+     * by `apps/web` (browser), by that app's vitest run (jsdom), and eventually
+     * by a worker's suite (node). Anything ambient it relied on would work in one
+     * of those and fail in the others, and the failure would land on the agent
+     * that imported it rather than on the one that introduced it.
+     *
+     * The practical consequences, both deliberate:
+     *   • no `crypto.randomUUID()` — ids are derived by a pure hash instead
+     *     (determinism.ts), which is also what makes them stable
+     *   • no `process.env` — a fixture that reads the environment is not a
+     *     fixture
+     *
+     * ### Why this is a separate file rather than a line in `tsconfig.json`
+     *
+     * It used to be a line in `tsconfig.json`, which excluded the tests. That is
+     * why it could be: a program that contains the test files **cannot** hold
+     * this guarantee. `import { describe } from 'vitest'` pulls `@vitest/*`
+     * declarations that reference `@types/node`, and an ambient type reached by
+     * any file in a program is available to every file in it — so the tests
+     * supply `process` to the whole package whether or not `types` mentions it.
+     * Measured both ways: `types: []` over source and tests exits 0, and
+     * excluding the tests from the same config brings TS2591 back.
+     *
+     * The tests had to be in the config a language server discovers, or they get
+     * checked in an inferred project with no `strict` and nobody can see it. So
+     * they went there and this file was split off to keep the guarantee.
+     *
+     * **`exclude` is load-bearing.** If this config ever stops excluding
+     * `src/**\/*.test.ts`, it gains node types by proxy and becomes a no-op that
+     * passes — the exact "green tick either way" shape CLAUDE.md warns about.
+     * Likewise, dropping `tsc -p tsconfig.src.json` from the `typecheck` script
+     * loses the guarantee outright with nothing failing.
+     */
+    "noEmit": true,
+    /** composite + noEmit are incompatible; this config only ever checks. */
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}

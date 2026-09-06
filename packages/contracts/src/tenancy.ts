@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { ActorKindSchema, AuditStampSchema, InstantSchema, LocalDateSchema } from './common.js'
-import { OrganizationIdSchema, ProjectIdSchema, TeamIdSchema, UserIdSchema } from './ids.js'
+import {
+  OrganizationIdSchema,
+  ProjectIdSchema,
+  ProjectKeySchema,
+  TeamIdSchema,
+  TeamKeySchema,
+  UserIdSchema,
+} from './ids.js'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -184,7 +191,7 @@ export const InviteMembersSchema = z.object({
  */
 export const TeamSchema = AuditStampSchema.extend({
   id: TeamIdSchema,
-  key: z.string().regex(/^[a-z][a-z0-9-]{1,30}$/),
+  key: TeamKeySchema,
   name: z.string().min(1).max(120),
   description: z.string().max(1000).nullable(),
   leadUserId: UserIdSchema.nullable(),
@@ -249,13 +256,13 @@ export const BootstrapSchema = z.object({
   projects: z.array(
     z.object({
       id: ProjectIdSchema,
-      key: z.string(),
+      key: ProjectKeySchema,
       name: z.string(),
       avatarUrl: z.string().nullable(),
       isFavourite: z.boolean(),
     }),
   ),
-  teams: z.array(z.object({ id: TeamIdSchema, key: z.string(), name: z.string() })),
+  teams: z.array(z.object({ id: TeamIdSchema, key: TeamKeySchema, name: z.string() })),
   /** Org-level permissions only. Project-level ones come with the project. */
   orgPermissions: z.object({
     canManageOrganization: z.boolean(),

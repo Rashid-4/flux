@@ -28,6 +28,9 @@
     "check:errors": "node scripts/check-error-codes.mjs",
     "check:events": "node scripts/check-event-types.mjs",
     "check:docs": "node scripts/check-doc-links.mjs",
+    "check:tsconfigs": "node scripts/check-tsconfig-coverage.mjs",
+    "check:vocab": "node scripts/check-field-vocabularies.mjs",
+    "check:toolchain": "node scripts/check-toolchain-versions.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:integration": "node scripts/check-integration-suites.mjs"
@@ -40,6 +43,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "pg": "^8.13.0",
     "prettier": "^3.3.3",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.18.0"
   }

@@ -1,0 +1,110 @@
+{
+  /**
+   * The project every tool discovers — and therefore the one an editor uses.
+   *
+   * ### Why this one contains the tests
+   *
+   * It used to exclude `src/**\/*.test.ts(x)` and `src/test/**` and leave them to
+   * a `tsconfig.test.json`. `pnpm typecheck` invoked both configs by hand, so CI
+   * was green, and every test file in the package was nevertheless red in the
+   * editor: 117 problems across the workspace.
+   *
+   * A TypeScript language server discovers a project only through a file named
+   * `tsconfig.json` (or `jsconfig.json`). `tsconfig.test.json` is not a name it
+   * looks for, so a file *this* config excludes belongs to no discovered project
+   * at all, and the server falls back to an **inferred** project with default
+   * compiler options — no `paths`, no `types`, no `strict`. Measured on
+   * `src/components/data/confirm-dialog.test.tsx`, that is exactly seven errors,
+   * which is exactly what the editor reported for it:
+   *
+   * - three `TS2307 Cannot find module '@/…'`, because `paths` is gone;
+   * - four `TS2339 Property 'toHaveAttribute' | 'toHaveFocus' | 'toBeDisabled'
+   *   does not exist`, because `src/test/setup.ts` — the file whose
+   *   `import '@testing-library/jest-dom/vitest'` declares those matchers — was
+   *   not in the program either.
+   *
+   * Not one of them was real. That is what made them expensive. 117 phantom
+   * problems is a haystack, and the genuine type errors found in `data/` this week
+   * would have sat inside it unread. `docs/product-quality-bar.md` §13 applies to
+   * the people building the product as much as to the people using it: an error
+   * that is not true is worse than no error, because it teaches everyone to stop
+   * reading them.
+   *
+   * So the rule is now **this config contains every `.ts`/`.tsx` file in the
+   * package**, and the two narrower projects are additive guards rather than the
+   * only place a file is checked at all.
+   * `src/components/conventions.test.ts` asserts it, by parsing this file with
+   * the real TypeScript config parser and comparing its file list against the
+   * files on disk — so a future `exclude` that hides a file from the editor fails
+   * `pnpm test` instead of being discovered from a screenshot.
+   *
+   * ### The two guards that used to be this file's job
+   *
+   * - `tsconfig.app.json` — `src/` without the tests, and `types: ["vite/client"]`
+   *   only. This is what stops application code reaching for `node:fs` or
+   *   `process.env`: it fails there even though this config, which needs node types
+   *   for the test harness, would pass.
+   * - `tsconfig.node.json` — the Vite / Vitest / Playwright configs with node types
+   *   and **no DOM**, so a `document` reference in a build config is an error.
+   *
+   * Both still run in `pnpm typecheck`. What changed is only which config the
+   * editor lands on: the permissive one, which is the price of it being the one
+   * that sees every file. A stray `node:fs` inside `src/` therefore gets no
+   * squiggle and fails in CI instead — a worse signal for one rare mistake, in
+   * exchange for a correct signal on all 44 test files. That trade is only sound
+   * because the guard is in CI; deleting either project silently gives up a real
+   * guarantee.
+   *
+   * `composite: false` + `noEmit: true` follows packages/mocks: the two are
+   * incompatible, nothing consumes this project's declarations, and Vite does the
+   * emitting.
+   */
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+
+    /**
+     * The base sets `lib: ["ES2023"]` with no DOM, deliberately: @flux/contracts
+     * is imported by node, by the browser and by a worker, so it must typecheck
+     * under the intersection. This project is the browser end, so it adds the DOM
+     * back — plus `vite/client` for `import.meta.env`, and `node` for the test
+     * harness (a token-drift test reads `tokens.css` off disk, the MSW server is
+     * node, and `e2e/` is Playwright).
+     */
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"],
+    "jsx": "react-jsx",
+
+    /**
+     * `@/*` is the alias shadcn's generated components import through, and it has
+     * to agree with `resolve.alias` in vite.config.ts and vitest.config.ts.
+     *
+     * Redeclaring `paths` here replaces the base's `@flux/contracts` mapping. That
+     * is deliberate and costs nothing: `@flux/contracts` and `@flux/mocks` are both
+     * workspace links whose package.json `exports` point at their source, which
+     * `moduleResolution: bundler` follows — @flux/mocks has never had a path
+     * mapping and resolves fine. One resolution mechanism for both packages is
+     * better than two that can disagree.
+     */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  /**
+   * `e2e` does not exist yet (playwright.config.ts points at it and the specs are
+   * still to be written). Listing a directory that is absent is not an error — TS
+   * only complains when the *whole* program is empty — and listing it now means
+   * the first spec written is in the editor's project on the day it is created
+   * rather than after someone notices it is red.
+   *
+   * The three config files are named individually rather than by glob so that
+   * adding a fourth is a deliberate act. They are in `tsconfig.node.json` too;
+   * a file in two projects is fine, and the editor takes this one.
+   */
+  "include": ["src", "e2e", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

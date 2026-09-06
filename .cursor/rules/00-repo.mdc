@@ -1,0 +1,78 @@
+---
+description: flux repository non-negotiables — frozen paths, contract-first, the gate
+alwaysApply: true
+---
+
+# flux — repository rules
+
+A Jira alternative. pnpm 9 workspace, TypeScript everywhere, `strict` plus
+`noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Read `AGENTS.md` for
+the full picture; this file is the subset you cannot violate.
+
+## 1. Frozen paths — CI fails the PR, not the file
+
+Do not edit anything under these prefixes. The check is
+`node scripts/check-frozen-paths.mjs origin/<base>` and it runs on every PR.
+
+| Path | Why |
+| --- | --- |
+| `db/migrations/`, `db/bootstrap/` | a migration edited after it has been applied anywhere is permanently divergent; role privileges are the tenant-isolation boundary |
+| `packages/contracts/` | the shared contract every other layer is built against |
+| `packages/mocks/` | every fixture is parsed by its schema at construction — that parse is the UI's only guarantee it renders shapes the API will really return |
+| `packages/db-tests/` | a test relaxed to unblock a feature removes the evidence for a security claim |
+| `scripts/`, `.github/` | these are what verify the invariants, and what enforces them |
+| `eslint.config.mjs`, `tsconfig.base.json`, `.prettierrc.json`, root `package.json`, `pnpm-workspace.yaml`, `docker-compose.yml` | each is a place where one line turns a check into a no-op, with a green tick either way |
+| `docs/adr/`, `docs/specs/`, `AGENTS.md`, `CLAUDE.md` | a decision is superseded by a new document, never rewritten; code that edits its own spec cannot be reviewed |
+
+`docs/change-requests/` is the one carve-out, and it is the pressure valve: **if a
+contract, a lint rule or a spec is genuinely wrong, copy
+`docs/change-requests/TEMPLATE.md` and write it up.** Do not widen a schema so a
+component compiles, and do not disable a rule inline. A contract quietly widened
+mid-feature is indistinguishable from one that was never designed.
+
+`pnpm-lock.yaml` is not frozen — adding a dependency to your own package
+regenerates it. But ask before adding one.
+
+## 2. Contract-first
+
+Import types from `@flux/contracts`. Never hand-write an interface that mirrors
+one, and never cast to make a shape fit — the cast is where the bug lands two
+layers away (`docs/change-requests/006-board-card-priority-type.md` is the whole
+story: one `z.string()` that should have been an enum blanked a board).
+
+Ids are branded and created with `newId<Brand>()`. `crypto.randomUUID()` is a lint
+error: ids are UUIDv7 so they sort by creation time.
+
+## 3. The gate, before you hand anything back
+
+```bash
+pnpm install
+pnpm --filter @flux/contracts build   # everything else consumes its .d.ts
+pnpm format:check && pnpm lint && pnpm typecheck && pnpm test
+```
+
+Contracts must be built first or typecheck fails on a clean tree. Paste the real
+output — the test counts included — into the PR description. "Tests pass" without
+a count is not evidence.
+
+`pnpm format` is the formatter *and* the Tailwind class sorter. Run it; never
+hand-sort class names.
+
+## 4. Git
+
+- Work on the branch you were given. Never commit to `main`.
+- Do not push, open a PR, or change any repository setting unless asked.
+- Commit messages: imperative subject, a body explaining *why* when it is not
+  obvious, ending with the co-author trailer the tool you are running under uses.
+
+## 5. Quality bar
+
+`docs/product-quality-bar.md` is binding and worth reading once in full. The short
+version: a feature that technically works but feels slow, confusing, fragile or
+inconsistent is **unfinished**. Every surface is checked against the happy path,
+empty, loading, slow network, error, permission failure, large data, refresh,
+keyboard, screen reader and narrow viewport. Never show a raw backend error, never
+say "Something went wrong" when the cause is known, and a control that silently
+does nothing is worse than one that says why it cannot.
+
+Fix what you find. Do not report it and move on.

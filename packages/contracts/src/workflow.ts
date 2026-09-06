@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import { AuditStampSchema, InstantSchema, StatusCategorySchema } from './common.js'
+import { PermissionSchema } from './permission.js'
 import { FilterNodeSchema } from './query.js'
 import {
   IssueIdSchema,
   ProjectIdSchema,
+  ProjectRoleKeySchema,
   UserIdSchema,
   WorkflowIdSchema,
   WorkflowStateIdSchema,
@@ -36,8 +38,8 @@ export const WorkflowStatusSchema = z.enum(['draft', 'published', 'archived'])
  * Declarative, so both evaluations come from one definition.
  */
 export const TransitionConditionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('has_permission'), permission: z.string() }),
-  z.object({ kind: z.literal('in_project_role'), roleKey: z.string() }),
+  z.object({ kind: z.literal('has_permission'), permission: PermissionSchema }),
+  z.object({ kind: z.literal('in_project_role'), roleKey: ProjectRoleKeySchema }),
   z.object({ kind: z.literal('is_assignee') }),
   z.object({ kind: z.literal('is_reporter') }),
   /** Blocks "Done" while blocking issues are open — the guard rail that
@@ -166,7 +168,7 @@ export const WorkflowPublishPreviewSchema = z.object({
     affectedIssueCount: z.number().int(),
     /** States present in the published version but gone from the draft. */
     removedStates: z.array(
-      z.object({ familyId: z.string(), name: z.string(), issueCount: z.number().int() }),
+      z.object({ familyId: z.string().uuid(), name: z.string(), issueCount: z.number().int() }),
     ),
     /**
      * Issues whose current state has no equivalent in the draft. These are

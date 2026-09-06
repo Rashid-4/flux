@@ -11,36 +11,54 @@ every rule in it exists because breaking it costs a day of rework.
 
 ## 1. Who owns what
 
-Ownership is enforced by CI (`.github/workflows/ci.yml` → `frozen-paths`), not by
-trust. A pull request that edits a path it does not own **fails the build**.
+The **architecture** rows are enforced by CI (`.github/workflows/ci.yml` →
+`frozen-paths`), not by trust: a pull request that edits one of those paths
+**fails the build**. `FROZEN_PATHS_OVERRIDE=1` is the documented escape, and CI
+sets it only for `arch/*` branches and PRs labelled `architecture`.
 
-| Path | Owner | Everyone else |
-| --- | --- | --- |
-| `db/migrations/**` | Architecture (Claude Opus) | **read-only** |
-| `db/bootstrap/**` | Architecture | **read-only** |
-| `packages/contracts/**` | Architecture | **read-only** |
-| `packages/db-tests/**` | Architecture | **read-only** |
-| `packages/mocks/**` | Architecture | **read-only** — but see below |
-| `scripts/**` | Architecture | **read-only** |
-| `docs/adr/**` | Architecture | **read-only** |
-| `docs/specs/**` | Architecture | **read-only** |
-| `.github/**` | Architecture | **read-only** |
-| `AGENTS.md`, `CLAUDE.md` | Architecture | **read-only** |
-| `services/api/**` | Backend build agent | read |
-| `services/worker/**` | Backend build agent | read |
-| `apps/web/**` | UI agent | read |
-| `apps/marketing/**` | UI agent | read |
-| `docs/change-requests/**` | **anyone** — see §2 | — |
+The **application** rows are convention. Read that literally — `apps/**` and
+`services/**` are *not* in the frozen list, so nothing fails if you wander into
+one. Do not rely on CI to tell you that you left your lane; it will not.
 
-Backend and UI trees are disjoint on purpose: two agents can work in parallel on
-separate branches and their merges cannot conflict.
+| Path | Owner | Everyone else | Enforced |
+| --- | --- | --- | --- |
+| `db/migrations/**` | Architecture (Claude Opus) | **read-only** | CI |
+| `db/bootstrap/**` | Architecture | **read-only** | CI |
+| `packages/contracts/**` | Architecture | **read-only** | CI |
+| `packages/db-tests/**` | Architecture | **read-only** | CI |
+| `packages/mocks/**` | Architecture | **read-only** — but see below | CI |
+| `scripts/**` | Architecture | **read-only** | CI |
+| `docs/adr/**` | Architecture | **read-only** | CI |
+| `docs/specs/**` | Architecture | **read-only** | CI |
+| `.github/**` | Architecture | **read-only** | CI |
+| `AGENTS.md`, `CLAUDE.md` | Architecture | **read-only** | CI |
+| `apps/web/**` | Architecture, end to end | UI agent — **assigned surfaces only**, own branch | convention |
+| `apps/marketing/**` | Architecture | **not created yet** | convention |
+| `services/api/**` | Architecture | **not created yet** | convention |
+| `services/worker/**` | Architecture | **not created yet** | convention |
+| `docs/change-requests/**` | **anyone** — see §2 | — | carve-out |
 
-`services/` and `apps/` are created *entirely* by the agents that own them,
-including their `package.json`, tsconfig, and framework wiring. The architecture
-layer does not put code there — it specifies, in `docs/specs/`, what that code
-has to do. Specs and code are kept in separate trees on purpose: a file one agent
-owns sitting inside a directory another agent owns is precisely the ambiguity this
-table exists to remove.
+**The application rows changed, and the reason matters more than the change.**
+This repo was designed around separate build agents owning `apps/` and
+`services/` outright. One mind now holds the product end to end, so those trees
+are no longer a boundary between agents — but the argument the boundary existed
+for still stands: the value of the contracts is that one mind wrote all of them,
+and that mind must not quietly patch one to make a component compile. So the
+`docs/change-requests/` route in §2 is **not** waived by owning both sides. It is
+the only way a contract changes, including for the agent that owns the contract.
+
+A UI agent may be assigned specific surfaces. It does not own `apps/web/**`: it
+works inside primitives that already have tests, on its own branch, and the gate
+— `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test` — is what it
+hands back, not a review request. **Read `apps/web/README.md` §"State of this
+tree" first.** 490 tests in 44 files is not coverage: `components/ui/` and
+`components/data/` are tested and reviewed, and 27 modules including every route
+and the whole application shell have no test at all. Assigning work without that
+split is how a working component gets rewritten and a broken one gets trusted.
+
+Specs and code are still kept in separate trees on purpose (`docs/specs/`
+describes what the code must do), because a file one agent owns sitting inside a
+directory another agent owns is precisely the ambiguity this table removes.
 
 **`packages/mocks` is read-only but not a limitation.** It holds the fixtures the
 UI is built against before the API exists, and each one is `.parse()`d by its

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Declares that the document is legible in both schemes, so the browser
+      renders native scrollbars, form controls and the canvas behind the app in
+      the matching one. Without it a dark app keeps a white overscroll gutter.
+    -->
+    <meta name="color-scheme" content="light dark" />
+
+    <title>flux</title>
+
+    <!--
+      Resolve the theme before first paint.
+
+      This runs synchronously in <head> because the alternative is a light flash
+      on every load for a dark-theme user: React mounts, an effect reads
+      localStorage, and the class lands one frame too late. It is inline rather
+      than a module for the same reason — a module script is deferred by
+      definition, which is exactly what must not happen here.
+
+      The key and the three values match src/stores/theme.ts, which stores a
+      bare string — not a JSON envelope — precisely so this comparison can be a
+      comparison. `system` and a missing key both mean "follow the OS": the
+      store writes `system` explicitly when it is chosen, and a first visit has
+      no key at all. src/stores/theme.test.ts extracts this script and checks its
+      verdict against the store's for every combination, so the two copies of the
+      rule cannot drift.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('flux.theme')
+          var dark =
+            stored === 'dark' ||
+            ((stored === null || stored === 'system') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (_) {
+          /* Private mode can throw on localStorage access. Light is the default. */
+        }
+      })()
+    </script>
+  </head>
+  <body class="h-full">
+    <!--
+      Skip link, in the document rather than in React: it must be the first
+      focusable thing on the page, and it must work before the bundle has
+      hydrated. `#main` is rendered by the app shell (src/routes/shell.tsx).
+
+      `focus:z-80` is the top of the ladder in src/components/ui/README.md §3 —
+      above the toast layer at 70, because a skip link that a toast can cover is
+      a skip link that cannot be used. It was `focus:z-[60]`, which both collided
+      with the tooltip layer and was an arbitrary value.
+
+      `bg-contrast` / `text-contrast-fg` measures 17.8:1 light and 16.1:1 dark, so
+      the link is legible over whatever it happens to land on — including a board
+      column or an image — rather than relying on the page background being pale.
+
+      No `focus:ring-*`: the `:focus-visible` outline in tokens.css @layer base is
+      the product's one focus treatment, and a skip link is only ever reached by
+      keyboard, so it gets that outline for free. A hand-written ring here would
+      be a second focus style that has to be maintained in parallel.
+    -->
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-80 focus:rounded-control focus:bg-contrast focus:px-3 focus:py-2 focus:font-medium focus:text-contrast-fg focus:shadow-overlay"
+    >
+      Skip to main content
+    </a>
+
+    <div id="root" class="h-full"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

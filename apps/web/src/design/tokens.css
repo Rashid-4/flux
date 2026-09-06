@@ -1,0 +1,877 @@
+/**
+ * flux design tokens
+ * ============================================================================
+ *
+ * The single source of visual truth. Every colour, size, radius, shadow and
+ * easing in the application comes from here, and `eslint.config.mjs` enforces
+ * that: an arbitrary value (`bg-[#fff]`, `p-[13px]`) or a raw hex in a JSX
+ * attribute fails lint under `apps/**`. If a value is missing, add it here —
+ * that is the intended way to extend the system.
+ *
+ * Structure — three parts, in this order, per docs/specs/web/README.md §11:
+ *
+ *   1. `@custom-variant dark`  so `dark:` means "inside .dark", set by the
+ *                             pre-paint script in index.html.
+ *   2. `:root` / `.dark`      the semantic pairs. This is the only place a
+ *                             literal colour appears, and it appears twice —
+ *                             once per theme.
+ *   3. `@theme inline`        maps each semantic name onto a Tailwind utility.
+ *
+ * `inline` is load-bearing, not stylistic. Without it Tailwind emits
+ * `--color-surface: var(--surface)` at `:root`, where CSS substitutes
+ * `var(--surface)` *at the point of declaration* — the light value — and the
+ * computed result inherits into `.dark` unchanged. A dark panel embedded in a
+ * light page would keep the light colour. `inline` makes the utility reference
+ * `var(--surface)` directly, so it resolves on the element that uses it.
+ *
+ * There is exactly one `@custom-variant dark`. `shadcn init` writes
+ * `(&:is(.dark *))`, which matches only *descendants* of `.dark` (so `.dark`
+ * itself is unstyled) and carries id-level specificity. If the CLI adds a
+ * second one, delete it — do not keep both.
+ *
+ * There is deliberately no shadcn-compatible alias layer (`--color-background`,
+ * `--color-muted-foreground`, …). Two names for one colour drift, and then
+ * nobody knows which is authoritative. Components generated into
+ * `src/components/ui/` are retuned onto this vocabulary as part of accepting
+ * them, which is the same work as reviewing them.
+ *
+ * Colour values are OKLCH with the sRGB hex they were derived from in a
+ * comment. Every foreground/background pair used for text was measured against
+ * WCAG 2.2 AA (4.5:1 body, 3:1 for control boundaries) — the ratio is recorded
+ * beside it. Do not adjust one half of a pair without re-measuring.
+ *
+ * Derived from the reference designs in `UI Images/`: the neutral-dark board,
+ * the light board, the violet-accent detail panel and the drag-and-drop
+ * capture. The accent is violet; status meaning is always carried by an icon or
+ * text as well as a hue, because colour alone fails 1.4.1.
+ */
+
+@import 'tailwindcss';
+
+/*
+ * Test files do not generate CSS.
+ *
+ * Tailwind v4 finds utilities by scanning source text, and with no `@source` at all
+ * it scans everything the project is not ignoring — `*.test.tsx` included. So a
+ * class name written in an assertion emits a real rule in the shipped stylesheet.
+ * Measured before adding this line: `.h-40` and `.h-80` were both in
+ * `dist/assets/index-*.css`, and neither appears in a single component. Two dead
+ * rules is nothing; the mechanism is not nothing.
+ *
+ * A test that spells a class out is how a *component* that fails to spell it out
+ * goes unnoticed. `bg-entity-${tone}` produces no CSS, which is why
+ * `components/data/user-avatar.tsx` holds a literal table — but if the avatar's own
+ * test listed the eight class names, Tailwind would emit them from the test file and
+ * the broken component would paint correctly in the browser and in every screenshot.
+ * The check would pass and the thing it checks would be gone. Excluding tests from
+ * the scan means a utility exists because production code asked for it.
+ *
+ * Nothing in the test suite depends on the stylesheet: jsdom never loads it, and
+ * every assertion is on class names rather than computed styles.
+ */
+@source not '../**/*.test.{ts,tsx}';
+
+/* -------------------------------------------------------------------------- */
+/* 1. Dark variant                                                            */
+/* -------------------------------------------------------------------------- */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* -------------------------------------------------------------------------- */
+/* 2. Semantic pairs                                                          */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  /* -- Surfaces ------------------------------------------------------------ */
+  /* The canvas the panels float on. #eef1f4 — sampled from the light board. */
+  --canvas: oklch(0.957 0.005 247.9);
+  /* Cards, panels, menus, the topbar. #ffffff */
+  --surface: oklch(1 0 89.9);
+  /* Inset areas: search fields, table header rows, empty columns. #f7f8fa */
+  --surface-2: oklch(0.979 0.003 264.5);
+  /* Hover and pressed fills on interactive rows. #f1f3f6 */
+  --surface-3: oklch(0.963 0.005 258.3);
+  /* A small thing sitting *on top of* an inset area: the selected segment of a
+     view switcher, a chip lifted out of its trough, a card mid-drag.
+
+     It needs its own token because the surface ladder is a distance from the
+     base, not a direction of lightness — `--surface-2` and `-3` step *darker* in
+     light and *lighter* in dark, since that is which way each theme reads as
+     "further in". Raised is the opposite direction, and there the two themes
+     disagree about where to land: lighter than white is impossible, so light
+     returns to `--surface`, while dark has to keep climbing to `--surface-3`.
+     Expressing that as `bg-surface dark:bg-surface-3` at every call site is the
+     `dark:` variant README §5 calls a wrong token; this is the right token.
+     #ffffff. */
+  --raised: oklch(1 0 89.9);
+  /* Dialog scrim. Alpha, not a solid, so what is behind stays readable. */
+  --overlay: oklch(0.209 0.009 264.4 / 0.42);
+
+  /* -- Text ---------------------------------------------------------------- */
+  /* The ratios are written beside the token in the form `N:1 on --token` because
+     that is the form `contrast.test.ts` parses: it re-measures every claim in this
+     file from the value itself, so a number here is checked rather than promised.
+     Each of these three is also asserted against all four surfaces, since text
+     lands on a hover row and a filter bar as often as on a card. */
+  --fg: oklch(0.209 0.009 264.4); /* #16181c — 17.77:1 on --surface, 15.68:1 on --canvas */
+  /* Secondary text: descriptions, values in a label/value row. */
+  --fg-muted: oklch(0.437 0.027 263); /* #4a5261 — 7.86:1 on --surface */
+  /* Meta and placeholders: counts, timestamps, section labels. */
+  --fg-subtle: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface, 4.83:1 on --canvas */
+
+  /* -- Lines --------------------------------------------------------------- */
+  /* Decorative separators and card edges. Exempt from 1.4.11: a card is not a
+     control, and no state is communicated by this line alone. #e2e6eb */
+  --border: oklch(0.923 0.008 253.9);
+  /* Stronger structural divisions — sidebar/main, table rules. #cfd5dd */
+  --border-strong: oklch(0.871 0.013 255.5);
+  /* The boundary of a *control* — text input, checkbox, outlined button, select
+     trigger. This one does carry meaning (it is what makes the field
+     identifiable), so SC 1.4.11 applies and it must clear 3:1 against whatever
+     is behind it.
+
+     "Whatever is behind it" is the part that was wrong here. The value was set
+     against `--surface` alone, and a control is just as often on the page
+     `--canvas`, inside a `--surface-2` filter bar, or on a `--surface-3` hover
+     row. Measured across all four, in the theme that matters for each:
+
+       #777f8c on surface   #ffffff  4.03:1
+                  surface-2 #f7f8fa  3.79:1
+                  surface-3 #f1f3f6  3.62:1
+                  canvas    #eef1f4  3.55:1
+
+     The old 0.635 gave 3.02:1 on canvas — passing by 0.02, which is not a
+     margin, it is a rounding accident. 0.595 gives every light surface real
+     headroom while still reading as a line rather than a stroke. */
+  --border-control: oklch(0.595 0.021 258.3);
+
+  /* -- Brand --------------------------------------------------------------- */
+  /* Solid fills: primary button, active nav pill, progress bar. #6d4aff, white
+     on it is 5.2:1. */
+  --primary: oklch(0.562 0.251 283.7);
+  /* #5f3dff — white 5.8:1. Darker on hover in both themes: brightening the
+     violet in dark mode drops white to 4.35:1, which is not AA. */
+  --primary-hover: oklch(0.535 0.265 280.6);
+  --primary-fg: oklch(1 0 89.9);
+  /* Violet as a *foreground*: links, active tab text, the focus ring. #5f3dff
+     — 5.8:1 on surface, 5.2:1 on canvas. */
+  --primary-accent: oklch(0.535 0.265 280.6);
+  /* Selected row / active nav tint. #f0ecff
+     0.025 rather than 0.026: at this lightness sRGB runs out of blue, and 0.026
+     sat 0.0024 outside the gamut in linear-light terms. The browser gamut-maps
+     an out-of-range oklch() by reducing chroma, so the *painted* colour was
+     already this one — 0.025 says so instead of relying on the round trip
+     through a clip. Measured by `contrast.test.ts`, which asserts every colour
+     in this file is displayable. */
+  --primary-soft: oklch(0.952 0.025 295.6);
+  /* #4c2fd4 — 6.8:1 on primary-soft. */
+  --primary-soft-fg: oklch(0.462 0.233 280.2);
+
+  /* -- Contrast ------------------------------------------------------------ */
+  /* The near-black primary action from the light reference ("Create task"), and
+     the tooltip/toast surface. Distinct from --primary on purpose: the violet
+     marks *state*, this marks the one action a screen is for. #16181c */
+  --contrast: oklch(0.209 0.009 264.4);
+  --contrast-hover: oklch(0.292 0.014 261.7);
+  --contrast-fg: oklch(1 0 89.9);
+
+  /* -- Status ------------------------------------------------------------- */
+  /* Four tokens per hue, each with one job:
+       -accent    text and meaning-bearing icons        (AA, >= 4.5:1)
+       -solid     saturated fill: dots, bars, badges    (>= 3:1 where it needs it)
+       -fg        text on -solid
+       -soft      tinted chip background
+       -soft-fg   text on -soft
+     A chip is -soft + -soft-fg with a dot in -solid.
+
+     `-solid` is a *fill*, and two of them cannot carry text. White on the light
+     green is 3.42:1 and on the light blue 3.98:1 — both clear the 3:1 a graphic
+     needs and neither clears the 4.5:1 text needs, which is why `-accent` exists
+     and why nothing in the product renders a label on either. The two that do
+     carry text are measured beside them below: amber with dark text at 9.26:1
+     (the only light `-solid` a chip may print on) and red with white at 4.80:1,
+     which is the destructive button. Reach for `-accent` on a `-soft` background,
+     not for white on a `-solid`; `contrast.test.ts` fails a new pair that gets
+     this wrong. */
+
+  --success-accent: oklch(0.538 0.118 158.1); /* #188253 — 4.82:1 on --surface */
+  --success-solid: oklch(0.62 0.137 157.3); /* #219e64 — fill only, 3.42:1 on --surface */
+  --success-fg: oklch(1 0 89.9); /* #ffffff */
+  --success-soft: oklch(0.954 0.022 164.5); /* #e3f5ec */
+  --success-soft-fg: oklch(0.452 0.098 159.4); /* #0e6642 — 6.18:1 on --success-soft */
+
+  /* Amber cannot be both legible as text on white and the vivid amber of the
+     reference, so it is both: a dark amber for text, the sampled amber for the
+     dot. */
+  --warning-accent: oklch(0.554 0.121 66.4); /* #a16206 — 4.92:1 on --surface */
+  --warning-solid: oklch(0.797 0.154 78.4); /* #f2af2d — sampled from the reference */
+  /* Dark text on the amber fill — white on it is 1.9:1. */
+  --warning-fg: oklch(0.209 0.009 264.4); /* #16181c — 9.26:1 on --warning-solid */
+  --warning-soft: oklch(0.96 0.032 81); /* #fdf0da */
+  --warning-soft-fg: oklch(0.496 0.107 67); /* #8a5407 — 5.56:1 on --warning-soft */
+
+  --info-accent: oklch(0.56 0.188 258.5); /* #1f6fe0 — 4.76:1 on --surface */
+  /* #2a7eeb, approaching the reference's #2f7ff0 as closely as this lightness
+     allows — the sample itself is a touch brighter than sRGB reaches here. */
+  --info-solid: oklch(0.603 0.183 256.9); /* #2a7eeb — fill only, 3.98:1 on --surface */
+  --info-fg: oklch(1 0 89.9); /* #ffffff */
+  --info-soft: oklch(0.952 0.02 257.5); /* #e7f0fd */
+  --info-soft-fg: oklch(0.481 0.164 258.5); /* #1559b8 — 5.80:1 on --info-soft */
+
+  --danger-accent: oklch(0.534 0.193 25.2); /* #c4262c — 5.74:1 on --surface */
+  --danger-solid: oklch(0.578 0.207 25.2); /* #d92d33 */
+  --danger-hover: oklch(0.528 0.191 25.2); /* #c1252b */
+  --danger-fg: oklch(1 0 89.9); /* #ffffff — 4.80:1 on --danger-solid */
+  --danger-soft: oklch(0.957 0.019 13.4); /* #fdeced */
+  --danger-soft-fg: oklch(0.473 0.173 25.2); /* #a71d23 — 6.47:1 on --danger-soft */
+
+  /* The unstyled chip: labels, counts, "todo". */
+  --neutral-solid: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface */
+  --neutral-soft: oklch(0.957 0.005 247.9); /* #eef1f4 */
+  --neutral-soft-fg: oklch(0.437 0.027 263); /* #4a5261 — 6.94:1 on --neutral-soft */
+
+  /* -- Entity -------------------------------------------------------------- */
+  /* Eight hues that identify a *person*: the fill behind their initials in an
+     avatar. Not status and not brand — no hue here means anything. It only has
+     to be stable for one user and distinguishable from the next, which is what
+     makes a wall of assignees scannable. `UserAvatar` picks the index by hashing
+     the user id, so the same person is the same colour on every surface.
+
+     Constructed, not picked. Every fill is `oklch(0.855 0.06 h)` and every
+     foreground `oklch(0.39 0.062 h)`, so all sixteen values below come from four
+     numbers and one list of angles. That is the whole point of doing it this way:
+     with L and C held constant the foreground ratio is 6.11:1–6.23:1 across all
+     eight, no single hue can be nudged into a failing state, and a ninth entity
+     is a choice of angle rather than a re-measured palette.
+
+     The chroma is a gamut ceiling, not a taste. The widest constant chroma that
+     keeps all eight hues inside sRGB at these lightnesses is 0.071, and teal
+     (h 190) is what binds it; 0.06 leaves the tightest of the sixteen 0.0044 of
+     headroom in linear-light channel terms. Past the ceiling the browser
+     gamut-maps and the hue that gets painted is no longer the hue declared.
+
+     The angles are hand-chosen rather than an arithmetic sequence, and the gaps
+     are deliberately uneven — 38° to 58°. A constant step would be the obvious
+     construction and it is the wrong one: OKLCH's hue angle is not perceptually
+     uniform, so 45° buys a large difference through the blues and almost none
+     through the yellow-greens, where two low-chroma fills 45° apart both read as
+     the same drab sand. The gaps are widest where the eye is least sensitive.
+     Minimum separation is 38°, which `contrast.test.ts` asserts rather than
+     trusting the list.
+
+     --entity-6 (h 278) does sit within 6° of --primary (283.7), which is worth
+     saying out loud rather than leaving to be discovered. It is not a collision:
+     at C 0.06 and L 0.855 it is a pale lavender, --primary is C 0.251 at L 0.562,
+     and the selected-row tint --primary-soft is C 0.026 at L 0.952. Hue is not
+     what separates a 24px disc with initials in it from a filled button or a
+     tinted row — none of those three could be mistaken for each other at any hue.
+
+     SC 1.4.11 does not apply to the fill: the initials and the accessible name
+     carry the identity, so the hue is redundant recognition — the same call
+     --border makes above. A visibility floor is enforced regardless, because a
+     disc nobody can see is a design failure wherever it is not a conformance
+     failure. Worst fill against each surface a disc can sit on: 1.51:1 on
+     --surface, 1.42:1 on --surface-2, 1.36:1 on --surface-3, 1.34:1 on --canvas.
+     Two discs never meet hue-to-hue — `AvatarGroup` cuts each one out of its
+     neighbour with `ring-2 ring-surface`. */
+  --entity-0: oklch(0.855 0.06 20); /* #f4c0bf */
+  --entity-0-fg: oklch(0.39 0.062 20); /* #623737 — 6.19:1 on --entity-0 */
+  --entity-1: oklch(0.855 0.06 58); /* #eec6a9 */
+  --entity-1-fg: oklch(0.39 0.062 58); /* #5e3c22 — 6.19:1 on --entity-1 */
+  --entity-2: oklch(0.855 0.06 96); /* #dbd0a3 */
+  --entity-2-fg: oklch(0.39 0.062 96); /* #4f451a — 6.17:1 on --entity-2 */
+  --entity-3: oklch(0.855 0.06 145); /* #b8dab8 */
+  --entity-3-fg: oklch(0.39 0.062 145); /* #2f4e30 — 6.11:1 on --entity-3 */
+  --entity-4: oklch(0.855 0.06 190); /* #a2ddd8 */
+  --entity-4-fg: oklch(0.39 0.062 190); /* #0e4f4c — 6.19:1 on --entity-4 */
+  --entity-5: oklch(0.855 0.06 235); /* #aad6f2 */
+  --entity-5-fg: oklch(0.39 0.062 235); /* #1f4a61 — 6.16:1 on --entity-5 */
+  --entity-6: oklch(0.855 0.06 278); /* #c6ccf7 */
+  --entity-6-fg: oklch(0.39 0.062 278); /* #3d4166 — 6.23:1 on --entity-6 */
+  --entity-7: oklch(0.855 0.06 322); /* #e3c3e7 */
+  --entity-7-fg: oklch(0.39 0.062 322); /* #553a59 — 6.19:1 on --entity-7 */
+
+  /* -- Focus --------------------------------------------------------------- */
+  --ring: oklch(0.535 0.265 280.6);
+
+  /* -- Elevation ----------------------------------------------------------- */
+  /* Soft and tight, as in the references — a large blur with a low alpha reads
+     as fog rather than elevation. These live in the semantic layer because the
+     dark theme needs different alphas, not different geometry.
+     Named `--elevation-*`, not `--shadow-*`: `--shadow-*` is Tailwind's own
+     theme namespace, so a semantic `--shadow-card` mapped to `--shadow-card`
+     would be a self-referential custom property, which resolves to nothing. */
+  --elevation-xs: 0 1px 1px 0 oklch(0.209 0.009 264.4 / 0.05);
+  --elevation-card:
+    0 1px 2px 0 oklch(0.209 0.009 264.4 / 0.05), 0 1px 3px -1px oklch(0.209 0.009 264.4 / 0.04);
+  /* The raised chip in the Kanban/Table/List switcher. */
+  --elevation-raised:
+    0 1px 2px 0 oklch(0.209 0.009 264.4 / 0.07), 0 2px 6px -1px oklch(0.209 0.009 264.4 / 0.06);
+  /* A card lifted by a pointer drag. */
+  --elevation-drag:
+    0 10px 24px -6px oklch(0.209 0.009 264.4 / 0.18), 0 2px 6px -1px oklch(0.209 0.009 264.4 / 0.1);
+  --elevation-overlay:
+    0 14px 34px -10px oklch(0.209 0.009 264.4 / 0.2),
+    0 4px 10px -3px oklch(0.209 0.009 264.4 / 0.09);
+}
+
+.dark {
+  /* Neutral dark, from the first reference (#000 rail, #101213 field, #1c1e1f
+     card) rather than the navy of the third. Violet reads on both; near-black
+     keeps the accent as the only saturated thing on screen. */
+
+  /* -- Surfaces ------------------------------------------------------------ */
+  --canvas: oklch(0.154 0.005 264.4); /* #0b0c0e */
+  --surface: oklch(0.208 0.007 258.4); /* #16181b */
+  --surface-2: oklch(0.246 0.009 255.6); /* #1e2125 */
+  --surface-3: oklch(0.287 0.011 254); /* #272b30 */
+  /* One step further up rather than back down to --surface: elevation in a dark
+     theme is lightness, so a raised segment must be lighter than the trough it
+     sits in, and --surface (#16181b) is darker than --surface-2. #272b30 */
+  --raised: oklch(0.287 0.011 254);
+  --overlay: oklch(0 0 0 / 0.62);
+
+  /* -- Text ---------------------------------------------------------------- */
+  --fg: oklch(0.966 0.003 247.9); /* #f2f4f6 — 16.1:1 on surface */
+  --fg-muted: oklch(0.738 0.019 253.4); /* #a2abb6 — 7.7:1 */
+  --fg-subtle: oklch(0.662 0.018 250.9); /* #8b949e — 5.8:1 */
+
+  /* -- Lines --------------------------------------------------------------- */
+  --border: oklch(0.287 0.011 254); /* #272b30 */
+  --border-strong: oklch(0.357 0.015 252.3); /* #373d44 */
+  /* #707881 — the value the light-mode comment describes, now actually produced.
+     0.483 resolved to #575f68: 2.73:1 on surface and 2.48:1 on a surface-2 bar,
+     both under SC 1.4.11, so a text input inside a dialog had no compliant
+     boundary in dark mode. 3.99:1 on surface, 3.63:1 on surface-2, 3.20:1 on
+     surface-3, 4.39:1 on canvas. */
+  --border-control: oklch(0.57 0.017 250);
+
+  /* -- Brand --------------------------------------------------------------- */
+  /* Unchanged: a fill's contrast is against the text on it, not the page. */
+  --primary: oklch(0.562 0.251 283.7);
+  --primary-hover: oklch(0.535 0.265 280.6);
+  --primary-fg: oklch(1 0 89.9);
+  --primary-accent: oklch(0.693 0.174 290.1); /* #9d85ff — 6.1:1 on surface */
+  --primary-soft: oklch(0.259 0.064 290.4); /* #241d40 */
+  --primary-soft-fg: oklch(0.787 0.12 294.8); /* #bfaaff — 7.9:1 */
+
+  /* -- Contrast ------------------------------------------------------------ */
+  /* Inverts: the loudest surface in a dark theme is a light one. */
+  --contrast: oklch(0.966 0.003 247.9);
+  --contrast-hover: oklch(0.921 0.006 255.5);
+  --contrast-fg: oklch(0.209 0.009 264.4);
+
+  /* -- Status -------------------------------------------------------------- */
+  --success-accent: oklch(0.687 0.138 159.9); /* #35b47c — 6.75:1 on --surface */
+  --success-solid: oklch(0.687 0.138 159.9);
+  --success-fg: oklch(0.154 0.005 264.4);
+  --success-soft: oklch(0.245 0.031 162.5); /* #12251c */
+  --success-soft-fg: oklch(0.81 0.115 160.5); /* #78d8a8 — 9.3:1 */
+
+  --warning-accent: oklch(0.797 0.154 78.4); /* #f2af2d — 9.3:1 */
+  --warning-solid: oklch(0.797 0.154 78.4);
+  --warning-fg: oklch(0.209 0.009 264.4);
+  --warning-soft: oklch(0.251 0.027 73.4); /* #2a2013 */
+  --warning-soft-fg: oklch(0.857 0.112 83.8); /* #f3ca77 — 10.3:1 */
+
+  --info-accent: oklch(0.704 0.146 254.1); /* #5aa2f8 — 6.7:1 */
+  --info-solid: oklch(0.704 0.146 254.1);
+  --info-fg: oklch(0.154 0.005 264.4);
+  --info-soft: oklch(0.232 0.038 255.5); /* #111e2f */
+  --info-soft-fg: oklch(0.82 0.086 252.5); /* #9cc8fb — 9.7:1 */
+
+  --danger-accent: oklch(0.737 0.161 20); /* #ff7b7f — 7.1:1 */
+  --danger-solid: oklch(0.578 0.207 25.2);
+  --danger-hover: oklch(0.626 0.193 23);
+  --danger-fg: oklch(1 0 89.9);
+  --danger-soft: oklch(0.233 0.037 14.8); /* #2d1618 */
+  /* 0.092, not 0.093: red is the channel sRGB runs out of first at this
+     lightness, and 0.093 sat 0.0009 outside the gamut — close enough that the
+     clip cost nothing visually and far enough that the declared colour was not
+     the painted one. Same hex either way. */
+  --danger-soft-fg: oklch(0.833 0.092 17.6); /* #ffb0b2 — 9.8:1 on --danger-soft */
+
+  --neutral-solid: oklch(0.662 0.018 250.9);
+  --neutral-soft: oklch(0.246 0.009 255.6);
+  --neutral-soft-fg: oklch(0.738 0.019 253.4);
+
+  /* -- Entity -------------------------------------------------------------- */
+  /* The same eight angles, inverted: a dark fill with light initials on it. Fill
+     is `oklch(0.4 0.06 h)` and foreground `oklch(0.9 0.048 h)`, giving 6.75:1 to
+     6.94:1 across all eight.
+
+     0.4 is a floor, not a preference. The dark surfaces occupy L 0.154 to 0.287,
+     so a fill anywhere inside that band disappears into one of them — the first
+     attempt at 0.305 measured 1.04:1 against --surface-3, which is a hover row.
+     A dark fill has to sit *above* the tallest surface, for the reason --raised
+     gives above: elevation in a dark theme is lightness. Worst fill against each
+     surface: 1.87:1 on --surface, 1.70:1 on --surface-2, 1.50:1 on --surface-3,
+     2.06:1 on --canvas.
+
+     The foreground chroma drops to 0.048 because the gamut ceiling falls with
+     lightness in the other direction too: at L 0.9 the widest constant chroma
+     holding all eight hues is 0.050. The tightest of the sixteen sits 0.0052
+     inside the boundary, at h 278. */
+  --entity-0: oklch(0.4 0.06 20); /* #643a3a */
+  --entity-0-fg: oklch(0.9 0.048 20); /* #fdd2d1 — 6.94:1 on --entity-0 */
+  --entity-1: oklch(0.4 0.06 58); /* #603f26 */
+  --entity-1-fg: oklch(0.9 0.048 58); /* #f7d7bf — 6.90:1 on --entity-1 */
+  --entity-2: oklch(0.4 0.06 96); /* #51471f */
+  --entity-2-fg: oklch(0.9 0.048 96); /* #e7dfbb — 6.90:1 on --entity-2 */
+  --entity-3: oklch(0.4 0.06 145); /* #325033 */
+  --entity-3-fg: oklch(0.9 0.048 145); /* #cbe7cb — 6.79:1 on --entity-3 */
+  --entity-4: oklch(0.4 0.06 190); /* #16524f */
+  --entity-4-fg: oklch(0.9 0.048 190); /* #bbe9e5 — 6.75:1 on --entity-4 */
+  --entity-5: oklch(0.4 0.06 235); /* #234d63 */
+  --entity-5-fg: oklch(0.9 0.048 235); /* #c0e4fa — 6.80:1 on --entity-5 */
+  --entity-6: oklch(0.4 0.06 278); /* #404468 */
+  --entity-6-fg: oklch(0.9 0.048 278); /* #d6dcfe — 6.92:1 on --entity-6 */
+  --entity-7: oklch(0.4 0.06 322); /* #573d5b */
+  --entity-7-fg: oklch(0.9 0.048 322); /* #eed4f1 — 6.89:1 on --entity-7 */
+
+  /* -- Focus --------------------------------------------------------------- */
+  --ring: oklch(0.693 0.174 290.1);
+
+  /* -- Elevation ----------------------------------------------------------- */
+  /* Same geometry, higher alpha. Elevation in a dark theme comes mostly from
+     the surface step (--surface -> --surface-2); the shadow only seats it. */
+  --elevation-xs: 0 1px 1px 0 oklch(0 0 0 / 0.4);
+  --elevation-card: 0 1px 2px 0 oklch(0 0 0 / 0.45), 0 1px 3px -1px oklch(0 0 0 / 0.35);
+  --elevation-raised: 0 1px 2px 0 oklch(0 0 0 / 0.5), 0 2px 6px -1px oklch(0 0 0 / 0.4);
+  --elevation-drag: 0 10px 24px -6px oklch(0 0 0 / 0.6), 0 2px 6px -1px oklch(0 0 0 / 0.45);
+  --elevation-overlay: 0 14px 34px -10px oklch(0 0 0 / 0.65), 0 4px 10px -3px oklch(0 0 0 / 0.5);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3. Theme mapping                                                           */
+/* -------------------------------------------------------------------------- */
+
+@theme inline {
+  /* -- Colour -------------------------------------------------------------- */
+  /* Tailwind's 22-hue default palette is deleted before ours is declared.
+     Without this line `bg-zinc-800` and `text-red-500` compile happily, and
+     they are the drift the lint rule cannot see: `no-restricted-syntax` in
+     eslint.config.mjs matches `bg-[#18181b]`, not `bg-zinc-900`, because a
+     bracket is a syntax and a palette name is not. Deleting the palette turns
+     that class of mistake from an invisible one into a class that emits no CSS
+     — and `palette.test.ts` names it at the moment it is written.
+
+     The four keyword colours have to come back by hand, because `initial`
+     removes them too. `transparent` and `current` are load-bearing (a
+     transparent border reserving layout space, `fill-current` on an icon
+     inheriting its parent's colour); `inherit` earns its place for the same
+     reason. `white` and `black` are deliberately absent: an overlay scrim is
+     `--overlay`, which is measured and theme-aware, and every other white in
+     this product is `--surface` or `--primary-fg`. */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-raised: var(--raised);
+  --color-overlay: var(--overlay);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-accent: var(--primary-accent);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-fg: var(--primary-soft-fg);
+
+  --color-contrast: var(--contrast);
+  --color-contrast-hover: var(--contrast-hover);
+  --color-contrast-fg: var(--contrast-fg);
+
+  --color-success-accent: var(--success-accent);
+  --color-success-solid: var(--success-solid);
+  --color-success-fg: var(--success-fg);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-fg: var(--success-soft-fg);
+
+  --color-warning-accent: var(--warning-accent);
+  --color-warning-solid: var(--warning-solid);
+  --color-warning-fg: var(--warning-fg);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-fg: var(--warning-soft-fg);
+
+  --color-info-accent: var(--info-accent);
+  --color-info-solid: var(--info-solid);
+  --color-info-fg: var(--info-fg);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-fg: var(--info-soft-fg);
+
+  --color-danger-accent: var(--danger-accent);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-fg: var(--danger-soft-fg);
+
+  --color-neutral-solid: var(--neutral-solid);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-soft-fg: var(--neutral-soft-fg);
+
+  /* Eight pairs, written out. `bg-entity-${i}` composed at runtime produces no
+     CSS at all — Tailwind v4 finds utilities by scanning source text, so a class
+     that only exists once a template literal has run is a class it never sees.
+     `UserAvatar` keeps the eight literals in a table for the same reason, and
+     `palette.test.ts` scans for exactly that. */
+  --color-entity-0: var(--entity-0);
+  --color-entity-0-fg: var(--entity-0-fg);
+  --color-entity-1: var(--entity-1);
+  --color-entity-1-fg: var(--entity-1-fg);
+  --color-entity-2: var(--entity-2);
+  --color-entity-2-fg: var(--entity-2-fg);
+  --color-entity-3: var(--entity-3);
+  --color-entity-3-fg: var(--entity-3-fg);
+  --color-entity-4: var(--entity-4);
+  --color-entity-4-fg: var(--entity-4-fg);
+  --color-entity-5: var(--entity-5);
+  --color-entity-5-fg: var(--entity-5-fg);
+  --color-entity-6: var(--entity-6);
+  --color-entity-6-fg: var(--entity-6-fg);
+  --color-entity-7: var(--entity-7);
+  --color-entity-7-fg: var(--entity-7-fg);
+
+  --color-ring: var(--ring);
+
+  /* -- Type ---------------------------------------------------------------- */
+  /* No web font. The board budget in §8 is under 500ms and a downloaded face
+     costs a render-blocking round trip plus a reflow for a difference nobody
+     asked for; the system UI face is also the one the OS has already hinted.
+     "Inter" is listed first so it is used where it is locally installed. */
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* Issue keys, ids and traceIds — where character-by-character comparison
+     matters and I/l/1 must differ. */
+  --font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+
+  /* A deliberately dense scale, matching the references: their card titles are
+     14px and their body 13px, not Tailwind's 16px. So `text-base` here is 13px
+     and `text-sm` is 12px — including inside generated components. In rem, not
+     px, so a reader who has raised their browser's default font size gets a
+     bigger app rather than a horizontal scrollbar.
+     `text-2xs` is the tiny uppercase letterspaced section label (DETAILS,
+     FAVORITES, ALL PROJECTS) that appears in every reference. */
+  --text-2xs: 0.625rem; /* 10 / 14 */
+  --text-2xs--line-height: 0.875rem;
+  --text-2xs--letter-spacing: 0.08em;
+  --text-2xs--font-weight: 600;
+  --text-xs: 0.6875rem; /* 11 / 16 — counts, badges, meta */
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.75rem; /* 12 / 18 — secondary, chip labels */
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.8125rem; /* 13 / 20 — UI default */
+  --text-base--line-height: 1.25rem;
+  --text-md: 0.875rem; /* 14 / 20 — card and row titles */
+  --text-md--line-height: 1.25rem;
+  --text-lg: 1rem; /* 16 / 24 — panel headings */
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem; /* 18 / 26 — page title */
+  --text-xl--line-height: 1.625rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 1.375rem; /* 22 / 30 */
+  --text-2xl--line-height: 1.875rem;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 1.75rem; /* 28 / 36 */
+  --text-3xl--line-height: 2.25rem;
+  --text-3xl--letter-spacing: -0.02em;
+
+  /* -- Radius -------------------------------------------------------------- */
+  /* Named after what they are on, because "which of rounded-lg and rounded-xl
+     is a card" is not a question anyone should have to answer twice.
+
+     The ladder nests: an inner corner is its outer corner minus the padding
+     between them, which is what stops a 12px item inside a 12px panel from
+     looking like it is bulging out of it. A menu is `card` (12px) with `p-1`
+     (4px), so its items are 8px — `control`. The tab strip is the same sum one
+     rung down. `components/ui/README.md` §3 has the full table. */
+  --radius-control: 0.5rem; /* 8px  — buttons, inputs, menu and select items, tab chips, tooltips */
+  --radius-card: 0.75rem; /* 12px — menu/select/popover panels, tab troughs, issue cards, list rows */
+  --radius-panel: 1rem; /* 16px — dialogs, sidebars, board columns */
+  --radius-window: 1.25rem; /* 20px — the app frame */
+  --radius-chip: 9999px; /* labels, priority pills, avatars, switches, radio dots */
+
+  /* -- Layout sizes -------------------------------------------------------- */
+  /* The measured widths of the reference chrome, as spacing tokens so they are
+     `w-rail` and `h-topbar` rather than six different arbitrary pixel values
+     that drift apart. */
+  --spacing-rail: 4.5rem; /* 72px  — icon rail */
+  --spacing-nav: 15rem; /* 240px — nav sidebar */
+  --spacing-tree: 16.25rem; /* 260px — project tree */
+  --spacing-detail: 26.875rem; /* 430px — right detail / chat panel */
+  --spacing-column: 19rem; /* 304px — board column */
+  --spacing-topbar: 3.5rem; /* 56px */
+  --spacing-subbar: 3rem; /* 48px  — view switcher + filter row */
+  --spacing-row: 2rem; /* 32px  — virtualised list row */
+  --spacing-avatar: 1.5rem; /* 24px  — avatar in a stack */
+
+  /* -- Shadows ------------------------------------------------------------- */
+  /* `shadow-xs` deliberately replaces Tailwind's default of the same name;
+     the other four are additions. */
+  --shadow-xs: var(--elevation-xs);
+  --shadow-card: var(--elevation-card);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-drag: var(--elevation-drag);
+  --shadow-overlay: var(--elevation-overlay);
+
+  /* -- Motion -------------------------------------------------------------- */
+  /* Decelerating, never bouncing, for anything the user is waiting on; the
+     emphasis curve is for entrances only. Durations live in design/motion.ts
+     because JS-driven animation needs the same numbers. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasis: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* -- Enter / exit -------------------------------------------------------- */
+  /* Four animations, and they are ours rather than `tw-animate-css`'s.
+     shadcn's generated components arrive wearing `animate-in fade-in-0
+     zoom-in-95 slide-in-from-top-2 data-[state=closed]:animate-out`, which is
+     a separate package. Uninstalled, those are eight dead class names and
+     every menu, dialog and tooltip appears instantly with no transition —
+     silently, because an unknown utility in Tailwind emits nothing rather than
+     erroring. Adopting the package would also mean a second set of durations
+     and curves beside the ones two files above.
+
+     Exits are shorter than entrances (90ms against 140ms) on purpose: an
+     entrance is information arriving and can afford to be seen, while a
+     dismissal the user has already decided on only needs to not snap. The
+     durations are `DURATION.fast` and `DURATION.micro` from design/motion.ts,
+     and `animate-durations-match-motion-ts` in theme-keys.test.ts is what
+     keeps the two files honest.
+
+     `both` fill mode matters for the exits. Radix keeps an element mounted
+     until its animation ends, so without `forwards` the element flashes back
+     to full opacity for one frame before unmounting. */
+  --animate-fade-in: flux-fade-in 140ms var(--ease-out) both;
+  --animate-fade-out: flux-fade-out 90ms var(--ease-in-out) both;
+  --animate-pop-in: flux-pop-in 140ms var(--ease-out) both;
+  --animate-pop-out: flux-pop-out 90ms var(--ease-in-out) both;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 4. Enter / exit keyframes and direction                                    */
+/* -------------------------------------------------------------------------- */
+
+/* Top level, not inside `@theme`: a nested block there would break the parser
+   in theme-keys.test.ts, which asserts the three blocks it reads are flat. */
+
+@keyframes flux-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes flux-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* One keyframe pair covers all four sides. The 4px directional offset comes in
+   through `--flux-pop-x/y`, which the `pop-from-*` utilities below set under a
+   `data-[side=…]` variant — so a popover that opens downwards rises into place
+   and one that opens to the left slides in from the right, with no per-side
+   keyframes and no arbitrary values in the components.
+
+   0.96 rather than 0.95: at a 320px-wide menu the difference is 12.8px of
+   travel against 16px, and the smaller figure reads as settling rather than
+   as growing. Scaling happens about `--radix-*-content-transform-origin`,
+   which the components set with `origin-(…)`, so the panel expands out of the
+   corner nearest its trigger instead of out of its own middle. */
+@keyframes flux-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translate3d(var(--flux-pop-x, 0), var(--flux-pop-y, 0), 0);
+  }
+}
+
+@keyframes flux-pop-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* Named for where the panel comes *from*, matching Radix's own vocabulary:
+   `data-[side=bottom]` means the panel sits below its trigger, so it enters
+   from above — `data-[side=bottom]:pop-from-top`. */
+@utility pop-from-top {
+  --flux-pop-y: -0.25rem;
+}
+
+@utility pop-from-bottom {
+  --flux-pop-y: 0.25rem;
+}
+
+@utility pop-from-left {
+  --flux-pop-x: -0.25rem;
+}
+
+@utility pop-from-right {
+  --flux-pop-x: 0.25rem;
+}
+
+/* An inner box that must not square off the corners of a rounded parent — a
+   scroll viewport inside a `rounded-panel` card, the content well of a dialog.
+   Tailwind has no utility for it and the arbitrary form `rounded-[inherit]` is
+   one the lint rule rejects, correctly: it cannot tell a genuine `inherit` from
+   a hard-coded `6px`. This is the same declaration with a name. */
+@utility rounded-inherit {
+  border-radius: inherit;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 5. Base                                                                    */
+/* -------------------------------------------------------------------------- */
+
+@layer base {
+  /* Tells the browser which scheme the document is in, so form controls, the
+     caret and the overscroll gutter match. Without it a dark app has a white
+     rubber-band area on macOS. */
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    /* Stops mobile Safari inflating text in landscape. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-soft-fg);
+  }
+
+  /* This is the focus indicator for the whole product, not a fallback under
+     one. shadcn's generated components each draw their own — `focus-visible:
+     border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50`, repeated
+     in eleven files — and that pattern has two failure modes worth avoiding.
+     Every custom control has to remember it, and this product's custom controls
+     are the board card, the list row and the palette result, none of which
+     shadcn supplies; and `ring` is a box-shadow, so it is clipped by the
+     `overflow-hidden` on the nearest scroll container, which on a board is
+     every column.
+
+     An outline is not clipped by overflow, follows the element's own
+     `border-radius`, survives forced-colours mode, and cannot be overwritten by
+     a component's `shadow-card`. `--ring` was measured against all four
+     backgrounds it can land on, in both themes: 5.84 / 5.15 / 5.49 / 5.25 on
+     light surface / canvas / surface-2 / surface-3, and 6.13 / 6.74 / 5.57 /
+     4.91 on the dark four. The worst case is 4.91:1, so WCAG 2.2 SC 2.4.11
+     (3:1 minimum, and the indicator must not be obscured) holds everywhere
+     without a per-component opinion.
+
+     Two deliberate interactions with the components in components/ui/. They
+     add `focus-visible:border-ring` where they already have a border: that is a
+     colour change on an existing edge, not a second indicator. And Radix menu
+     items add `focus-visible:-outline-offset-2` so the outline is drawn just
+     inside the item — an offset of +2px on a row flush against the top of a
+     scrolling menu is the one case where an outline can be cut off. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Icon weight, once, instead of on 89 call sites.
+
+     Lucide ships `stroke-width="2"`, which is drawn for a 24px icon. This
+     product draws almost all of them at 14px (`[&_svg]:size-3.5`), where 2px is
+     14% of the box — measured against the 13px text they sit beside, whose stems
+     are about 1.2px, the icons were roughly 65% heavier than their own labels.
+     That mismatch is most of what makes a hand-built UI read as heavier and
+     muddier than the reference in `UI Images/`, and it is invisible one icon at
+     a time; it only shows in a row of them.
+
+     1.5 at 14px lands the stroke at ~1.5px, which sits with the text rather than
+     shouting over it. It is a weight decision, not a colour one, so there is no
+     token: one number, one place, and it is here rather than in a wrapper
+     component because a wrapper is a thing every future icon import has to
+     remember, and this is not.
+
+     `[stroke-width='2']` is doing real work. Lucide always emits the attribute,
+     so `:not([stroke-width])` would match nothing — but a component that has
+     deliberately chosen a different weight emits a different value, and this
+     selector leaves it alone. `checkbox.tsx` is the live case: its tick is
+     `strokeWidth={3}`, because a check at 14px needs the extra weight to read as
+     a check at all. Without the attribute value in the selector, a CSS rule
+     would outrank that presentation attribute and quietly undo it.
+
+     Scoped to `svg.lucide` so it cannot reach Radix's own SVGs — the tooltip
+     arrow is a filled path with no stroke, and a stroke on it would outline the
+     arrow. */
+  svg.lucide[stroke-width='2'] {
+    stroke-width: 1.5;
+  }
+
+  /* Slim, unobtrusive scrollbars — a board with four columns and a backlog has
+     a lot of them. Set on `html` rather than `*`: both properties inherit, so
+     the universal selector would be the same result at more cost. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--radius-chip);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-fg-subtle);
+  }
+
+  /* Honour the OS setting. Not disabled outright: a duration of 1ms still fires
+     `transitionend`, so a component that waits for it does not hang, and state
+     changes remain instantaneous rather than animated. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  /**
+   * The shipped bundle, and nothing else: `src/` minus the tests and minus the
+   * test harness.
+   *
+   * It exists for one guarantee — **application code cannot reach for node.**
+   * `tsconfig.json` has `types: ["vite/client", "node"]`, because the test harness
+   * legitimately needs node (a token-drift test reads `tokens.css` off disk, the
+   * MSW server is node). That makes `import { readFileSync } from 'node:fs'` inside
+   * a component typecheck cleanly there. Here it does not, because `types` is
+   * `["vite/client"]` alone — and here is the config that describes what actually
+   * ships to a browser.
+   *
+   * `src/test/**` is excluded on the same grounds rather than as a technicality: it
+   * imports `msw/node` and `vitest`, neither of which may appear in a bundle.
+   *
+   * This used to be `tsconfig.json` itself, with the tests exiled to a
+   * `tsconfig.test.json`. That arrangement typechecked identically and left every
+   * test file red in the editor, because a language server does not look for a file
+   * called `tsconfig.test.json` — see the header of `tsconfig.json` for the
+   * measurement. The guard is the same; only which of the two projects carries the
+   * name a language server searches for has changed.
+   *
+   * `extends: "./tsconfig.json"` inherits the lib, the paths and the strictness.
+   * `include` and `exclude` are replaced rather than merged, which is what makes
+   * the narrowing work.
+   */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**", "dist", "node_modules", "e2e"]
+}

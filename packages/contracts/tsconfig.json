@@ -1,36 +1,84 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo",
     /**
-     * **No ambient types at all**, and `lib` is `ES2023` with no DOM (see
-     * `tsconfig.base.json`). This package is imported by the browser app, by
-     * the API and workers under node, and by `@flux/mocks` — as *source*, not
-     * as built declarations — so it must typecheck under the intersection of
-     * all three environments, which is the bare language.
+     * ═══════════════════════════════════════════════════════════════════
+     * The project a language server discovers. Checks everything, emits
+     * nothing. `tsconfig.build.json` is the one that emits.
+     * ═══════════════════════════════════════════════════════════════════
      *
-     * This used to be `types: ["node"]`, justified as "node only, never the
-     * DOM". Half of that was enforced by `lib`; the other half was backwards.
-     * Node types are what a browser consumer does not have, so the config
-     * permitted exactly the import that breaks the bundle — a schema file
-     * reaching for `process.env` or `Buffer` would have compiled here and
-     * failed there. It also broke `@flux/mocks`, whose own `types: []` is the
-     * same guarantee stated deliberately: `crypto.getRandomValues` in
-     * `ids.ts` resolved under this setting and nowhere else.
+     * The filename is the entire reason this file is shaped the way it is. A
+     * TypeScript language server finds a project only through a file *named*
+     * `tsconfig.json` — any other name is a config that only a command line
+     * will ever pass with `-p`. So a file this config `exclude`s belongs to no
+     * project at all: the editor checks it in an **inferred** project with
+     * default options — no `paths`, no `types`, and critically no `strict`.
      *
-     * The one platform API this package genuinely needs is declared at its
-     * call site instead. Test files get node back via `tsconfig.test.json`,
-     * where it is true.
+     * This package used to exclude `src/**\/*.test.ts` here and hand them to a
+     * `tsconfig.test.json`, with `pnpm typecheck` invoking both by hand. CI was
+     * green and correct, and the editor was checking every test file in the
+     * package against the wrong compiler options with nobody able to see it.
+     * `apps/web` had the identical arrangement and it cost 117 phantom errors
+     * there; here it cost the opposite and worse — **silence**. These tests
+     * import relatively (`./common.js`) and pull their matchers from `vitest`
+     * explicitly, so they need neither `paths` nor ambient types and produced
+     * no visible errors at all. An editor reporting nothing while checking
+     * without `strict` is the blind-spot shape CLAUDE.md files under "a check
+     * that passes over a blind spot is worse than no check".
+     *
+     * So: this config includes the tests, and the emit settings moved out to
+     * `tsconfig.build.json` rather than the tests moving out to a name no
+     * editor looks for.
+     *
+     * ### `types: ["node"]` here, and `types: []` in `tsconfig.build.json`
+     *
+     * The no-ambient-types guarantee this package depends on — it is imported by
+     * the browser app, by the API and workers under node, and by `@flux/mocks`
+     * as *source*, so it must typecheck under the intersection of all three
+     * environments, which is the bare language — **now lives in
+     * `tsconfig.build.json` alone**. `pnpm typecheck` runs both configs, so CI
+     * still enforces it; this one does not.
+     *
+     * That is a real loss and not a tidy-up, so here is the measurement that
+     * forced it. The first version of this file declared `types: []` over source
+     * *and* tests, on the evidence that the whole package compiled clean that
+     * way. That evidence was worthless: excluding the test files from the very
+     * same config makes `process.env` in a schema file fail with TS2591 again.
+     * The tests were not *surviving* `types: []` — they were **supplying** the
+     * node globals, because `import { describe } from 'vitest'` pulls
+     * `@vitest/*` declarations that reference `@types/node`, and an ambient type
+     * reached by any file in the program is available to every file in it.
+     *
+     * So a program containing the tests cannot hold the guarantee, and the
+     * choice is which of the two the *editor* gets: a discovered project that
+     * covers the tests, or one that enforces `types: []` on source. This picks
+     * covering the tests, matching `apps/web`, because the failure modes are not
+     * symmetrical — an unchecked test file is invisible, whereas a stray
+     * `process.env` in a schema file is caught by `pnpm typecheck` and by CI
+     * within minutes.
+     *
+     * `["node"]` is declared rather than left to arrive through vitest. It is
+     * already true either way; writing it down means the editor's behaviour does
+     * not silently depend on which packages a test happens to import.
+     *
+     * **The consequence to keep in mind while editing a schema file: this config
+     * will not stop you writing `process.env` or `Buffer`.**
+     * `tsconfig.build.json` will, and so will CI. If `pnpm typecheck` fails on a
+     * line your editor was happy with, that is this trade, working as designed.
      */
-    "types": []
+    "noEmit": true,
+    /** composite + noEmit are incompatible; this config only ever checks. */
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node"]
   },
   /**
-   * Build config: tests are excluded so they never end up in dist/ or in the
-   * emitted .d.ts. They are still typechecked — see tsconfig.test.json,
-   * which is what `pnpm typecheck` runs.
+   * Everything, tests included. Vitest strips types with esbuild and never
+   * typechecks, so a test could otherwise reference a field that no longer
+   * exists and still pass — the kind of rot that makes people stop trusting
+   * the suite.
    */
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+  "exclude": ["dist", "node_modules"]
 }

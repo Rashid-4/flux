@@ -1,17 +1,36 @@
 import { z } from 'zod'
-import { ActorSchema, InstantSchema } from './common.js'
 import {
+  ActorSchema,
+  FieldRefSchema,
+  InstantSchema,
+  LinkTypeSchema,
+  PrioritySchema,
+  StatusCategorySchema,
+} from './common.js'
+import {
+  AutomationRuleIdSchema,
   BoardIdSchema,
   CommentIdSchema,
   EventIdSchema,
   ImportJobIdSchema,
   IssueIdSchema,
+  IssueKeySchema,
+  IssueTypeKeySchema,
   OrganizationIdSchema,
   ProjectIdSchema,
+  ProjectKeySchema,
   SprintIdSchema,
+  TeamIdSchema,
   UserIdSchema,
   WorkflowIdSchema,
+  WorkflowStateIdSchema,
+  WorkflowTransitionIdSchema,
 } from './ids.js'
+import {
+  ImportEntityTypeSchema,
+  ImportFindingCodeSchema,
+  ImportFindingSeveritySchema,
+} from './import.js'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -224,7 +243,14 @@ export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>
  * without resolving foreign keys — see obligation (4) above.
  */
 export const FieldChangeSchema = z.object({
-  field: z.string(),
+  /**
+   * The same namespaced reference the filter AST uses (`status`, `assignee`,
+   * `cf:severity`) — not a free string. The history predicate in
+   * `query.ts` searches the change log *by this field*, so if the two
+   * vocabularies diverge, a saved filter for "was moved to In Progress" silently
+   * matches nothing. One spelling on both sides is what makes that query work.
+   */
+  field: FieldRefSchema,
   from: z.unknown().nullable(),
   to: z.unknown().nullable(),
   fromDisplay: z.string().nullable().optional(),
@@ -245,26 +271,32 @@ export type FieldChange = z.infer<typeof FieldChangeSchema>
  */
 export const IssueSnapshotSchema = z.object({
   id: IssueIdSchema,
-  key: z.string(),
+  key: IssueKeySchema,
   projectId: ProjectIdSchema,
-  projectKey: z.string(),
-  issueTypeKey: z.string(),
+  projectKey: ProjectKeySchema,
+  /**
+   * Tenant-defined *values*, but a named vocabulary all the same. This carried
+   * the pattern in a comment and `z.string()` in the schema, which is a rule
+   * documented and unenforced at once — the mock board had shipped `BUG` in
+   * violation of it for as long as the comment had existed. CR-006.
+   */
+  issueTypeKey: IssueTypeKeySchema,
   hierarchyLevel: z.number().int(),
   summary: z.string(),
-  statusId: z.string().uuid(),
+  statusId: WorkflowStateIdSchema,
   statusName: z.string(),
-  statusCategory: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
-  priority: z.string().nullable(),
+  statusCategory: StatusCategorySchema,
+  priority: PrioritySchema.nullable(),
   assigneeId: UserIdSchema.nullable(),
   reporterId: UserIdSchema,
   storyPoints: z.number().nullable(),
   labels: z.array(z.string()),
   parentId: IssueIdSchema.nullable(),
   sprintId: SprintIdSchema.nullable(),
-  teamId: z.string().uuid().nullable(),
+  teamId: TeamIdSchema.nullable(),
   createdAt: InstantSchema,
   updatedAt: InstantSchema,
-  version: z.number().int(),
+  version: z.number().int().positive(),
 })
 export type IssueSnapshot = z.infer<typeof IssueSnapshotSchema>
 
@@ -283,10 +315,10 @@ export const IssueUpdatedPayloadSchema = z.object({
 
 export const IssueTransitionedPayloadSchema = z.object({
   issue: IssueSnapshotSchema,
-  fromStatusId: z.string().uuid(),
+  fromStatusId: WorkflowStateIdSchema,
   fromStatusName: z.string(),
-  fromStatusCategory: z.enum(['todo', 'in_progress', 'done', 'cancelled']),
-  transitionId: z.string().uuid().nullable(),
+  fromStatusCategory: StatusCategorySchema,
+  transitionId: WorkflowTransitionIdSchema.nullable(),
   /**
    * How long the issue sat in the state it just left. Computed once here
    * rather than derived by each consumer from the history log — cycle-time
@@ -304,7 +336,7 @@ export const IssueAssignedPayloadSchema = z.object({
 export const IssueLinkedPayloadSchema = z.object({
   sourceIssue: IssueSnapshotSchema,
   targetIssue: IssueSnapshotSchema,
-  linkType: z.enum(['blocks', 'relates_to', 'duplicates', 'causes', 'clones']),
+  linkType: LinkTypeSchema,
 })
 
 export const CommentCreatedPayloadSchema = z.object({
@@ -353,12 +385,14 @@ export const WorkflowPublishedPayloadSchema = z.object({
 })
 
 export const AutomationRuleExecutedPayloadSchema = z.object({
-  ruleId: z.string().uuid(),
+  ruleId: AutomationRuleIdSchema,
   ruleName: z.string(),
   triggerEventId: EventIdSchema,
   affectedIssueIds: z.array(IssueIdSchema),
-  actionsRun: z.number().int(),
-  durationMs: z.number().int(),
+  actionsRun: z.number().int().nonnegative(),
+  /** `.nonnegative()` to match `AutomationRunSchema.durationMs`; a duration
+   *  that can be typed negative is a duration two consumers will disagree on. */
+  durationMs: z.number().int().nonnegative(),
   /** True for dry runs: nothing was actually mutated. */
   simulated: z.boolean(),
 })
@@ -374,9 +408,14 @@ export const SlaBreachedPayloadSchema = z.object({
 
 export const ImportFindingRaisedPayloadSchema = z.object({
   importJobId: ImportJobIdSchema,
-  severity: z.enum(['info', 'warning', 'blocker']),
-  code: z.string(),
-  entityType: z.string().nullable(),
+  severity: ImportFindingSeveritySchema,
+  /**
+   * The same closed enums `ImportFindingSchema` uses. They were bare strings
+   * here, which meant the one consumer that renders a finding — the import
+   * review screen — had to widen its own map or cast. CR-006.
+   */
+  code: ImportFindingCodeSchema,
+  entityType: ImportEntityTypeSchema.nullable(),
   sourceId: z.string().nullable(),
   message: z.string(),
 })

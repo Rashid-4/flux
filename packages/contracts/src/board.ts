@@ -1,11 +1,18 @@
 import { z } from 'zod'
-import { AuditStampSchema, InstantSchema, LocalDateSchema, StatusCategorySchema } from './common.js'
+import {
+  AuditStampSchema,
+  InstantSchema,
+  LocalDateSchema,
+  PrioritySchema,
+  StatusCategorySchema,
+} from './common.js'
 import { FilterNodeSchema } from './query.js'
 import { AvailabilityKindSchema } from './tenancy.js'
 import {
   BoardIdSchema,
   IssueIdSchema,
   IssueKeySchema,
+  IssueTypeKeySchema,
   ProjectIdSchema,
   SprintIdSchema,
   TeamIdSchema,
@@ -142,10 +149,16 @@ export const BoardCardSchema = z.object({
   id: IssueIdSchema,
   key: IssueKeySchema,
   summary: z.string(),
-  issueTypeKey: z.string(),
+  issueTypeKey: IssueTypeKeySchema,
   statusId: WorkflowStateIdSchema,
   statusCategory: StatusCategorySchema,
-  priority: z.string().nullable(),
+  /**
+   * The closed enum, not `z.string()`. It was the latter, which forced a cast
+   * at every board call site and let an unmapped value reach `PriorityIcon`'s
+   * map lookup — where `undefined.Icon` threw, propagated to the error
+   * boundary, and blanked the whole board over one card. CR-006.
+   */
+  priority: PrioritySchema.nullable(),
   storyPoints: z.number().nullable(),
   assignee: z
     .object({ id: UserIdSchema, displayName: z.string(), avatarUrl: z.string().nullable() })
@@ -159,7 +172,7 @@ export const BoardCardSchema = z.object({
   secondsInColumn: z.number().int(),
   slaState: z.enum(['ok', 'at_risk', 'breached']).nullable(),
   rank: z.string(),
-  version: z.number().int(),
+  version: z.number().int().positive(),
 })
 export type BoardCard = z.infer<typeof BoardCardSchema>
 
@@ -346,7 +359,11 @@ export const CapacityForecastSchema = z.object({
       unavailableDays: z.number(),
       effectiveDays: z.number(),
       absences: z.array(
-        z.object({ startDate: LocalDateSchema, endDate: LocalDateSchema, kind: z.string() }),
+        z.object({
+          startDate: LocalDateSchema,
+          endDate: LocalDateSchema,
+          kind: AvailabilityKindSchema,
+        }),
       ),
     }),
   ),

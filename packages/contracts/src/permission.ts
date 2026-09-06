@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { OrgRoleSchema } from './tenancy.js'
 import {
+  IssueIdSchema,
   PermissionSchemeIdSchema,
   ProjectIdSchema,
   ProjectRoleIdSchema,
@@ -125,7 +127,7 @@ export type PermissionScheme = z.infer<typeof PermissionSchemeSchema>
  */
 export const SubjectContextSchema = z.object({
   userId: UserIdSchema,
-  orgRole: z.enum(['owner', 'admin', 'member', 'guest']),
+  orgRole: OrgRoleSchema,
   teamIds: z.array(TeamIdSchema),
   /** projectId → role ids held in that project. */
   projectRoleIds: z.record(z.array(ProjectRoleIdSchema)),
@@ -282,7 +284,7 @@ export function evaluatePermissions<P extends Permission>(
 export const SimulatePermissionsSchema = z.object({
   asUserId: UserIdSchema,
   projectId: ProjectIdSchema,
-  issueId: z.string().uuid().optional(),
+  issueId: IssueIdSchema.optional(),
   permissions: z.array(PermissionSchema).min(1),
 })
 
