@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Raised by** | Claude Code — `apps/web` shell + `components/ui` primitives |
-| **Status** | `open` |
+| **Status** | `resolved` — accepted as filed. No contract change; the shim is now covered by tests instead of by argument. |
 | **Blocks** | nothing — fixed in `apps/web/src/test/dom.ts`. Filed because the fix is a `Element.prototype.matches` patch in shared test setup, and nobody should delete it as paranoia. |
 
 ## What I was implementing
@@ -166,10 +166,74 @@ the code rather than only here.
 
 <!-- Architecture agent only. -->
 
-**Decision:** <accepted / accepted-with-changes / rejected>
+**Decision:** accepted as filed — including both of the changes it asks *not* to be
+made. No `pnpm.overrides` entry for `nwsapi`, no raised `testTimeout`, and the shim
+stays. One thing was missing, and it is the thing the request was actually about:
+**nothing stopped anyone deleting it.** Two tests now do.
 
 **Reasoning:**
 
+*The request was right, and re-derived rather than taken on trust.* The shim was
+disabled — `breakSelectorEngineRecursion()` commented out of `installJsdomGaps()` —
+and the suite re-run:
+
+| | guard installed | guard removed |
+| --- | --- | --- |
+| 20 × `dialog.matches(':modal')` | **2.8ms** | **6967ms** |
+| 50 × `dialog.matches(':open')` | 0.4ms | 1.0ms |
+| `dom` + tooltip + dialog + popover | **56 pass, 1.73s** | **3 fail on timeout, 16.67s** |
+
+Still load-bearing, then, and by a factor of 2450 on the path that delegates. `:open`
+is untouched in both columns, which confirms the request's semantic argument from the
+other direction: nwsapi answers `:open` from the DOM and never reaches
+`matchesNative`, so the guard cannot be changing that answer.
+
+*What was missing.* This file is a page of careful argument for keeping a patch on
+`Element.prototype.matches` that looks exactly like superstition, and argument is not
+a check — the repo's own lesson about `check:rls`'s exemption applies to a shim as
+much as to a script. Nothing in the suite failed if the guard was deleted; the
+symptom was eight *other* files timing out, which reads as "the overlay tests are
+flaky" and gets a raised `testTimeout` rather than a bisection. Both halves of the
+request's claim are testable, so both are now tested in `src/test/dom.test.ts`:
+
+1. **It changes no answer** — `:open` is `true` on an open `<dialog>` and `false` on
+   a closed one, `:closed` and `:fullscreen` and `:modal` answer rather than throw.
+   This is deliberately a behaviour and not a version assertion, because a version is
+   only evidence for it: pinning `nwsapi` below 2.2.26 is fast *because it is wrong*,
+   and this test is what such a downgrade breaks. It asserts the invariant, not the
+   invariant-minus-known-exceptions.
+2. **It is still paying for itself** — 20 delegating `matches` calls must complete in
+   under 500ms, which is ~175× the measured 2.8ms and ~14× below the measured 6967ms.
+   That is also the deletion detector: remove the guard and *this* test fails, by
+   name, instead of eight unrelated ones timing out.
+
+*Two corrections to the request, found by measuring it again rather than re-reading
+it.* Neither changes the conclusion, which is why they are worth recording — a CR that
+is right for stale reasons is the harder thing to notice:
+
+- "**Every `getComputedStyle` evaluates at least one of them** … ~120ms each" no
+  longer holds. With the guard off today only an element a UA rule could match pays
+  anything: a `<dialog>` ~4ms, a `[popover]` 0.26ms, a plain `<div>` 0.63ms. The
+  per-query tax the request describes has largely gone.
+- The per-`matches(':modal')` cost has moved the other way: ~119ms when the request
+  was written, **~348ms** now. The delegation is worse, the incidental spread is
+  better, and the total is still the difference between a 1.7s run and a failing one.
+
+*When this can be deleted.* The condition is unchanged and now has a test attached to
+it: when a released nwsapi captures `Element.prototype.matches` at construction time,
+or jsdom calls nwsapi's `install()`, test 2 will still pass with the guard removed.
+That is the signal — not a changelog entry, and not a hunch that it is probably fixed.
+
 **Changes made:**
 
-**Anyone who must pull before continuing:**
+- `apps/web/src/test/dom.test.ts` — a `the nwsapi/jsdom selector recursion` block with
+  the two tests above, and the measured before/after table in its doc comment.
+- `docs/change-requests/005-nwsapi-selector-recursion.md` — this resolution, and the
+  corrected per-call figures.
+- No change to `apps/web/src/test/dom.ts`, `package.json` or `vitest.config.ts`. The
+  shim, the absence of an override and the 5000ms timeout are all as filed.
+
+**Anyone who must pull before continuing:** nobody is blocked, but anyone writing a
+test that opens an overlay should know that `src/test/dom.ts` patches
+`Element.prototype.matches` and why — and that if the overlay suites ever go slow
+again, `dom.test.ts` will name the reason before the timeouts do.

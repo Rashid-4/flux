@@ -278,6 +278,80 @@ describe('what jsdom does supply', () => {
   })
 })
 
+/**
+ * The guard `breakSelectorEngineRecursion()` installs, asserted from the outside.
+ *
+ * `docs/change-requests/005-nwsapi-selector-recursion.md` is a page of argument for
+ * keeping a `Element.prototype.matches` patch that looks exactly like paranoia, and
+ * argument is not a check. Both halves of the claim are testable, so both are tested
+ * here: the patch changes no answer, and the suite is not paying for the recursion.
+ */
+describe('the nwsapi/jsdom selector recursion', () => {
+  function dialog(open: boolean): HTMLDialogElement {
+    const element = document.createElement('dialog')
+    if (open) element.setAttribute('open', '')
+    document.body.append(element)
+    return element
+  }
+
+  /**
+   * The reason the CR refuses a `pnpm.overrides` pin below 2.2.26. Those versions
+   * are fast *because they are wrong* — they do not implement the display-state
+   * pseudo-classes, so this assertion is what a well-meaning downgrade breaks. It
+   * is deliberately a behaviour and not a version number: the invariant is "`:open`
+   * works", and a version is only evidence for it.
+   */
+  it('still answers the display-state pseudo-classes correctly', () => {
+    const open = dialog(true)
+    const closed = dialog(false)
+    expect(open.matches(':open')).toBe(true)
+    expect(open.matches(':closed')).toBe(false)
+    expect(closed.matches(':open')).toBe(false)
+    // Never true in jsdom — there is no fullscreen and nothing is modal — but it
+    // must answer rather than throw, since the guard sits on this exact path.
+    expect(open.matches(':fullscreen')).toBe(false)
+    expect(open.matches(':modal')).toBe(false)
+    open.remove()
+    closed.remove()
+  })
+
+  /**
+   * The cost, which is what made eight overlay tests time out.
+   *
+   * `:modal` has no DOM-level answer in nwsapi, so it delegates to the host engine
+   * — which under jsdom is nwsapi again. Every call unwinds tens of thousands of
+   * stack frames to arrive at the `false` it was always going to return.
+   *
+   * Measured on this machine with the guard installed, and then again with
+   * `breakSelectorEngineRecursion()` commented out — the negative test, not an
+   * estimate. The 20 calls below take **2.8ms** with it and **6967ms** without, and
+   * `matches(':open')` is unaffected either way (0.4ms vs 1.0ms for fifty), which is
+   * the test above's evidence from the other side: nwsapi answers `:open` from the
+   * DOM and never reaches the delegating path. So the 500ms threshold sits ~175×
+   * above the passing number and ~14× below the failing one — a regression test
+   * rather than a timing coin-flip.
+   *
+   * The same negative test on the suites the CR was filed from: 56 tests here plus
+   * tooltip, dialog and popover pass in **1.73s** with the guard, and without it 3
+   * fail on the 5s `testTimeout` and the run takes 16.67s.
+   *
+   * One correction to the CR while this is being measured. It says every
+   * `getComputedStyle` pays ~120ms; with the guard off today, only an element a UA
+   * rule could match pays at all — a `<dialog>` costs ~4ms, a `[popover]` 0.26ms and
+   * a plain `<div>` 0.63ms — so the per-query tax it describes has largely gone,
+   * while the per-`matches(':modal')` cost has grown from ~119ms to ~348ms. The
+   * conclusion is unchanged and the arithmetic is not, which is the argument for a
+   * test over a note.
+   */
+  it('does not pay that recursion when a selector delegates', () => {
+    const probe = dialog(true)
+    const started = performance.now()
+    for (let i = 0; i < 20; i += 1) void probe.matches(':modal')
+    expect(performance.now() - started).toBeLessThan(500)
+    probe.remove()
+  })
+})
+
 describe('mockMatchMedia', () => {
   it('answers false for everything by default', () => {
     mockMatchMedia()
