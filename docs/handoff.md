@@ -28,6 +28,23 @@ pixel iteration against `UI Images/` is where it is genuinely better, because an
 agent that cannot see a rendered frame pins geometry by asserting class names.
 It gets its own branch and hands back a green gate. It does not get the tree.
 
+**Session 1 is written: `docs/cursor-ui-polish.md`**, on branch `ui/cursor-polish`
+off `arch/handoff-docs`. Two things about how it is scoped generalise to any UI
+agent hired later.
+
+*It gets the half of `apps/web` that has tests.* `components/ui/` and
+`components/data/` — 27 components, 27 test files, both directories reviewed line
+by line. The shell, the routes, `lib/` and `stores/chrome` have no test at all, and
+those are the files the main line is working on. So the split is by *file*, not by
+feature: two sessions editing the same `className` conflict on a line that means
+nothing, and the frozen-paths job cannot see it because both files are `apps/web`.
+
+*The constraints live in `.cursor/rules/`, not in the prompt.* `00-repo.mdc` is
+always applied; `10-apps-web.mdc` loads on `apps/web/**`. A prompt is read once and
+then compacted away — a rules file is re-read on every request, which is the
+difference between a constraint and a suggestion when the agent writes directly to
+the working tree.
+
 **The machinery below did not become pointless when the roster shrank.** It
 changed which problem it solves. It was built for agents with no shared context;
 it now earns its keep because *sessions* have no shared context. Long work gets

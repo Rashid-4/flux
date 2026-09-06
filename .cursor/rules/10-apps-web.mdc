@@ -1,0 +1,120 @@
+---
+description: apps/web — Tailwind v4, the token vocabulary, and the failures that are silent
+globs: apps/web/**
+alwaysApply: false
+---
+
+# `apps/web`
+
+Read `apps/web/README.md` and `apps/web/src/components/ui/README.md` before your
+first edit. This file is the compressed version plus the traps.
+
+## 1. Stack — decided, do not substitute
+
+Vite 7 · React 19 · react-router 7 (data-router APIs) · TanStack Query 5 for
+server state · Zustand 5 for UI-only state · **Tailwind CSS v4** · shadcn/ui as a
+generator · `radix-ui` (the unified package) · CVA + `clsx` + `tailwind-merge` via
+`src/lib/cn.ts` · `lucide-react` imported one icon at a time ·
+`@tanstack/react-virtual` · Vitest + Testing Library + axe-core.
+
+**Tailwind v4 specifically.** There is no `tailwind.config.js`, no
+`postcss.config.js`, and no `@tailwind base/components/utilities`. Configuration is
+CSS: `@import 'tailwindcss'` and `@theme inline { … }` in `src/design/tokens.css`,
+wired by `@tailwindcss/vite`. If you write any of those three things you have
+followed a v3 tutorial — stop and re-read the v4 docs.
+
+**shadcn is a code generator, not a dependency.** It writes a file and exits;
+nothing upstream maintains it. Every generated file in `components/ui/` has been
+rewritten onto this project's tokens. **Never re-run `shadcn add` over a file in
+that directory** — it overwrites, and the retuning is what gets lost.
+
+## 2. The failure that is silent
+
+An unknown Tailwind utility **emits no CSS and fails nothing**. No error, no
+warning, no red in CI — the element simply has no style, and on a dark surface a
+missing colour often looks plausible.
+
+`tokens.css` deletes Tailwind's default 22-hue palette (`--color-*: initial`), so
+`bg-zinc-800`, `text-red-500` and `border-gray-200` are all *silently nothing*.
+There is no palette to fall back on. The complete colour vocabulary is:
+
+| Group | Utilities |
+| --- | --- |
+| Surfaces | `canvas` `surface` `surface-2` `surface-3` `raised` `overlay` |
+| Text | `fg` `fg-muted` `fg-subtle` |
+| Borders | `border` `border-strong` `border-control` |
+| Brand | `primary` `primary-hover` `primary-fg` `primary-accent` `primary-soft` `primary-soft-fg` |
+| Inverse | `contrast` `contrast-hover` `contrast-fg` |
+| Status | `{success,warning,info,danger}-{accent,solid,fg,soft,soft-fg}`, plus `danger-hover` |
+| Neutral | `neutral-solid` `neutral-soft` `neutral-soft-fg` |
+| Per-entity | `entity-0`…`entity-7` and `entity-0-fg`…`entity-7-fg` |
+| Focus | `ring` |
+
+And the non-colour scales: `rounded-{control,card,panel,window,chip}`;
+`shadow-{xs,card,raised,drag,overlay}`; `text-{2xs,xs,sm,base,md,lg,xl,2xl,3xl}`;
+`font-{sans,mono}`; the named spacing steps
+`{rail,nav,tree,detail,column,topbar,subbar,row,avatar}` (used as `w-rail`,
+`h-topbar`, `size-avatar`); `ease-{out,in-out,emphasis}`;
+`animate-{fade-in,fade-out,pop-in,pop-out}`.
+
+Need a value that is not there? Add the token to `tokens.css` with its measured
+contrast ratio in a comment beside it. Do not reach for an arbitrary value —
+eslint rejects a hex in JSX and rejects arbitrary values in colour, spacing,
+radius, shadow and type utilities. Layout escapes (`w-`, `h-`, `grid-cols-`,
+`inset-`, `z-`, `translate-`) are exempt on purpose: geometry sometimes has no
+token and a colour never does.
+
+**A class name Tailwind cannot read as text does not exist.** v4 finds utilities by
+scanning source files, so `` className={`bg-entity-${tone}`} `` generates nothing.
+Colours indexed at run time come from a literal table — see
+`components/data/user-avatar.tsx`. And you cannot make a class exist by writing it
+in a test: `tokens.css` carries `@source not '../**/*.test.{ts,tsx}'` precisely so
+a test cannot feed the production stylesheet and hide this bug.
+
+## 3. Things that look like bugs and are not
+
+Deleting any of these is silent, and CI goes green.
+
+- **`@ts-expect-error` in a test file is a type pin, not a suppression.**
+  `tsc` reports TS2578 the moment the line below one starts compiling — that *is*
+  the assertion. `PopoverContent` requiring one of `aria-label`/`aria-labelledby`,
+  and `AvatarImage` requiring `alt`, are enforced by nothing else.
+- **Tests that assert an absence are load-bearing.** `expect([...el.classList]
+  .filter(c => c.startsWith('bg-'))).toEqual([])` is the only check that the
+  `outline` variant has no fill.
+- **`aria-hidden={false}` on the select marker is deliberate** and was
+  negative-tested; the comment says so.
+- **Three tsconfigs, and the names matter.** `tsconfig.json` must include every
+  file because it is the only project a language server discovers;
+  `tsconfig.app.json` is the narrow one proving app code cannot import `node`.
+  `conventions.test.ts` fails if either stops holding. Do not merge them.
+- **Class order is sorted by machine.** `prettier-plugin-tailwindcss` with
+  `tailwindFunctions: ["cn", "cva"]`. The order sometimes reads oddly; it is
+  canonical, and class order never decides which rule wins anyway.
+- **A tapped arrow key does not change a Radix radio-group's value** in jsdom, only
+  its focus — selection needs the key held (`{ArrowDown>}`). Test artifact.
+- **`Switch` toggles on Enter and `Checkbox` does not.** Upstream and deliberate.
+- **`src/test/dom.ts` patches `Element.prototype.matches`.** It is not paranoia:
+  without it the overlay suites take 16.67s and three time out. `dom.test.ts`
+  asserts both halves of that.
+
+## 4. Accessibility is a gate, not a pass
+
+`jsx-a11y` violations are eslint **errors**. Target WCAG 2.2 AA, measured rather
+than assumed: every colour pair's ratio is recorded beside its token and asserted
+in `src/design/contrast.test.ts`. **Change a colour token and that test is your
+check** — it will tell you the real measured number, and if a claim in a comment
+disagrees with the CSS, the comment is what is wrong.
+
+Query by role and label, never by test id. New interactive surface gets
+`expectNoAxeViolations` from `src/test/axe.ts`.
+
+## 5. Boundaries inside the tree
+
+- `fetch` only inside `src/api/`. One `request()`, one error path, every response
+  `.parse()`d into a typed `ApiError` or a contract type.
+- `stores/` is client state only — panels, selection, theme. Never server data;
+  that is TanStack Query's job.
+- `routes/` compose. They do not fetch.
+- Reuse over duplication. Before writing a component, check `components/ui/` (17
+  primitives) and `components/data/` (10 flux-level ones).

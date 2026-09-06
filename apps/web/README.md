@@ -103,7 +103,7 @@ recorded beside the tokens they belong to.
 
 ## State of this tree
 
-**490 tests in 44 files.** That number is not the same as "this tree is
+**552 tests in 46 files.** That number is not the same as "this tree is
 verified", and the difference is the most useful thing this section can tell you.
 Two directories have been reviewed line by line; the rest has been written and
 never read back.
@@ -113,7 +113,7 @@ never read back.
 | `components/ui/` — 17 primitives | all 17 | **yes** — six defects found and fixed |
 | `components/data/` — 10 components | all 10 | **yes** |
 | `api/` — 6 modules | all 6 | yes |
-| `queries/` — 3, `design/` — 3, `stores/theme` | all | yes |
+| `queries/` — 3, `design/` — 6, `test/` — 2, `stores/theme` | all | yes |
 | `components/shell/` — 6 components | **none** | no |
 | `components/` top level — 9 components | **none** | no |
 | `lib/` — 4 modules | **none** | no |
