@@ -107,3 +107,26 @@ export function ShellMainSkeleton() {
     </>
   )
 }
+
+/**
+ * The top bar's shape while bootstrap is in flight.
+ *
+ * §4: *"a skeleton frame, not a spinner on blank"*, and §11: *"no layout jump when
+ * data lands"*. The bar is `h-topbar` in both states and the two context columns
+ * are drawn at the same two type steps the real ones use, so the swap changes
+ * pixels rather than geometry.
+ */
+export function ShellTopBarSkeleton() {
+  return (
+    <div
+      data-slot="top-bar-skeleton"
+      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-surface px-4"
+    >
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-2.5 w-16 rounded-control" />
+        <Skeleton className="h-3.5 w-32 rounded-control" />
+      </div>
+      <Skeleton className="ml-auto h-7 w-28 rounded-control" />
+    </div>
+  )
+}

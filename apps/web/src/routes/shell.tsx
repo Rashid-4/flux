@@ -5,7 +5,12 @@ import { IconRail } from '@/components/shell/icon-rail'
 import { ProjectSidebar } from '@/components/shell/project-sidebar'
 import { ShellFrame } from '@/components/shell/shell-frame'
 import { ShellKeyboard } from '@/components/shell/shell-keyboard'
-import { ShellChromeSkeleton, ShellMainSkeleton } from '@/components/shell/shell-skeleton'
+import { TopBar } from '@/components/shell/top-bar'
+import {
+  ShellChromeSkeleton,
+  ShellMainSkeleton,
+  ShellTopBarSkeleton,
+} from '@/components/shell/shell-skeleton'
 import { useBootstrap } from '@/queries/bootstrap'
 import { useSidebarOpen } from '@/stores/chrome'
 
@@ -79,7 +84,7 @@ export function Shell() {
 
   if (bootstrap.data === undefined) {
     return (
-      <ShellFrame chrome={<ShellChromeSkeleton />} busy>
+      <ShellFrame header={<ShellTopBarSkeleton />} chrome={<ShellChromeSkeleton />} busy>
         <ShellMainSkeleton />
       </ShellFrame>
     )
@@ -89,6 +94,7 @@ export function Shell() {
 
   return (
     <ShellFrame
+      header={<TopBar bootstrap={bootstrap.data} />}
       chrome={
         <>
           <IconRail bootstrap={bootstrap.data} />

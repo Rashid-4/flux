@@ -1,6 +1,8 @@
 import type { Bootstrap } from '@flux/contracts'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMatch, useNavigate } from 'react-router'
+import { CommandPalette, openPalette } from '@/command-palette/command-palette'
+import { scopeRecents, useRecentsStore } from '@/command-palette/recents'
 import { ShortcutSheet } from '@/keyboard/shortcut-sheet'
 import { useShortcut, useShortcutListener } from '@/keyboard/use-shortcuts'
 import { paths, ROUTE_PATTERNS } from '@/lib/paths'
@@ -58,6 +60,34 @@ export function ShellKeyboard({ bootstrap }: ShellKeyboardProps) {
     null
 
   useShortcutListener()
+
+  /**
+   * Scope the recents list to this person in this organization.
+   *
+   * §7.4: *"Recents are **per user and per org**. Someone who switches org must not
+   * see the previous org's issue keys — that is a small information leak and it
+   * looks like a bug even when nothing leaked."* Set here because this is the first
+   * component inside the bootstrap gate that has both ids, and re-set on change so
+   * an org switch replaces the list rather than merging it.
+   */
+  const setRecentsScope = useRecentsStore((state) => state.setScope)
+  const scope = scopeRecents(bootstrap.user.id, bootstrap.organization.id)
+  useEffect(() => {
+    setRecentsScope(scope)
+  }, [setRecentsScope, scope])
+
+  useShortcut({
+    id: 'shell.palette',
+    binding: [{ key: 'k', mod: true }],
+    description: 'Open the command palette',
+    group: 'Global',
+    /**
+     * One of the two chords §6 permits inside a text field. Someone filtering the
+     * sidebar who reaches for the palette means the palette, not the letter k.
+     */
+    global: true,
+    run: openPalette,
+  })
 
   useShortcut({
     id: 'shell.help',
@@ -149,13 +179,10 @@ export function ShellKeyboard({ bootstrap }: ShellKeyboardProps) {
     },
   })
 
-  /**
-   * `bootstrap` is accepted and not yet read. It is the palette's corpus — projects,
-   * teams, organizations — and the palette mounts here alongside the sheet. Taking
-   * the prop now keeps that a one-line change rather than a signature change that
-   * ripples back through `routes/shell.tsx`.
-   */
-  void bootstrap
-
-  return <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+  return (
+    <>
+      <CommandPalette bootstrap={bootstrap} />
+      <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+    </>
+  )
 }
