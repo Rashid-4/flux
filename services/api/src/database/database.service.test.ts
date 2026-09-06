@@ -290,8 +290,28 @@ describe('the database-error log line', () => {
     // exist at once: the detail names another tenant's data, so it goes to the log
     // with the trace id and nowhere else.
     expect(logger.serialise()).toContain('other-tenant')
-    expect((err as FluxError).message).not.toContain('other-tenant')
-    expect(JSON.stringify((err as FluxError).meta)).not.toContain('other-tenant')
+
+    /**
+     * Checked across the whole client-visible surface rather than field by field.
+     *
+     * `api-error.ts` builds the response body from `message`, `fields` and the
+     * allowlisted keys of `meta`, so a negative assertion naming only `message` would
+     * pass while the string sat in a field error — which is precisely where
+     * `constraintFields` would put it. Serialising all three is the same reasoning
+     * `RecordingLogger.serialise()` uses: assert over everything a future edit might
+     * add, not over the fields this test thought to look at.
+     */
+    const flux = err as FluxError
+    const clientVisible = JSON.stringify({
+      message: flux.message,
+      fields: flux.fields,
+      meta: flux.meta,
+    })
+    expect(clientVisible).not.toContain('other-tenant')
+    // And it *is* still reachable, on the `cause` — which is what makes the line
+    // above a real constraint rather than an artefact of the driver error having been
+    // thrown away. The exception filter never reads `cause`; the log does.
+    expect((flux.cause as PgError).detail).toContain('other-tenant')
   })
 
   it('says nothing when the failure was not the database’s', async () => {
