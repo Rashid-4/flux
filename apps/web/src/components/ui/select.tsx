@@ -128,10 +128,10 @@ function SelectContent({
         position={position}
         sideOffset={sideOffset}
         className={cn(
-          'relative z-40 min-w-32 max-h-(--radix-select-content-available-height)',
+          'relative z-40 max-h-(--radix-select-content-available-height) min-w-32',
           'origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto',
           'rounded-card border border-border bg-surface text-fg shadow-overlay',
-          'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+          'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           'data-[side=bottom]:pop-from-top data-[side=top]:pop-from-bottom',
           'data-[side=left]:pop-from-right data-[side=right]:pop-from-left',
           className,

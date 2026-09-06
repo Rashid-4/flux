@@ -151,8 +151,8 @@ const tabsTrigger = cva(
       },
     },
     compoundVariants: [
-      { variant: 'line', orientation: 'horizontal', class: 'h-8 -mb-px border-b-2 px-0.5' },
-      { variant: 'line', orientation: 'vertical', class: 'h-7 -ml-px border-l-2 px-2' },
+      { variant: 'line', orientation: 'horizontal', class: '-mb-px h-8 border-b-2 px-0.5' },
+      { variant: 'line', orientation: 'vertical', class: '-ml-px h-7 border-l-2 px-2' },
       { variant: 'solid', orientation: 'vertical', class: 'w-full' },
     ],
     defaultVariants: { variant: 'solid', orientation: 'horizontal' },

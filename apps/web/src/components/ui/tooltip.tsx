@@ -76,7 +76,7 @@ function TooltipContent({
           'z-60 w-fit max-w-56 origin-(--radix-tooltip-content-transform-origin)',
           'rounded-control bg-contrast px-2 py-1',
           'text-xs text-balance text-contrast-fg',
-          'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+          'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           'data-[side=bottom]:pop-from-top data-[side=top]:pop-from-bottom',
           'data-[side=left]:pop-from-right data-[side=right]:pop-from-left',
           className,

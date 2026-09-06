@@ -259,13 +259,12 @@ rebuilt.
 >   [web/README.md](specs/web/README.md) §7, the keyboard registry, and one
 >   component test per primitive, queried by role and label.
 >
-> One change request is pre-approved, so file it rather than working around it:
-> `prettier-plugin-tailwindcss` sorts class names deterministically and belongs in
-> `.prettierrc.json`, which is frozen and which you must not edit. This has already
-> been filed — `docs/change-requests/001-prettier-plugin-tailwindcss.md`, still
-> **open**. Do not file it again, and **do not hand-sort class names**: a
-> hand-sorted file gets reordered the moment the plugin lands and the diff buries
-> whatever else you changed.
+> Class-name sorting is already solved, so do not touch it:
+> `prettier-plugin-tailwindcss` is installed and configured in `.prettierrc.json`
+> — `docs/change-requests/001-prettier-plugin-tailwindcss.md`, **accepted and
+> landed**. `pnpm format` sorts; `format:check` in CI enforces. **Do not hand-sort
+> class names** and do not re-file the request. If the order it produces reads
+> oddly, that is canonical — class order never decides which rule wins.
 >
 > The rules in the next section apply to this session and every later one.
 

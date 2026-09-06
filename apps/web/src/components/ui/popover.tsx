@@ -93,7 +93,7 @@ function PopoverContent({
         className={cn(
           'z-40 w-72 origin-(--radix-popover-content-transform-origin)',
           'rounded-card border border-border bg-surface p-3 text-fg shadow-overlay',
-          'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+          'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           'data-[side=bottom]:pop-from-top data-[side=top]:pop-from-bottom',
           'data-[side=left]:pop-from-right data-[side=right]:pop-from-left',
           className,

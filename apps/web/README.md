@@ -163,9 +163,17 @@ thing it protects starts working. Deleting them is silent, and CI goes green.
 - **Do not re-run `shadcn add` over anything in `components/ui/`.** It overwrites,
   and the retuning onto this project's tokens is what gets lost. `ui/README.md` is
   the mapping.
-- **Do not hand-sort class names.** `prettier-plugin-tailwindcss` is not installed
-  — CR-001 is open, and `.prettierrc.json` is frozen. Sorting by hand now means a
-  diff-only churn commit when the plugin lands.
+- **Do not hand-sort class names — the machine does it.**
+  `prettier-plugin-tailwindcss` is installed and configured (CR-001, landed), so
+  `pnpm format` is the sort and `format:check` in CI is the enforcement. The order
+  it produces sometimes reads oddly — `data-[state=closed]:` lands before
+  `data-[state=open]:`, `select-all` moves to the end — and that is canonical;
+  leave it. Class order never affects which rule wins (CSS decides that by source
+  order in the stylesheet), so a sort is always visually inert. It exists so two
+  sessions editing the same `className` do not conflict on a line that means
+  nothing. Note `tailwindFunctions: ["cn", "cva"]` in `.prettierrc.json`: without
+  it the plugin sorts JSX attributes only, and almost every class in
+  `components/ui/` lives inside a `cva` array.
 - **A tapped arrow key does not change a Radix radio-group's value**, only its
   focus. Selection needs the key *held* (`{ArrowDown>}`), because Radix moves
   focus from a `setTimeout` and selects on focus only while an arrow key is down.

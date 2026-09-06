@@ -69,7 +69,7 @@ function DialogOverlay({
       data-slot="dialog-overlay"
       className={cn(
         'fixed inset-0 z-50 bg-overlay',
-        'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out',
+        'data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in',
         className,
       )}
       {...props}
@@ -159,7 +159,7 @@ function DialogContent({
           'grid w-[calc(100%-2rem)] max-w-lg gap-4',
           'max-h-[calc(100dvh-4rem)] overflow-y-auto',
           'rounded-panel border border-border bg-surface p-5 shadow-overlay',
-          'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+          'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           className,
         )}
         {...props}

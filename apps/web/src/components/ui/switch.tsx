@@ -47,7 +47,7 @@ const switchTrack = cva(
     'peer relative inline-flex shrink-0 items-center rounded-chip p-0.5',
     'transition-colors duration-140 ease-out',
     'before:absolute before:inset-x-0',
-    'data-[state=unchecked]:bg-neutral-solid data-[state=checked]:bg-primary',
+    'data-[state=checked]:bg-primary data-[state=unchecked]:bg-neutral-solid',
     'disabled:cursor-not-allowed disabled:opacity-50',
   ],
   {
@@ -66,7 +66,7 @@ const switchThumb = cva(
     'pointer-events-none block rounded-chip shadow-xs',
     'transition-transform duration-140 ease-out',
     'data-[state=unchecked]:translate-x-0',
-    'data-[state=unchecked]:bg-surface data-[state=checked]:bg-primary-fg',
+    'data-[state=checked]:bg-primary-fg data-[state=unchecked]:bg-surface',
   ],
   {
     variants: {

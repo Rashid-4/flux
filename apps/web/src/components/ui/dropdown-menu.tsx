@@ -85,11 +85,11 @@ function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-40 min-w-40 max-h-(--radix-dropdown-menu-content-available-height)',
+          'z-40 max-h-(--radix-dropdown-menu-content-available-height) min-w-40',
           'origin-(--radix-dropdown-menu-content-transform-origin)',
           'overflow-x-hidden overflow-y-auto',
           'rounded-card border border-border bg-surface p-1 text-fg shadow-overlay',
-          'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+          'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           'data-[side=bottom]:pop-from-top data-[side=top]:pop-from-bottom',
           'data-[side=left]:pop-from-right data-[side=right]:pop-from-left',
           className,
@@ -301,7 +301,7 @@ function DropdownMenuSubContent({
       className={cn(
         'z-40 min-w-40 origin-(--radix-dropdown-menu-content-transform-origin)',
         'overflow-hidden rounded-card border border-border bg-surface p-1 text-fg shadow-overlay',
-        'data-[state=open]:animate-pop-in data-[state=closed]:animate-pop-out',
+        'data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
         'data-[side=bottom]:pop-from-top data-[side=top]:pop-from-bottom',
         'data-[side=left]:pop-from-right data-[side=right]:pop-from-left',
         className,

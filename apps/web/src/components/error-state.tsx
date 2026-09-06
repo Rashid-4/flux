@@ -162,7 +162,7 @@ function TraceId({ traceId }: { traceId: string }) {
          * `select-all` so a click selects the whole thing for the users whose
          * browser has no clipboard API.
          */}
-        <code className="select-all rounded-control bg-surface-3 px-1.5 py-0.5 font-mono text-sm text-fg-muted">
+        <code className="rounded-control bg-surface-3 px-1.5 py-0.5 font-mono text-sm text-fg-muted select-all">
           {traceId}
         </code>
         <Button
