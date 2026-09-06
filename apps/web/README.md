@@ -99,31 +99,66 @@ drift the lint rule cannot see: it matches a bracket, not a palette name.
 Target is **WCAG 2.2 AA**, measured rather than assumed — contrast ratios are
 recorded beside the tokens they belong to.
 
+## Browser floor
+
+**Chrome 111, Safari 16.4, Firefox 128.** Not a preference — it is what the
+stylesheet already requires, and it is worth stating because nothing else in the
+repo did. `vite.config.ts` sets `build.target: 'es2022'`, which is a *JavaScript*
+floor and says nothing about CSS; there is no `browserslist` and there does not
+need to be one, because Tailwind v4 sets the real number.
+
+Counted in the CSS this app actually serves, not read off a compatibility table:
+**53 `@property` rules, 14 `color-mix()`, 142 `oklch()`, 3 `1lh`.** `@property`
+is the binding constraint (Firefox 128, July 2024); `color-mix()` wants Chrome
+111; `oklch()` — which is *every colour in the product* — wants Safari 15.4.
+
+Two things follow. A CSS feature inside that envelope needs no fallback and no
+discussion: `h-[1lh]` in `ui/skeleton.tsx` is Chrome 109 / Safari 16.4 / Firefox
+120, so it is less demanding than the colours around it. A feature *outside* it
+does need a decision recorded, and the reason is that CSS fails by omission — an
+unsupported declaration is dropped silently, so `h-[1lh]` in a browser that does
+not know `lh` is not a slightly-wrong height, it is a skeleton 0px tall.
+
 ---
 
 ## State of this tree
 
-**657 tests in 49 files.** That number is not the same as "this tree is
+**677 tests in 50 files.** That number is not the same as "this tree is
 verified", and the difference is the most useful thing this section can tell you.
 Two directories have been reviewed line by line; the rest has been written and
 never read back.
 
 | Area | Tests | Reviewed |
 | --- | --- | --- |
-| `components/ui/` — 17 primitives | all 17 | **yes** — six defects found and fixed |
+| `components/ui/` — 17 primitives | all 17 | **yes** — seven defects found and fixed, the last a radio marker that computed to 0×0 |
 | `components/data/` — 10 components | all 10 | **yes** |
 | `api/` — 6 modules | all 6 | yes |
 | `queries/` — 3, `design/` — 6, `test/` — 2, `stores/theme` | all | yes |
 | `lib/` — 4 modules | `paths`, `bootstrap`, `cn` | **yes** — two cited a test that did not exist, and `cn` merged two elevations wrongly |
+| `gallery/` — 9 modules | `fixtures` | **yes** — dev-only, and two specimens overflowed their own panels at 375px |
 | `components/shell/` — 6 components | **none** | no |
 | `components/` top level — 9 components | **none** | no |
 | `routes/` — 7 modules | **none** | no |
 | `stores/chrome` | **none** | no |
 
-So **24 modules have no test at all**, including every route and the whole
-application shell. Treat anything in the lower half of that table as unverified:
+So **24 shipped modules have no test at all**, including every route and the whole
+application shell. (Eight of `gallery/`'s nine are untested too, and are counted
+separately because they never reach a build.) Treat anything in the lower half of
+that table as unverified:
 it compiles, it renders, and nobody has checked what it does on an empty list, a
 slow network, a 403, or a keyboard.
+
+`gallery/` is in the upper half with a caveat worth reading, because it is the
+instrument the rest of the review is conducted with. `src/gallery/` is a second
+Vite entry at `/gallery.html`, deliberately outside `build.rollupOptions.input`
+and outside `ROUTE_PATTERNS`, so it never ships. Reviewing it found two defects
+**in the specimens rather than in the product**: a filter bar on `h-subbar` whose
+wrapped children reached 155px inside a 46px box and drew on top of the next
+panel, and board columns escaping a panel's padding box by 7px. Both were the
+gallery contradicting rules the product already follows — `page-header.tsx`
+writes down `min-h-topbar` over `h-topbar` for exactly the first one. An
+instrument that lies at 375px makes every "checked at three widths" claim made
+through it worth less, so it is held to the same bar as the code it displays.
 
 Also absent: **`e2e/` does not exist**, while `playwright.config.ts:42` sets
 `testDir: './e2e'`. Playwright currently has nothing to run, and the `lint`

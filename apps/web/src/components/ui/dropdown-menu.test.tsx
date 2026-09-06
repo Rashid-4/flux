@@ -171,20 +171,23 @@ describe('DropdownMenu', () => {
   /**
    * There was no radio-item test at all, and the selected item drew nothing.
    *
-   * `ItemIndicator` renders a bare `<span>`, which is `display: inline`, and width
-   * and height do not apply to a non-replaced inline box — so the 6px dot inside it
-   * computed to **0×0** while carrying the correct background colour. Measured in a
-   * browser, because jsdom has no layout to measure and this is invisible without
-   * one.
+   * The dot carried `size-1.5` with no `display`, so it was a non-replaced inline
+   * box — and width and height do not apply to one. It computed to **0×0** with a
+   * perfectly correct background colour. Measured in a browser, because jsdom has
+   * no layout and this is invisible without one; the four-way measurement is in
+   * `dropdown-menu.tsx` beside the fix.
    *
-   * The reason it went unnoticed for so long is worth keeping: the sibling
-   * `CheckboxItem` is written the same way and works, because its tick is a lucide
-   * `<svg>` and dimensions do apply to those. README §5 states the dot is used
+   * The reason it went unnoticed is worth keeping: the sibling `CheckboxItem` is
+   * written the same way and works, because its tick is a lucide `<svg>` and
+   * dimensions do apply to a replaced element. README §5 stated the dot was used
    * "identically" by this file and `radio-group.tsx`, which made the difference
    * between them look intentional.
    *
-   * So this asserts the mechanism rather than a pixel: the dot must generate a
-   * block box, and the indicator around it must be the flex centring box.
+   * So this asserts the mechanism rather than a pixel. It pins **both** halves of
+   * the fix even though the browser says either one alone is sufficient, because
+   * each covers a different way of losing it again: drop `block` and the dot is
+   * inline the moment anyone moves it out of a flex parent, drop the indicator's
+   * box and the centring goes back to depending on the span one level out.
    */
   it('gives the selected radio item a dot that can render', async () => {
     const user = setupUser()
@@ -213,7 +216,11 @@ describe('DropdownMenu', () => {
 
     const dot = selected.querySelector('.bg-primary-accent')
     expect(dot).not.toBeNull()
-    /** Without `block`, `size-1.5` on this span is inert and the dot is 0×0. */
+    /**
+     * `size-1.5` is inert on an inline box, so the dot has to declare a box.
+     * Measured: with `block` removed *and* the indicator's flex box removed, this
+     * span is 0×0; with either one present it is 6×6.
+     */
     expect(dot).toHaveClass('block')
     expect(dot).toHaveClass('size-1.5')
 

@@ -44,6 +44,25 @@ import { cn } from '@/lib/cn'
  * each other in every filter bar — and `SelectTrigger` set the spelling first.
  * Inventing a third one here to be closer to `Button` would leave two of the three
  * disagreeing either way.
+ *
+ * ### `size` shadows a real HTML attribute, and that is the cost
+ *
+ * `<input size>` is a native attribute — the visible width in characters, valid on
+ * `text`, `search`, `url`, `tel`, `email` and `password` — so the `Omit` below takes
+ * it away from every caller. That is worth stating rather than leaving as a type
+ * detail, because `<Input size="sm" />` and `<Input size={20} />` look equally
+ * reasonable and only one of them now compiles.
+ *
+ * It costs nothing here, and this is measured rather than assumed. The base above
+ * always emits `w-full`, and a CSS width beats the attribute. In a 200px container:
+ *
+ *   with `w-full`   size absent → 200px   size="2" → 200px   size="80" → 200px
+ *   without it      size absent → 145px   size="2" →  20px   size="80" → 566px
+ *
+ * So the attribute was already inert on every `Input` in the app before the variant
+ * existed. If a caller ever genuinely needs character-based sizing it needs `w-auto`
+ * as well, at which point it is a `className` on a component that stopped being
+ * full-width — a different decision, not a lost prop.
  */
 const inputVariants = cva(
   [

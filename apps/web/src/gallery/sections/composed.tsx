@@ -139,7 +139,21 @@ export function ComposedSection() {
         label="Filter bar · one baseline across five components"
         className="flex-col items-stretch"
       >
-        <div className="flex h-subbar w-full flex-wrap items-center gap-2 rounded-card border border-border bg-surface px-3">
+        {/*
+          `min-h-subbar`, not `h-subbar`. A fixed height and `flex-wrap` cannot both
+          hold: measured at 375px, the box stayed 46px while its children reached
+          155px, so the search input and the avatar stack rendered *outside* the bar
+          and on top of the next panel. At any width where the row fits it is still
+          exactly 48px, so the specimen shows the real height where the real height
+          is the point.
+
+          This is the rule `page-header.tsx` already writes down for `min-h-topbar`
+          — reused rather than rediscovered. The product's own bars were right; only
+          this specimen was wrong, which is the shape worth noticing: the gallery is
+          the instrument, and an instrument that overlaps its own panels is telling
+          you something about itself.
+        */}
+        <div className="flex min-h-subbar w-full flex-wrap items-center gap-2 rounded-card border border-border bg-surface px-3">
           <Tabs defaultValue="kanban">
             <TabsList>
               <TabsTrigger value="kanban">Kanban</TabsTrigger>
@@ -182,7 +196,14 @@ export function ComposedSection() {
         </div>
       </Panel>
 
-      <Panel label="Board column · three cards" className="items-start">
+      {/*
+        `flex-nowrap overflow-x-auto` because a board column is 300px and that is not
+        negotiable — it is the width the cards were designed against. `Panel`'s
+        default `flex-wrap` let each column escape the panel's padding box by 7px at
+        375px; shrinking them to fit would have shown a column at a width no board
+        ever uses. Scrolling is also what the real board will do.
+      */}
+      <Panel label="Board column · three cards" className="flex-nowrap items-start overflow-x-auto">
         <div className="flex w-[300px] shrink-0 flex-col gap-2 rounded-panel bg-surface-2 p-2">
           <div className="flex items-center justify-between px-1 py-1">
             <div className="flex items-center gap-2">

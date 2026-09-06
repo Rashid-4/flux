@@ -87,13 +87,25 @@ const COLORS: ReadonlySet<string> = new Set(COLOR_KEYS)
 const VOCABULARY_FILES: readonly string[] = ['src/design/theme-keys.ts', 'src/lib/cn.ts']
 
 /**
- * Every utility found in the app, with the files it appears in.
+ * The HTML entries, discovered rather than named.
  *
- * `index.html` is included on purpose. The skip link lives there, outside React and
- * outside every other check, and it uses `bg-contrast`, `text-contrast-fg`,
+ * These are scanned on purpose: the skip link lives in `index.html`, outside React
+ * and outside every other check, and it uses `bg-contrast`, `text-contrast-fg`,
  * `rounded-control`, `shadow-overlay` and `z-80` — five tokens with nothing but this
  * test standing between them and a silent typo.
+ *
+ * It reads the directory instead of holding `'index.html'` as a literal because a
+ * second entry point has already appeared once. `gallery.html` landed with 2100
+ * lines of component gallery behind it, and a hard-coded name would have covered
+ * neither it nor the third one. That is the same lesson as the `VOCABULARY_FILES`
+ * comment above and as `check:rls`'s exemption map: assert the property, not the
+ * property-minus-whatever-was-true-the-day-it-was-written.
  */
+const HTML_ENTRIES: readonly string[] = readdirSync(APP)
+  .filter((entry) => entry.endsWith('.html'))
+  .sort()
+
+/** Every utility found in the app, with the files it appears in. */
 function collect(): Map<string, Set<string>> {
   const found = new Map<string, Set<string>>()
 
@@ -122,8 +134,10 @@ function collect(): Map<string, Set<string>> {
     }
   }
 
-  for (const attribute of htmlClassAttributes(readFileSync(join(APP, 'index.html'), 'utf8'))) {
-    for (const utility of utilities(attribute)) add(utility, 'index.html')
+  for (const entry of HTML_ENTRIES) {
+    for (const attribute of htmlClassAttributes(readFileSync(join(APP, entry), 'utf8'))) {
+      for (const utility of utilities(attribute)) add(utility, entry)
+    }
   }
 
   return found
@@ -196,6 +210,33 @@ describe('the scan itself', () => {
   it('excludes only paths that exist', () => {
     const missing = VOCABULARY_FILES.filter((path) => !existsSync(join(APP, path)))
     expect(missing, `stale exclusions in VOCABULARY_FILES:\n  ${missing.join('\n  ')}`).toEqual([])
+  })
+
+  /**
+   * `HTML_ENTRIES` is a directory read, so it degrades to `[]` rather than to an
+   * error if the glob ever stops matching — and `[]` produces a green run over a
+   * scan of nothing, which is this file's own headline failure mode one level up.
+   *
+   * Both entries carry classes today (`h-full` at minimum, and `index.html`'s skip
+   * link), so requiring each one to contribute at least one utility also catches a
+   * tokenizer that silently stops reading `class=` attributes.
+   *
+   * Negative-tested, both halves: narrowing the filter back to `entry ===
+   * 'index.html'` fails exactly this test and nothing else, and stubbing the
+   * attribute loop to read nothing fails this test **and** "found utilities in every
+   * shape it has to read" — two, which is the pair that should notice.
+   */
+  it('scans every HTML entry it can find, not a named one', () => {
+    expect(HTML_ENTRIES).toContain('index.html')
+    expect(HTML_ENTRIES.length).toBeGreaterThan(1)
+
+    const silent = HTML_ENTRIES.filter(
+      (entry) => ![...FOUND.values()].some((files) => files.has(entry)),
+    )
+    expect(
+      silent,
+      `these HTML entries were scanned and yielded no utility at all, which means the\nclass-attribute tokenizer is not reading them:\n  ${silent.join('\n  ')}`,
+    ).toEqual([])
   })
 })
 

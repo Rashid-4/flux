@@ -204,18 +204,36 @@ function DropdownMenuRadioItem({
       {...props}
     >
       {/*
-        The centring lives on the `ItemIndicator`, not only on the box around it.
-        `ItemIndicator` renders a bare `<span>`, which is `display: inline` — and
-        width and height **do not apply to a non-replaced inline box**, so the 6px
-        dot inside it computed to 0×0 and the selected radio item showed no marker
-        at all. Measured: the dot had the right `background-color` and a
-        `getBoundingClientRect` of 0×0.
+        The dot has to generate a block box of its own. `size-1.5` sets width and
+        height, and width and height **do not apply to a non-replaced inline
+        box** — so the 6px dot computed to 0×0 while carrying a perfectly correct
+        `background-color`, and a selected radio row in a menu drew nothing.
 
-        It survived because the sibling `CheckboxItem` looks identical and works —
-        its tick is a lucide `<svg>`, and dimensions do apply to those. README §5
-        says the two files use this span "identically"; they did not, and that
-        sentence is why nobody looked. `radio-group.tsx` has always had the flex
-        box in the right place, which is the shape copied here.
+        Measured in a real browser, on the markup below and on the pre-fix markup
+        restored by hand, because jsdom computes no layout:
+
+          bare indicator, dot has no `display`   indicator  0×0  (block)   dot 0×0 (inline)
+          `block` on the dot only                indicator  6×6  (block)   dot 6×6
+          `flex size-full` on indicator only     indicator 14×14 (flex)    dot 6×6
+          both, as written below                 indicator 14×14 (flex)    dot 6×6
+
+        The two lines are therefore redundant with each other — either one alone
+        fixes it. Both are kept on purpose: `block` means the dot no longer
+        depends on an ancestor's `display`, which is the exact dependency that
+        broke, and `flex size-full` makes the indicator itself the 14px centring
+        box, which is the shape `radio-group.tsx` already had.
+
+        Note what the measurement contradicts, because a plausible sentence is
+        what hid this defect the first time. The bare `ItemIndicator` was **not**
+        the inline box: it is a flex item of the `size-3.5` span around it, and a
+        flex item is blockified, so it measured `display: block`. It was 0×0 only
+        because its one child was. An earlier draft of this comment blamed the
+        indicator, and README §5 said the dot was used "identically" here and in
+        `radio-group.tsx` — it was not, and that is why nobody looked.
+
+        It also survived because the sibling `CheckboxItem` is written the same
+        way and works: its tick is a lucide `<svg>`, and dimensions do apply to a
+        replaced element.
       */}
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator className="flex size-full items-center justify-center">

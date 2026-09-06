@@ -245,17 +245,24 @@ never satisfy SC 2.4.11 on its own. The outline is what satisfies it.
   cost the menu its radio indicator. They did not: `radio-group.tsx` puts
   `flex size-full items-center justify-center` on the Radix `Indicator`, and
   `dropdown-menu.tsx` left the `ItemIndicator` bare with the flex box one level
-  further out. A bare `ItemIndicator` is `display: inline`, and **width and height
-  do not apply to a non-replaced inline box** — so the dot computed to 0×0 with a
+  further out — and left the dot itself with no `display`. **Width and height do
+  not apply to a non-replaced inline box**, so the dot computed to 0×0 with a
   perfectly correct `background-color`, and a selected radio row in a menu showed
   nothing at all.
 
+  The first correction of this entry named the wrong box, which is worth leaving on
+  the page given what the original sentence cost. A bare `ItemIndicator` is *not*
+  `display: inline` here: it is a flex item of the `size-3.5` span around it, and a
+  flex item is blockified — measured as `display: block`, and 0×0 only because its
+  one child was. The inline box was the dot. `dropdown-menu.tsx` carries the
+  four-way measurement, including that either half of the fix suffices alone.
+
   Two things kept it hidden. The sibling `CheckboxItem` is written the same way and
-  works, because its tick is a lucide `<svg>` and dimensions *do* apply to those; so
-  the difference between the two rows read as intentional. And there was no
-  radio-item test — the file covered items, checkbox items, separators and
-  shortcuts. Both are fixed, and the test asserts the block box rather than the
-  class, because the class was never the thing that was missing.
+  works, because its tick is a lucide `<svg>` and dimensions *do* apply to a
+  replaced element; so the difference between the two rows read as intentional. And
+  there was no radio-item test — the file covered items, checkbox items, separators
+  and shortcuts. Both are fixed, and the test asserts the block box rather than the
+  colour, because the colour was never the thing that was missing.
 
   It is the same root cause as the `max-w-40 truncate` that did nothing on
   `IssueKey`'s inline `<code>`, found in the same session. **Inline boxes ignoring

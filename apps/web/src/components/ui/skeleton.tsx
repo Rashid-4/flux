@@ -60,6 +60,18 @@ function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
  * the lint rule's exemption list, precisely because geometry sometimes has no token
  * and this is a unit rather than a value.
  *
+ * ### It does not move the browser floor
+ *
+ * Worth checking rather than assuming, because an unsupported `height` declaration
+ * is *dropped*, and a skeleton line with no height is 0px — invisible, not degraded.
+ * `lh` needs Chrome 109, Safari 16.4, Firefox 120. The stylesheet this app already
+ * ships needs Chrome 111, Safari 16.4, Firefox 128, because Tailwind v4 emits
+ * `@property` and `color-mix()` — counted in the served CSS: **53 `@property`
+ * rules, 14 `color-mix()`, 142 `oklch()`, and 3 `1lh`.** So every browser that can
+ * render a single colour in this product can already resolve this unit, and the
+ * three occurrences are the least demanding thing in the file. `apps/web/README.md`
+ * §"Browser floor" holds the numbers and where they come from.
+ *
  * `rounded-control` rather than the block's `rounded-card`: 12px corners on a 20px
  * bar read as a lozenge, and a line of text is not a card.
  *
