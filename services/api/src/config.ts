@@ -21,12 +21,35 @@ import { z } from 'zod'
  *
  * ### Two rules about secrets that this file exists to enforce
  *
- * **A connection string never reaches a log, an error body, or a stack trace.**
+ * **A credential never reaches a log, an error body, or a stack trace.**
  * `DATABASE_URL` carries a password. zod's default error for a bad URL quotes
  * the value it rejected, which would put that password in the boot log of every
  * misconfigured deploy — so the URL fields are validated with a custom issue
- * that names the variable and says nothing about its contents. Tested in
- * `config.test.ts`.
+ * that names the variable and says nothing about its contents.
+ *
+ * That is the easy half. The hard half is that the rule has to hold for the
+ * *whole schema*, including variables added later, and it did not: writing the
+ * test found two leaks and one of them was not obvious.
+ *
+ *   • **`z.enum` echoes.** zod's `invalid_enum_value` message ends "…received
+ *     'prod'", and `NODE_ENV` and `LOG_LEVEL` are enums, so a typo reproduced the
+ *     value. Harmless for those two — neither can hold a secret — but the claim in
+ *     this header was unqualified, and an unqualified claim is what the next person
+ *     relies on. `describeIssue` now builds the message from `issue.options`, which
+ *     keeps the useful half (what was expected) and drops the echo.
+ *   • **`integerVar` echoed without bound**, and this one is a real exposure.
+ *     `PORT` is not a secret, but a misaligned deploy configuration that pastes
+ *     `DATABASE_URL`'s value into `PORT` is an ordinary mistake — and the message
+ *     was `PORT must be a whole number, got "postgres://…:hunter2@…"`, in the boot
+ *     log, at `fatal`, in a message written specifically to avoid that. The echo is
+ *     worth keeping (a rejected `"3000ms"` is diagnosable and a rejected
+ *     "something" is not), so it is bounded instead: see `describeRejected`.
+ *
+ * `config.test.ts` pins this with a sweep rather than a list — every key in
+ * `EnvSchema.shape` is poisoned in turn with a credential-shaped value, and the
+ * assertion is that no message reproduces it. A variable added next year is covered
+ * the day it is added, which a hand-maintained list of "the secret ones" would not
+ * be.
  *
  * **`describeTarget()` is the only thing that may be printed.** It reconstructs
  * host, port, database and user and drops everything else, so a boot log can say
@@ -89,6 +112,37 @@ function postgresUrl(variable: string) {
 }
 
 /**
+ * How much of a rejected value may appear in the failure message.
+ *
+ * The echo is genuinely worth having: `PORT must be a whole number, got "3000ms"`
+ * is fixed in seconds, and `PORT must be a whole number` sends someone to look at
+ * the deploy configuration. But an unbounded echo of a variable that is *supposed*
+ * to be a number is an unbounded echo of whatever was actually there, and the
+ * realistic wrong value is not a typo — it is another variable's value, pasted one
+ * line off, which in this schema means a connection string with a password in it.
+ *
+ * So the value is reproduced only when it cannot be a credential:
+ *
+ *   • **no `:`, `@`, `/`, `\`, `?`, `#` or whitespace.** Every URL-shaped and
+ *     `key=value`-shaped secret contains at least one of these, and a mistyped
+ *     number contains none of them. This is the load-bearing half.
+ *   • **at most 24 characters**, because a long opaque string is not diagnosable by
+ *     being printed anyway — the length is the useful fact about it.
+ *
+ * What survives the filter is a bare token like `hunter2`, which is not a
+ * credential for anything this process can reach and is indistinguishable from a
+ * genuinely mistyped value. Bounding it further would cost the diagnosability the
+ * echo exists for.
+ */
+function describeRejected(value: string): string {
+  const unsafe = /[:@/\\?#\s]/.test(value)
+  if (unsafe || value.length > 24) {
+    return `a ${String(value.length)}-character value (not shown: it may hold a credential)`
+  }
+  return JSON.stringify(value)
+}
+
+/**
  * An integer from a string, with the variable named in the failure.
  *
  * `z.coerce.number()` accepts `''` as 0 and `'12abc'` as NaN-then-fails with a
@@ -104,7 +158,7 @@ function integerVar(variable: string, options: { min: number; max: number; defau
       if (!/^\d+$/.test(value)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `${variable} must be a whole number, got ${JSON.stringify(value)}`,
+          message: `${variable} must be a whole number, got ${describeRejected(value)}`,
         })
         return
       }
@@ -238,6 +292,54 @@ function describeTarget(url: string): string {
 }
 
 /**
+ * One zod issue → one line of the failure message, reproducing no value.
+ *
+ * Split out of `parseConfig` because it is the thing under test: the header's rule
+ * is a property of *this* function, and `config.test.ts` sweeps every key in the
+ * schema through it.
+ *
+ * The three cases are the three shapes reachable from `EnvSchema`. The default
+ * branch is not a gap — it is reached by `too_small` (`HOST` being empty), whose
+ * zod message describes the constraint ("String must contain at least 1
+ * character(s)") and not the value. It is written as a fallthrough rather than as an
+ * exhaustive switch so that a new declaration form degrades to a slightly worse
+ * message instead of to no message at all, and the sweep is what would catch it if
+ * that form turned out to echo.
+ */
+function describeIssue(issue: z.ZodIssue): string {
+  const variable = issue.path.join('.')
+
+  switch (issue.code) {
+    /** The helpers above name their own variable and interpolate no value. */
+    case z.ZodIssueCode.custom:
+      return `  • ${issue.message}`
+
+    /**
+     * zod's message is "Invalid enum value. Expected 'a' | 'b', received 'xyz'".
+     * The expected list is worth keeping and the received value is not — see the
+     * header. Rebuilt rather than string-edited, because editing a message means
+     * parsing a sentence zod is free to reword in a patch release.
+     */
+    case z.ZodIssueCode.invalid_enum_value:
+      return `  • ${variable} must be one of ${issue.options.map((o) => String(o)).join(', ')}`
+
+    /**
+     * A missing variable is by far the most common failure here, and "Required" —
+     * zod's whole message for it — does not say what to do. `received` is the
+     * string `'undefined'` in that case, which is how a missing key is
+     * distinguished from a present one of the wrong type.
+     */
+    case z.ZodIssueCode.invalid_type:
+      return issue.received === 'undefined'
+        ? `  • ${variable} is not set`
+        : `  • ${variable} must be ${issue.expected}`
+
+    default:
+      return `  • ${variable}: ${issue.message}`
+  }
+}
+
+/**
  * Parse an environment into a `Config`, or throw with every problem listed.
  *
  * Takes the environment as an argument rather than reading `process.env`
@@ -249,13 +351,7 @@ export function parseConfig(source: Record<string, string | undefined>): Config 
   const result = EnvSchema.safeParse(source)
 
   if (!result.success) {
-    const problems = result.error.issues.map((issue) => {
-      const variable = issue.path.join('.')
-      // A `custom` issue already names its variable — the helpers above are
-      // written that way precisely so no value is interpolated. Anything else
-      // (a missing required key, a bad enum) is prefixed here instead.
-      return issue.code === z.ZodIssueCode.custom ? `  • ${issue.message}` : `  • ${variable}: ${issue.message}`
-    })
+    const problems = result.error.issues.map(describeIssue)
 
     throw new Error(
       `Invalid environment — the API will not start.\n\n${problems.join('\n')}\n\n` +

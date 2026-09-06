@@ -123,11 +123,9 @@ export class HealthController {
      */
     if (report.migrationHead === null || report.migrationsApplied === 0) {
       this.logger.error(detail, 'not ready: the database schema has no applied migrations')
-      throw new FluxError(
-        'dependency_unavailable',
-        'The database schema has not been migrated',
-        { meta: { retryAfterSeconds: 5 } },
-      )
+      throw new FluxError('dependency_unavailable', 'The database schema has not been migrated', {
+        meta: { retryAfterSeconds: 5 },
+      })
     }
 
     this.logger.debug(detail, 'ready')

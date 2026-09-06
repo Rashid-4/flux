@@ -50,7 +50,10 @@ import { NestPinoLogger } from './nest-logger.js'
  * `main.ts`'s job, and a test never needs to — `app.inject()` dispatches through the
  * full Fastify pipeline, hooks and error handler included, without binding a port.
  */
-export async function createApiApp(config: Config, logger: Logger): Promise<NestFastifyApplication> {
+export async function createApiApp(
+  config: Config,
+  logger: Logger,
+): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(config, logger),
     new FastifyAdapter({

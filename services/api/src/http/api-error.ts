@@ -1,4 +1,10 @@
-import { ApiErrorSchema, FluxError, HTTP_STATUS_BY_CODE, type ApiError, type ErrorCode } from '@flux/contracts'
+import {
+  ApiErrorSchema,
+  FluxError,
+  HTTP_STATUS_BY_CODE,
+  type ApiError,
+  type ErrorCode,
+} from '@flux/contracts'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -220,10 +226,40 @@ function fromForeignStatus(err: unknown, status: number, traceId: string): Error
     detail: {
       errorCode: code,
       foreignStatus: status,
-      // Fastify's `FST_ERR_*` code, which names the exact refusal — invalid JSON
-      // body, unsupported media type, body too large. Operator-only: it is the
-      // internals of the framework, and §7 keeps framework internals out of a
-      // response body.
+      /**
+       * A string `code` on the thrown value, when it has one. Operator-only
+       * either way: a framework identifier is framework internals, and §7 keeps
+       * those out of a response body.
+       *
+       * **This is `undefined` for every pre-handler Fastify failure, and that was
+       * measured rather than assumed.** This comment used to say it carried
+       * Fastify's `FST_ERR_*` code and named invalid-JSON, bad-media-type and
+       * body-too-large as the cases it was for. It is absent from all three, and
+       * the reason is one line of Nest:
+       *
+       *     mapException(error) {
+       *       if (this.isHttpFastifyError(error)) {
+       *         return new HttpException(error.message, error.statusCode)
+       *       }
+       *       return error
+       *     }
+       *
+       * A fresh `HttpException` built from two fields. `code`, `constraint`,
+       * `cause` — everything else the original carried is gone before any filter
+       * sees it, so there is nothing here to read. Probing a running service
+       * confirmed it: a `{` body logs `foreignStatus: 400` and
+       * `foreignMessage: "Body is not valid JSON but content-type is set to
+       * 'application/json'"`, with no `foreignCode` key at all.
+       *
+       * The field is kept because it is not *always* empty — a library throwing
+       * its own coded exception from inside a handler reaches the filter intact —
+       * but nothing should be aggregated on it. `foreignStatus` partitions the
+       * pre-handler failures exactly as finely (400 invalid JSON, 413 too large,
+       * 415 wrong media type) and `foreignMessage` names the refusal in words.
+       *
+       * Pinned by `api-error.test.ts`, so this cannot quietly become true again
+       * in one direction or quietly stay false in the other.
+       */
       foreignCode: propertyOf(err, 'code'),
       foreignMessage: err instanceof Error ? err.message : undefined,
     },

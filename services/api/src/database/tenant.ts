@@ -228,23 +228,74 @@ const FORBIDDEN_STATEMENT =
   /^(?:set|reset|discard|begin|start\s+transaction|commit|end|prepare\s+transaction)\b|^rollback(?!\s+to\b)/i
 
 /**
- * Strip SQL comments so the guard reads the first real keyword.
+ * Strip SQL comments so the guard reads the first real keyword — **the way
+ * PostgreSQL strips them**, which is the whole point.
  *
- * The loop runs to a **fixpoint** rather than once, and that is a lesson this
- * repository has already paid for: `apps/web/src/design/scan-classes.ts` had a
- * single-pass comment strip that CodeQL flagged as incomplete multi-character
- * sanitization, because one pass over `/* /* x *\/` leaves a comment opener
- * behind. A single pass here would let `/*\/* SET ROLE` reach the database
- * looking like a comment to the guard and like a statement to PostgreSQL.
+ * This was a regex run to a fixpoint, and the comment above it claimed the fixpoint
+ * was what closed the multi-character-sanitization hole CodeQL flagged in
+ * `apps/web/src/design/scan-classes.ts`. Writing `tenant.test.ts` measured both
+ * halves of that claim and both were wrong.
+ *
+ * **The example was wrong.** `/*\/* SET ROLE` is unchanged by one pass *and* by a
+ * hundred, because the regex needs a closing `*\/` and there is none — so the loop
+ * made no difference to it. It is also not a bypass: PostgreSQL answers
+ * `unterminated /* comment`, measured against `postgres:17-alpine`.
+ *
+ * **The real bypass was the case neither the regex nor the loop could see.**
+ * PostgreSQL **nests** block comments, so in `/* a /* b *\/ c *\/ SET ROLE x` the
+ * whole prefix is one comment and the statement executed is `SET ROLE x` — verified
+ * against the running container. A non-nesting regex matches only `/* a /* b *\/`,
+ * leaving `c *\/ SET ROLE x`, whose first token is `c`, and the guard **allowed it**.
+ * Running that to a fixpoint changes nothing: there is no second comment to remove.
+ *
+ * So the regex is gone. A depth-counting scan is not a cleverer regex; it is the
+ * same grammar PostgreSQL uses, and the guard is only meaningful when the text it
+ * reads is the text the server will act on. It is still not a SQL parser — see the
+ * limits in the file header — but it no longer disagrees with the server about
+ * where a comment ends.
+ *
+ * Two grammar details that matter and are easy to get backwards:
+ *   • `--` inside a block comment is ordinary comment text, not a line comment;
+ *   • `/*` inside a `--` line comment does **not** open a block comment.
+ * Both fall out of checking `depth` before the `--` branch.
+ *
+ * An unterminated comment yields an empty head, so the statement is allowed through
+ * to the server — which rejects it as a syntax error. That is the right direction:
+ * text PostgreSQL will not execute is not a bypass, and a guard that invented its
+ * own opinion about malformed SQL would refuse valid statements instead.
  */
 function withoutComments(sql: string): string {
-  let previous: string
-  let current = sql
-  do {
-    previous = current
-    current = current.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ')
-  } while (current !== previous)
-  return current
+  let out = ''
+  let depth = 0
+  let index = 0
+
+  while (index < sql.length) {
+    if (depth === 0 && sql.startsWith('--', index)) {
+      const newline = sql.indexOf('\n', index)
+      // No newline means the comment runs to the end of the statement.
+      if (newline === -1) return `${out} `
+      out += ' '
+      index = newline + 1
+      continue
+    }
+    if (sql.startsWith('/*', index)) {
+      depth += 1
+      index += 2
+      continue
+    }
+    if (depth > 0 && sql.startsWith('*/', index)) {
+      depth -= 1
+      index += 2
+      // One space for the whole comment, however deeply it nested, so a comment
+      // between two tokens cannot join them into one.
+      if (depth === 0) out += ' '
+      continue
+    }
+    if (depth === 0) out += sql[index]
+    index += 1
+  }
+
+  return out
 }
 
 function assertStatementAllowed(sql: string): void {
@@ -366,7 +417,7 @@ export async function withTenant<T>(
         '  the rest continues against a new implicit transaction, with no error\n' +
         '  anywhere.\n\n' +
         '  Pass the TenantClient down to the code that needs it. A service method that\n' +
-        '  must work both standalone and inside a caller\'s transaction should take a\n' +
+        "  must work both standalone and inside a caller's transaction should take a\n" +
         '  TenantClient parameter, not open its own.',
     )
   }

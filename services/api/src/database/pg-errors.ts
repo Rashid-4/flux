@@ -72,9 +72,19 @@ import { FluxError, type ErrorCode } from '@flux/contracts'
  * the duplication.
  */
 export interface PgError extends Error {
-  /** SQLSTATE. Matched on instead of the message, which is localised and
-   *  reworded between minor versions. */
-  code?: string
+  /**
+   * SQLSTATE. Matched on instead of the message, which is localised and reworded
+   * between minor versions.
+   *
+   * `| undefined` explicitly, and not just `?`. Under `exactOptionalPropertyTypes`
+   * those two mean different things: `code?: string` says the property may be
+   * absent but never *present and undefined*, which is a claim about the driver
+   * that is false — `pg` builds a `DatabaseError` for a protocol-level failure
+   * with `code` set to `undefined`, and `isPgError` below accepts exactly that
+   * case on purpose. The interface said one thing and the type guard beneath it
+   * said another; the guard was right.
+   */
+  code?: string | undefined
   constraint?: string
   table?: string
   column?: string
@@ -115,24 +125,62 @@ interface Mapping {
 }
 
 /**
+ * One row of the tables below.
+ *
+ * A factory rather than an object literal per row, and the reason is legibility
+ * under the formatter: at `printWidth: 100` the literal form wraps a third of these
+ * rows onto four lines each, which turns a scannable thirty-row table into a hundred
+ * and twenty lines where a SQLSTATE and the code it maps to are no longer on the
+ * same line — and makes a one-entry change a four-line diff. A lookup table is only
+ * readable as a table while each row is one row.
+ *
+ * `ALARMING` is passed by name rather than as a bare `true`, and the default is the
+ * quiet one, so the rows that will page someone are exactly the rows carrying an
+ * extra word. Those are the ones worth spotting while reading the table.
+ */
+const ALARMING = true
+
+function mapping(code: ErrorCode, message: string, alarming = false): Mapping {
+  return { code, message, alarming }
+}
+
+/**
+ * The messages that repeat, named once.
+ *
+ * `OURS` covers every SQLSTATE meaning the service or the schema is wrong — eight
+ * entries, one sentence, deliberately identical. A client can act on none of them
+ * and must not be told which internal failure occurred, so a distinct message per
+ * entry would be eight opportunities to leak a detail and eight places to edit when
+ * the wording changes. The repetition is the point; naming it makes that explicit
+ * rather than accidental.
+ */
+const OURS = 'The request could not be processed'
+const UNAVAILABLE = 'The database is unavailable'
+const AT_CAPACITY = 'The database is at capacity'
+const RESTARTING = 'The database is restarting'
+const CONTENDED = 'That item is being changed by someone else — try again'
+const CONCURRENT = 'Conflicting changes were made at the same time — try again'
+const NOT_ALLOWED = 'That value is not allowed'
+
+/**
  * `class` here means the two-character SQLSTATE class, which is what makes the
  * fallback meaningful: `08` is always "the connection", `23` is always "a
  * constraint", and an unlisted member of either behaves like its family.
  */
 const BY_CODE: Readonly<Record<string, Mapping>> = {
   // ── Class 08 / 53 / 57 — the database is not available to us ────────
-  '08000': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
-  '08001': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
-  '08003': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
-  '08004': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
-  '08006': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
+  '08000': mapping('dependency_unavailable', UNAVAILABLE),
+  '08001': mapping('dependency_unavailable', UNAVAILABLE),
+  '08003': mapping('dependency_unavailable', UNAVAILABLE),
+  '08004': mapping('dependency_unavailable', UNAVAILABLE),
+  '08006': mapping('dependency_unavailable', UNAVAILABLE),
   /** too_many_connections — pool sizing against `max_connections`. */
-  '53300': { code: 'dependency_unavailable', message: 'The database is at capacity', alarming: true },
-  '53400': { code: 'dependency_unavailable', message: 'The database is at capacity', alarming: true },
+  '53300': mapping('dependency_unavailable', AT_CAPACITY, ALARMING),
+  '53400': mapping('dependency_unavailable', AT_CAPACITY, ALARMING),
   /** admin_shutdown / crash_shutdown / cannot_connect_now — a restart or failover. */
-  '57P01': { code: 'dependency_unavailable', message: 'The database is restarting', alarming: false },
-  '57P02': { code: 'dependency_unavailable', message: 'The database is restarting', alarming: true },
-  '57P03': { code: 'dependency_unavailable', message: 'The database is restarting', alarming: false },
+  '57P01': mapping('dependency_unavailable', RESTARTING),
+  '57P02': mapping('dependency_unavailable', RESTARTING, ALARMING),
+  '57P03': mapping('dependency_unavailable', RESTARTING),
 
   /**
    * query_canceled — almost always our own `statement_timeout` firing.
@@ -143,7 +191,7 @@ const BY_CODE: Readonly<Record<string, Mapping>> = {
    * alternative is a code that does not exist, and inventing one is a change
    * request rather than a decision made here (§7).
    */
-  '57014': { code: 'internal_error', message: 'The request took too long and was cancelled', alarming: true },
+  '57014': mapping('internal_error', 'The request took too long and was cancelled', ALARMING),
 
   /**
    * lock_not_available — our `lock_timeout` firing. Contention, not corruption:
@@ -151,11 +199,11 @@ const BY_CODE: Readonly<Record<string, Mapping>> = {
    * well succeed, which is exactly what `internal_error`'s presence in
    * `RETRYABLE_CODES` tells the client.
    */
-  '55P03': { code: 'internal_error', message: 'That item is being changed by someone else — try again', alarming: false },
+  '55P03': mapping('internal_error', CONTENDED),
 
   /** serialization_failure / deadlock_detected. Retry is the correct response. */
-  '40001': { code: 'internal_error', message: 'Conflicting changes were made at the same time — try again', alarming: false },
-  '40P01': { code: 'internal_error', message: 'Conflicting changes were made at the same time — try again', alarming: false },
+  '40001': mapping('internal_error', CONCURRENT),
+  '40P01': mapping('internal_error', CONCURRENT),
 
   // ── Class 23 — a constraint ─────────────────────────────────────────
   /**
@@ -163,22 +211,22 @@ const BY_CODE: Readonly<Record<string, Mapping>> = {
    * doing: two projects cannot share a key. `constraintFields` is how a module
    * turns this into a field error the form can attach to an input.
    */
-  '23505': { code: 'duplicate_key', message: 'That value is already taken', alarming: false },
-  '23P01': { code: 'duplicate_key', message: 'That value overlaps one that already exists', alarming: false },
+  '23505': mapping('duplicate_key', 'That value is already taken'),
+  '23P01': mapping('duplicate_key', 'That value overlaps one that already exists'),
   /**
    * foreign_key_violation → `invalid_reference` (422), which is precisely what
    * that code is for: "a body field names an entity that exists but is not valid
    * in this context", or does not exist at all.
    */
-  '23503': { code: 'invalid_reference', message: 'That reference does not exist', alarming: false },
-  '23502': { code: 'required_field_missing', message: 'A required value was missing', alarming: false },
-  '23514': { code: 'field_value_invalid', message: 'That value is not allowed', alarming: false },
+  '23503': mapping('invalid_reference', 'That reference does not exist'),
+  '23502': mapping('required_field_missing', 'A required value was missing'),
+  '23514': mapping('field_value_invalid', NOT_ALLOWED),
 
   // ── Class 22 — data exceptions ──────────────────────────────────────
-  '22001': { code: 'field_value_invalid', message: 'That value is too long', alarming: false },
-  '22003': { code: 'field_value_invalid', message: 'That number is out of range', alarming: false },
-  '22007': { code: 'field_value_invalid', message: 'That date is not valid', alarming: false },
-  '22008': { code: 'field_value_invalid', message: 'That date is out of range', alarming: false },
+  '22001': mapping('field_value_invalid', 'That value is too long'),
+  '22003': mapping('field_value_invalid', 'That number is out of range'),
+  '22007': mapping('field_value_invalid', 'That date is not valid'),
+  '22008': mapping('field_value_invalid', 'That date is out of range'),
   /**
    * invalid_text_representation — a value that is not a valid UUID, enum member
    * or number reached SQL. Every request boundary is parsed by a zod schema
@@ -186,36 +234,46 @@ const BY_CODE: Readonly<Record<string, Mapping>> = {
    * wrong. `internal_error`, and alarming: a 422 here would hide a hole in the
    * validation layer behind a message about the user's input.
    */
-  '22P02': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
+  '22P02': mapping('internal_error', OURS, ALARMING),
 
   // ── Ours to fix ─────────────────────────────────────────────────────
   /** See the header. A grant, an RLS WITH CHECK rejection, or 0014's guard. */
-  '42501': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
+  '42501': mapping('internal_error', OURS, ALARMING),
   /** undefined_table / undefined_column / undefined_function — the running code
    *  and the applied migrations disagree. Nothing the caller can do. */
-  '42P01': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
-  '42703': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
-  '42883': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
+  '42P01': mapping('internal_error', OURS, ALARMING),
+  '42703': mapping('internal_error', OURS, ALARMING),
+  '42883': mapping('internal_error', OURS, ALARMING),
   /** read_only_sql_transaction — writing against a replica. A routing bug. */
-  '25006': { code: 'internal_error', message: 'The request could not be processed', alarming: true },
+  '25006': mapping('internal_error', OURS, ALARMING),
   /** raise_exception, from one of our own guard triggers with no explicit
    *  SQLSTATE. The trigger's own message is the detail, and it goes to the log. */
-  P0001: { code: 'internal_error', message: 'The request could not be processed', alarming: true },
+  P0001: mapping('internal_error', OURS, ALARMING),
 }
 
 const BY_CLASS: Readonly<Record<string, Mapping>> = {
-  '08': { code: 'dependency_unavailable', message: 'The database is unavailable', alarming: false },
-  '53': { code: 'dependency_unavailable', message: 'The database is at capacity', alarming: true },
-  '57': { code: 'dependency_unavailable', message: 'The database is restarting', alarming: false },
-  '22': { code: 'field_value_invalid', message: 'That value is not allowed', alarming: false },
-  '23': { code: 'field_value_invalid', message: 'That value is not allowed', alarming: false },
+  '08': mapping('dependency_unavailable', UNAVAILABLE),
+  '53': mapping('dependency_unavailable', AT_CAPACITY, ALARMING),
+  '57': mapping('dependency_unavailable', RESTARTING),
+  '22': mapping('field_value_invalid', NOT_ALLOWED),
+  '23': mapping('field_value_invalid', NOT_ALLOWED),
 }
 
-const UNKNOWN: Mapping = {
-  code: 'internal_error',
-  message: 'The request could not be processed',
-  alarming: true,
-}
+const UNKNOWN: Mapping = mapping('internal_error', OURS, ALARMING)
+
+/**
+ * The keys of the two tables above, exported for `pg-errors.test.ts` and read by
+ * nothing in the service.
+ *
+ * The alternative was a copy of the list inside the test, and a copied list is the
+ * curated-check shape `CLAUDE.md` warns about: it keeps passing while the table it
+ * mirrors grows an entry that breaks one of the header's three rules. Exporting the
+ * keys means "no alarming mapping is a 4xx" and "no client message contains a
+ * SQLSTATE" are asserted over whatever is actually in the table, including the
+ * entry added next year.
+ */
+export const MAPPED_SQLSTATES: readonly string[] = Object.keys(BY_CODE)
+export const MAPPED_SQLSTATE_CLASSES: readonly string[] = Object.keys(BY_CLASS)
 
 export interface MapPgErrorOptions {
   /**
@@ -258,6 +316,36 @@ export interface MappedPgError {
 }
 
 /**
+ * Look `key` up in a caller-supplied map without consulting the prototype chain.
+ *
+ * `options.constraintFields?.[constraint]` reads naturally and is wrong, which a test
+ * found rather than a review: a constraint named `constructor` resolves to
+ * `Object.prototype.constructor`, so `fieldPath` becomes a **function**, the field
+ * error is built with `path: [Function Object]`, and `ApiErrorSchema` then rejects the
+ * whole body in `api-error.ts` — turning a legible 409 "that value is already taken"
+ * into a bare 500. `toString`, `valueOf` and `hasOwnProperty` do the same.
+ *
+ * Not a security hole: constraint names come from `db/migrations/`, which is ours, so
+ * nothing here is attacker-influenced. It is worse than that in one respect — it is a
+ * landmine with a *plausible* trigger. `constructor` is a defensible name for a
+ * constraint on a table of workflow builders, and the failure would appear as an
+ * intermittent 500 on one endpoint with a correct-looking mapping table beside it.
+ *
+ * Two guards, because they catch different things. `hasOwnProperty` stops the
+ * inherited members; the `typeof` check stops a non-string that reached the map
+ * through an `any`, and is what keeps the return type honest rather than asserted.
+ */
+function ownProperty(
+  map: Readonly<Record<string, string>> | undefined,
+  key: string,
+): string | undefined {
+  if (map === undefined) return undefined
+  if (!Object.prototype.hasOwnProperty.call(map, key)) return undefined
+  const value = map[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+/**
  * Translate a driver error into a `FluxError` plus a log record.
  *
  * Returns rather than throws so the caller can log before rethrowing, and so a
@@ -275,7 +363,7 @@ export function mapPgError(err: unknown, options: MapPgErrorOptions = {}): Mappe
 
   const constraint = pgError?.constraint
   const fieldPath =
-    constraint === undefined ? undefined : options.constraintFields?.[constraint]
+    constraint === undefined ? undefined : ownProperty(options.constraintFields, constraint)
 
   const error = new FluxError(mapping.code, mapping.message, {
     ...(fieldPath === undefined
