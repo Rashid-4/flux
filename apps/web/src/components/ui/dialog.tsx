@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
+import { useRef } from 'react'
 import type * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
@@ -76,19 +77,83 @@ function DialogOverlay({
   )
 }
 
+/**
+ * ### Focus goes back where it came from
+ *
+ * Radix's modal `DialogContent` restores focus to `DialogTrigger`, and to nothing
+ * at all when there is no trigger:
+ *
+ * ```js
+ * // @radix-ui/react-dialog@1.1.23/dist/index.mjs:154
+ * onCloseAutoFocus: composeEventHandlers(props.onCloseAutoFocus, (event) => {
+ *   event.preventDefault()
+ *   context.triggerRef.current?.focus()   // null for a controlled dialog
+ * })
+ * ```
+ *
+ * Every dialog in flux is controlled — `ConfirmDialog` takes `open` and
+ * `onOpenChange`, because the thing that opens it is as often a dropdown item or a
+ * row action as a button sitting next to it. `triggerRef` is therefore `null`, the
+ * `preventDefault()` above cancels `FocusScope`'s own correct restore, and closing
+ * the dialog leaves `document.activeElement` on `<body>`. Measured, not inferred:
+ * that is what put focus on the body in `data/confirm-dialog.test.tsx`.
+ *
+ * For a keyboard or screen-reader user that is not a cosmetic bug. Tab resumes from
+ * the top of the document, so dismissing a confirmation costs them their place in
+ * the page — WCAG 2.2 2.4.3, and the reason `docs/product-quality-bar.md` lists
+ * keyboard as a state every feature is verified in.
+ *
+ * So the opener is captured and restored here instead:
+ *
+ * - **`onOpenAutoFocus` is the capture point**, because it is the last moment the
+ *   opener still has focus. `FocusScope` reads `document.activeElement`, dispatches
+ *   this event, and only then moves focus into the dialog
+ *   (`@radix-ui/react-focus-scope/dist/index.mjs:79-87`). Reading it from an effect
+ *   in this component would be too late — child effects run first, so focus is
+ *   already on the first tabbable control inside.
+ * - **`preventDefault()` on close suppresses the Radix handler**, since both the
+ *   modal and non-modal paths check `defaultPrevented` before touching
+ *   `triggerRef`. When a `DialogTrigger` *is* used it makes no difference: the
+ *   trigger is what had focus, so it is what was captured.
+ * - **A detached opener is left alone.** Deleting the row that owns the ⋯ menu is
+ *   the ordinary case for a destructive confirmation, and focusing a node that is
+ *   no longer in the document does nothing at all. Falling through gives Radix's
+ *   trigger-based restore its chance; a surface that knows where focus should land
+ *   after a delete passes its own `onCloseAutoFocus` and calls `preventDefault()`.
+ *
+ * `onOpenAutoFocus` capture happens before the caller's handler and `onCloseAutoFocus`
+ * restore after it, so a caller that wants to place focus itself wins both ways.
+ */
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const openerRef = useRef<HTMLElement | null>(null)
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onOpenAutoFocus={(event) => {
+          const active = document.activeElement
+          openerRef.current = active instanceof HTMLElement ? active : null
+          onOpenAutoFocus?.(event)
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          const opener = openerRef.current
+          openerRef.current = null
+          if (event.defaultPrevented || opener === null || !opener.isConnected) return
+          event.preventDefault()
+          opener.focus({ preventScroll: true })
+        }}
         className={cn(
           'fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
           'grid w-[calc(100%-2rem)] max-w-lg gap-4',
