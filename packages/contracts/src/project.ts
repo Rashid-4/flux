@@ -3,11 +3,14 @@ import { AuditStampSchema, InstantSchema, LocalDateSchema } from './common.js'
 import {
   ComponentIdSchema,
   FieldDefinitionIdSchema,
+  FieldKeySchema,
   IssueTypeIdSchema,
+  IssueTypeKeySchema,
   PermissionSchemeIdSchema,
   ProjectIdSchema,
   ProjectKeySchema,
   ProjectRoleIdSchema,
+  ProjectRoleKeySchema,
   ProjectVersionIdSchema,
   TeamIdSchema,
   UserIdSchema,
@@ -97,7 +100,7 @@ export const ProjectDetailSchema = ProjectSchema.extend({
   issueTypes: z.array(
     z.object({
       id: IssueTypeIdSchema,
-      key: z.string(),
+      key: IssueTypeKeySchema,
       name: z.string(),
       iconKey: z.string().nullable(),
       hierarchyLevel: z.number().int().min(0).max(4),
@@ -173,7 +176,7 @@ export const RenameProjectKeySchema = z.object({
 export const IssueTypeSchema = AuditStampSchema.extend({
   id: IssueTypeIdSchema,
   projectId: ProjectIdSchema.nullable(),
-  key: z.string().regex(/^[a-z][a-z0-9_]{0,30}$/),
+  key: IssueTypeKeySchema,
   name: z.string().min(1).max(60),
   description: z.string().max(500).nullable(),
   iconKey: z.string().nullable(),
@@ -257,7 +260,7 @@ export const ReleaseVersionSchema = z.object({
 export const ProjectRoleSchema = z.object({
   id: ProjectRoleIdSchema,
   projectId: ProjectIdSchema,
-  key: z.string().regex(/^[a-z][a-z0-9_]{0,30}$/),
+  key: ProjectRoleKeySchema,
   name: z.string().min(1).max(60),
   description: z.string().max(500).nullable(),
   /** Built in: cannot be deleted or renamed. */
@@ -302,7 +305,7 @@ export const ConfigurationAuditSchema = z.object({
   unusedFields: z.array(
     z.object({
       fieldDefinitionId: FieldDefinitionIdSchema,
-      key: z.string(),
+      key: FieldKeySchema,
       name: z.string(),
       usageCount: z.number().int(),
       projectsUsingIt: z.number().int(),

@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { FieldDefinitionIdSchema, IssueTypeIdSchema, ProjectIdSchema, UserIdSchema } from './ids.js'
+import {
+  FieldDefinitionIdSchema,
+  FieldKeySchema,
+  IssueTypeIdSchema,
+  ProjectIdSchema,
+  UserIdSchema,
+} from './ids.js'
 import { AuditStampSchema, LocalDateSchema, RichTextDocSchema } from './common.js'
 import { FilterNodeSchema } from './query.js'
 
@@ -150,7 +156,7 @@ export type FieldConfig = z.infer<typeof FieldConfigSchema>
 export const FieldDefinitionSchema = AuditStampSchema.extend({
   id: FieldDefinitionIdSchema,
   /** Immutable machine key used inside issues.custom_fields. */
-  key: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
+  key: FieldKeySchema,
   name: z.string().min(1).max(120),
   description: z.string().max(500).nullable(),
   fieldType: FieldTypeSchema,
@@ -165,7 +171,7 @@ export const FieldDefinitionSchema = AuditStampSchema.extend({
 export type FieldDefinition = z.infer<typeof FieldDefinitionSchema>
 
 export const CreateFieldDefinitionSchema = z.object({
-  key: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
+  key: FieldKeySchema,
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
   config: FieldConfigSchema,

@@ -80,7 +80,7 @@ does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 | `packages/mocks` | **67 tests passing.** Deterministic, contract-parsed fixtures for the UI to build against before the API exists. Frozen; overrides are the extension point. MSW handlers deliberately live in `apps/web/src/test/` |
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
-| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
+| `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type and doc-link drift audits. CodeQL cannot run on a private free-plan repo and now says so loudly instead of failing |
 | `services/api` | **not created.** The next major piece of build work, now owned here |
 | `apps/web` | **exists, and is the largest tree in the repo — 490 tests in 44 files.** That is not coverage: `components/ui/` (17 primitives) and `components/data/` (10) are tested *and* reviewed, and **27 modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
 | `apps/marketing` | **not created** |
@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Five distinct kinds of contract drift have now been found here, and each one was
-**invisible to the checks that catch the other four**. That is the pattern worth
+Six distinct kinds of contract drift have now been found here, and each one was
+**invisible to the checks that catch the other five**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -135,14 +135,15 @@ because none of them are visible to `tsc`, to review, or to each other.
 | enum **values** disagree with the CHECK behind them | ~25 | `check:enums` (0011) |
 | field **names** disagree with their column | 15 of 27 schemas | `check:columns` (0012) |
 | column **defaults** the contract would reject | 7 | `check:columns` (0016) |
+| one **field's type** disagrees with the same field elsewhere | 47 | `check:vocab` (CR-006) |
 | **error codes** the specs name and the enum lacks | 45 + 8 | `check:errors` |
 | **event types** the specs name and the enum lacks | 30 | `check:events` |
 | **section references** that resolve to the wrong section | 2 | `check:docs` |
 
-The last two are the same shape as the first three, one layer up: the specs are
-what a build agent implements, and a spec naming something the contract does not
-have describes code that cannot be written. The agent then invents a name, and the
-client switches on one that never arrives.
+The error-code, event-type and section-reference rows are the same shape as the
+first three, one layer up: the specs are what a build agent implements, and a spec
+naming something the contract does not have describes code that cannot be written.
+The agent then invents a name, and the client switches on one that never arrives.
 
 Error codes and event types differ in one respect worth remembering. An unknown
 error code fails on the way *out* of a request, where someone sees a status line.
@@ -155,6 +156,40 @@ permanently undeliverable, and nothing said so.
 duplicate entries in an 80-string hand-maintained enum, every type exactly
 `namespace.action` so `flux.<ns>.*` binds one level deep, and no payload schema
 keyed to a type that does not exist. All three were negative-tested.
+
+The **field-type** row is the one whose cost lands *outside* the contracts, which is
+why it survived the other five. `BoardCardSchema.priority` was `z.string()` while
+every other priority was `PrioritySchema`: it compiled, its column matched, and the
+CHECK behind that column holds exactly `PrioritySchema`'s six values — so
+`check:columns` and `check:enums` were both green, correctly. The bill arrived two
+layers away in a component, where the cast the loose type *forced* let an unmapped
+value reach a map lookup, `undefined.Icon` threw, and one odd card blanked the whole
+board through the error boundary. Loose here, crash there, and nothing in between
+could see it. `docs/change-requests/006-board-card-priority-type.md` has the full
+account; two things from writing the check are worth carrying to the next one.
+
+**Measure the instrument's coverage, not just its result.** The first survey walked
+the outermost `z.object` of each exported const — which is what "the schema's own
+fields" sounds like it means — and so never saw a property inside an
+array-of-objects, a nested object, or a `discriminatedUnion` member. That is **601
+of 1037** property sites, and seven further instances of the same defect were living
+in the 42% it could not reach. A survey reporting "601 fields, all clean" over a
+1037-field tree is the blind-spot shape below, one level up: it licenses the belief
+that the vocabulary is clean, and nobody re-reads the schemas by hand once a survey
+has said they are fine. Print the count.
+
+**Prefer the curation-free rule, and hold the curated one to its own standard.**
+`check:vocab` has both. Rule A — an inline `z.enum([...])` whose sorted value set
+equals a declared enum schema's *is* that schema, spelled out — needs no
+maintenance and cannot go stale; it found seven copies. Rule B pins 32 field names
+to one schema each, and only exists because `z.string()` has no values for Rule A to
+compare, which is precisely why the original defect was invisible. Because curation
+rots, the table is itself checked: a pinned name that appears in no schema fails, an
+exception matching no site fails, and an exception with an empty reason fails. That
+last one is not ceremony — "same name, different concept" is a claim, and the next
+reader needs the argument rather than the conclusion. The stale-entry rule proved
+itself on the first run by failing on an `eventId` entry whose real field was
+`triggerEventId`.
 
 ## A check that passes over a blind spot is worse than no check
 

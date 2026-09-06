@@ -156,6 +156,18 @@ jobs:
       - name: Audit tsconfig coverage and the no-ambient-types guarantee
         run: pnpm check:tsconfigs
 
+      # The sixth kind of drift, and the only one whose cost lands outside the
+      # contracts entirely. BoardCardSchema.priority was `z.string()` while every
+      # other priority was PrioritySchema: it compiled, it matched its column, and
+      # its CHECK holds the same six values — so check:columns and check:enums
+      # were both green. The bill arrived in a component, where the cast that the
+      # loose type forced let an unmapped value reach a map lookup and one card
+      # blanked the whole board through the error boundary. This holds 32 field
+      # names to one schema each and rejects an inline z.enum that copies a
+      # declared one; the exception list is itself checked for staleness.
+      - name: Audit field vocabularies
+        run: pnpm check:vocab
+
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.
       - name: Assert no test files in build output

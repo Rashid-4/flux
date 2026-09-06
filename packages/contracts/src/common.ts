@@ -13,6 +13,88 @@ export const StatusCategorySchema = z.enum(['todo', 'in_progress', 'done', 'canc
 export type StatusCategory = z.infer<typeof StatusCategorySchema>
 
 /**
+ * Priority. Six fixed values, and `issues.priority` carries a CHECK that
+ * enforces exactly these — `pnpm check:enums` compares the two.
+ *
+ * It lives here rather than in `issue.ts` because three modules read it: the
+ * issue read model, the board card, and the event snapshot. It used to live in
+ * `issue.ts`, which is why the board and the event payload each spelled it
+ * `z.string().nullable()` instead of importing it — CR-006. A vocabulary shared
+ * by three modules belongs in the shared module, next to `StatusCategorySchema`,
+ * which is shared for the same reason.
+ *
+ * This is deliberately a **closed** set, not a seeded one. Contrast
+ * `IssueTypeKeySchema`, whose *values* are tenant-defined — but note that even
+ * there the vocabulary is named and pattern-checked rather than left as
+ * `z.string()`. "Tenant-defined" bounds what the values may be, not whether they
+ * are described. If priority ever becomes tenant-configurable, this enum becomes
+ * the seeded default and every consumer needs a fallback for an unknown value —
+ * that is a change request, not an edit.
+ */
+export const PrioritySchema = z.enum(['blocker', 'critical', 'high', 'medium', 'low', 'trivial'])
+export type Priority = z.infer<typeof PrioritySchema>
+
+/**
+ * Issue link semantics. Here rather than in `issue.ts` for the same reason as
+ * `PrioritySchema`: the issue read model and the `issue.linked` event payload both
+ * need it, and the payload spelled the five values out inline instead of importing
+ * them — so adding a sixth link type would have changed one and not the other.
+ */
+export const LinkTypeSchema = z.enum(['blocks', 'relates_to', 'duplicates', 'causes', 'clones'])
+export type LinkType = z.infer<typeof LinkTypeSchema>
+
+/**
+ * Field references are namespaced so a custom field named `status` can
+ * never be confused with the built-in one:
+ *   `status`, `assignee`, `project`   → core columns
+ *   `cf:severity`                     → field_definitions.key
+ *   `parent.status`                   → one-hop relation
+ *
+ * It lived in `query.ts` because the filter AST was the first thing to need it.
+ * It is now the vocabulary of five modules — the AST, the change log, the event
+ * payload, the automation trigger, and the import reconciliation report — and
+ * four of the five spelled it `z.string()` because importing across to the query
+ * language module read wrong. Same reasoning as `PrioritySchema` above: a
+ * vocabulary shared by more than one module belongs in the shared module, or the
+ * modules that cannot reach it invent their own. CR-006.
+ *
+ * Not to be confused with a field *key*: a ref may be prefixed (`cf:`) or
+ * relation-qualified (`parent.status`), a key never is. See `FieldKeySchema`.
+ */
+export const FieldRefSchema = z
+  .string()
+  .regex(
+    /^(cf:)?[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)?$/,
+    'e.g. status, assignee, cf:severity, parent.status',
+  )
+export type FieldRef = z.infer<typeof FieldRefSchema>
+
+/**
+ * One field change as it is *displayed* — no raw values.
+ *
+ * Three surfaces render exactly this and nothing more: the issue history view
+ * (`IssueHistoryEntrySchema`), an automation dry run's per-issue preview
+ * (`SimulationReportSchema`), and — with `from`/`to` added — the
+ * `issue.updated` payload (`FieldChangeSchema` in `events.ts`). The first two
+ * had byte-identical inline copies of this object with `field: z.string()`,
+ * which is how the change log came to be described by three vocabularies at
+ * once. Declaring it once makes divergence structural rather than a matter of
+ * remembering. CR-006.
+ *
+ * `fromDisplay`/`toDisplay` are nullable but not optional: `null` is how a
+ * change with no meaningful rendering (a rich-text body) says so, and that is
+ * information. Absence would only mean the producer did not bother, which
+ * leaves every consumer to invent a fallback — and in practice that fallback
+ * renders a raw id at the user.
+ */
+export const DisplayedFieldChangeSchema = z.object({
+  field: FieldRefSchema,
+  fromDisplay: z.string().nullable(),
+  toDisplay: z.string().nullable(),
+})
+export type DisplayedFieldChange = z.infer<typeof DisplayedFieldChangeSchema>
+
+/**
  * Who performed an action. `kind` is not cosmetic: it is the difference
  * between "Rashid changed the priority" and "an automation rule changed
  * the priority", and it is surfaced in the UI on every history entry.

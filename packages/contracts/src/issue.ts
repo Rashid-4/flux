@@ -2,18 +2,24 @@ import { z } from 'zod'
 import {
   ActorSchema,
   AuditStampSchema,
+  DisplayedFieldChangeSchema,
   IdempotencyKeySchema,
   InstantSchema,
+  LinkTypeSchema,
   LocalDateSchema,
+  PrioritySchema,
   RichTextDocSchema,
   StatusCategorySchema,
 } from './common.js'
 import {
+  CommentIdSchema,
   ComponentIdSchema,
   IssueIdSchema,
   IssueKeySchema,
   IssueTypeIdSchema,
+  IssueTypeKeySchema,
   ProjectIdSchema,
+  ProjectKeySchema,
   ProjectVersionIdSchema,
   SecurityLevelIdSchema,
   SprintIdSchema,
@@ -21,14 +27,11 @@ import {
   UserIdSchema,
   WorkflowIdSchema,
   WorkflowStateIdSchema,
+  WorkflowTransitionIdSchema,
 } from './ids.js'
 import { AvailableTransitionSchema } from './workflow.js'
 
-export const PrioritySchema = z.enum(['blocker', 'critical', 'high', 'medium', 'low', 'trivial'])
-export type Priority = z.infer<typeof PrioritySchema>
-
-export const LinkTypeSchema = z.enum(['blocks', 'relates_to', 'duplicates', 'causes', 'clones'])
-export type LinkType = z.infer<typeof LinkTypeSchema>
+/** `PrioritySchema` and `LinkTypeSchema` moved to `common.ts`. See CR-006. */
 
 /**
  * Custom field values, keyed by FieldDefinition.key.
@@ -95,9 +98,9 @@ export type Issue = z.infer<typeof IssueSchema>
  * difference between Flux and Jira's issue view.
  */
 export const IssueDetailSchema = IssueSchema.extend({
-  projectKey: z.string(),
+  projectKey: ProjectKeySchema,
   projectName: z.string(),
-  issueTypeKey: z.string(),
+  issueTypeKey: IssueTypeKeySchema,
   issueTypeName: z.string(),
   hierarchyLevel: z.number().int(),
   statusName: z.string(),
@@ -208,7 +211,7 @@ export const UpdateIssueSchema = z.object({
 export type UpdateIssue = z.infer<typeof UpdateIssueSchema>
 
 export const TransitionIssueSchema = z.object({
-  transitionId: z.string().uuid(),
+  transitionId: WorkflowTransitionIdSchema,
   /** Values collected by the transition dialog (validators may require them). */
   fields: CustomFieldValuesSchema.default({}),
   comment: RichTextDocSchema.optional(),
@@ -250,7 +253,8 @@ export const BulkUpdateIssuesSchema = z.object({
 
 export const CreateCommentSchema = z.object({
   body: RichTextDocSchema,
-  parentId: z.string().uuid().optional(),
+  /** A COMMENT id — replying to a comment. Not the issue's parent. */
+  parentId: CommentIdSchema.optional(),
   isInternal: z.boolean().default(false),
   idempotencyKey: IdempotencyKeySchema,
 })
@@ -263,13 +267,7 @@ export const LinkIssueSchema = z.object({
 export const IssueHistoryEntrySchema = z.object({
   seq: z.number().int(),
   actor: ActorSchema,
-  changes: z.array(
-    z.object({
-      field: z.string(),
-      fromDisplay: z.string().nullable(),
-      toDisplay: z.string().nullable(),
-    }),
-  ),
+  changes: z.array(DisplayedFieldChangeSchema),
   createdAt: InstantSchema,
 })
 export type IssueHistoryEntry = z.infer<typeof IssueHistoryEntrySchema>

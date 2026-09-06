@@ -28,15 +28,30 @@ import { cn } from '@/lib/cn'
  *
  * ### Why there is a runtime fallback under a closed enum
  *
- * The prop stays `Priority | null` because that is the truth: `PrioritySchema` is
- * closed, and a typo should not compile. But `BoardCardSchema.priority` is typed
- * `z.string().nullable()` rather than `PrioritySchema.nullable()`, so a board card
- * has a plain string in hand and will reach for a cast. An unmapped key then makes
- * `PRIORITY[priority]` `undefined`, and `reading.Icon` throws — one unexpected value
- * blanking an entire board through the error boundary. The fallback renders the
- * unknown key as its own label instead, which is a visible oddity rather than a
- * white screen. The contract inconsistency itself is
- * docs/change-requests/006-board-card-priority-type.md.
+ * **The compiler now says this branch is unreachable, and it is still correct to
+ * keep.** Do not delete it as dead code.
+ *
+ * It was written because `BoardCardSchema.priority` was `z.string().nullable()`
+ * while this prop was `Priority | null`, so every board call site needed a cast —
+ * and an unmapped string made `PRIORITY[priority]` `undefined`, `reading.Icon`
+ * threw, and one odd value on one card out of two hundred blanked the whole board
+ * through the error boundary. That contract gap is closed:
+ * `docs/change-requests/006-board-card-priority-type.md` is **accepted and
+ * landed**, both the board card and the event snapshot now use
+ * `PrioritySchema.nullable()`, and the casts are gone.
+ *
+ * What remains is the case a type cannot rule out. A deploy that adds a seventh
+ * priority is served to tabs that are already open, running the previous bundle,
+ * whose `PRIORITY` map has six keys. The response parses — the *server's* schema
+ * knows the new value — and this component receives a `Priority` it has never
+ * heard of. Without the fallback that is a thrown `TypeError` mid-render on a
+ * board somebody is dragging cards around, which
+ * `docs/product-quality-bar.md` rules out under partial failure: one unknown row
+ * must degrade to a visible oddity, never take out the surface. The fallback
+ * renders the unknown key as its own label with a neutral glyph.
+ *
+ * `priority-icon.test.tsx` pins it, and the test needs a cast to reach it —
+ * that cast is the test doing its job, not a leak.
  */
 const PRIORITY = {
   blocker: { label: 'Blocker', Icon: OctagonAlert, className: 'text-danger-accent' },

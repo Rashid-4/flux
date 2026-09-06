@@ -95,6 +95,53 @@ export const ProjectKeySchema = z
   .regex(/^[A-Z][A-Z0-9]{1,9}$/, 'must be 2-10 uppercase alphanumerics starting with a letter')
 export type ProjectKey = z.infer<typeof ProjectKeySchema>
 
+/**
+ * ── The lower-case machine keys ──────────────────────────────────────────
+ *
+ * Four more key vocabularies live here for the same reason as the two above:
+ * each had its pattern written out at the one place that *creates* the row and
+ * a bare `z.string()` at every place that *reads* it, so the rule was documented
+ * and unenforced simultaneously. That is the CR-006 shape — a vocabulary with a
+ * canonical spelling somewhere and no spelling anywhere else — and
+ * `pnpm check:vocab` now holds each of them to one schema.
+ *
+ * They are four names rather than one because two of them happen to share a
+ * pattern *today*. Merging vocabularies on the strength of a coincident regex is
+ * how a later change to issue-type keys silently retypes project-role keys.
+ */
+
+/** Issue type key, e.g. `story`. Tenant-defined, immutable once created. */
+export const IssueTypeKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,30}$/)
+export type IssueTypeKey = z.infer<typeof IssueTypeKeySchema>
+
+/**
+ * Project role key, e.g. `developer`. Same pattern as an issue type key and a
+ * different vocabulary — see the note above.
+ */
+export const ProjectRoleKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,30}$/)
+export type ProjectRoleKey = z.infer<typeof ProjectRoleKeySchema>
+
+/**
+ * Team key, e.g. `platform-core`. Hyphens rather than underscores, because a
+ * team key appears in URLs.
+ */
+export const TeamKeySchema = z.string().regex(/^[a-z][a-z0-9-]{1,30}$/)
+export type TeamKey = z.infer<typeof TeamKeySchema>
+
+/**
+ * `field_definitions.key` — the immutable machine key used as a JSONB key inside
+ * `issues.custom_fields`. Longer than the others because it is user-authored.
+ *
+ * A field *key* is never prefixed or relation-qualified; `FieldRefSchema` in
+ * `common.ts` is the thing that may be (`cf:severity`, `parent.status`). The
+ * `fieldKey` properties on automation actions and transition post-functions are
+ * deliberately NOT narrowed to this yet: whether they may address a core field
+ * (`priority`) as well as a custom one decides whether they are keys or refs,
+ * and that is a product question. `docs/change-requests/008-field-key-vs-field-ref.md`.
+ */
+export const FieldKeySchema = z.string().regex(/^[a-z][a-z0-9_]{0,62}$/)
+export type FieldKey = z.infer<typeof FieldKeySchema>
+
 export function parseIssueKey(key: string): { projectKey: ProjectKey; number: number } {
   const parsed = IssueKeySchema.parse(key)
   const dash = parsed.lastIndexOf('-')

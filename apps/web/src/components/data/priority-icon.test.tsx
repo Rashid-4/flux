@@ -37,11 +37,14 @@ describe('PriorityIcon', () => {
   })
 
   /**
-   * `BoardCardSchema.priority` is `z.string().nullable()` rather than
-   * `PrioritySchema.nullable()`, so a board card holds a plain string and will cast
-   * to get here. Before the fallback, an unmapped value made the map lookup
-   * `undefined` and `reading.Icon` threw — one odd value taking out the whole board
-   * through the error boundary. See docs/change-requests/006.
+   * The cast is what makes this test possible, and it is deliberate. CR-006 landed:
+   * `BoardCardSchema.priority` is `PrioritySchema.nullable()`, so the compiler now
+   * says this branch is unreachable and no call site needs a cast any more. The
+   * branch is still reachable at runtime by a tab running yesterday's bundle after
+   * a deploy that adds a seventh priority — see the rationale on `PRIORITY` in
+   * ./priority-icon.tsx. Before the fallback existed, an unmapped value made the
+   * map lookup `undefined` and `reading.Icon` threw, taking out the whole board
+   * through the error boundary.
    */
   it('survives a priority outside the enum rather than throwing', () => {
     renderWithProviders(<PriorityIcon priority={'urgent-ish' as Priority} />)

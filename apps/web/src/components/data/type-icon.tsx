@@ -14,18 +14,26 @@ import { cn } from '@/lib/cn'
 /**
  * An issue type's glyph.
  *
- * `IssueType.key` is **not** a closed enum — it is `/^[a-z][a-z0-9_]{0,30}$/`,
- * and `BoardCard.issueTypeKey` is a plain string (the mock board uses `BUG`).
- * Mapping only the keys this product ships with, plus a fallback, is the
- * honest shape: a tenant-defined type must still render, it just does not get
- * a custom glyph until someone adds one here.
+ * `IssueTypeKeySchema` is **not** a closed enum — it is
+ * `/^[a-z][a-z0-9_]{0,30}$/`, and the values are tenant-defined. Mapping only
+ * the keys this product ships with, plus a fallback, is the honest shape: a
+ * tenant-defined type must still render, it just does not get a custom glyph
+ * until someone adds one here.
+ *
+ * The `.toLowerCase()` below is now belt-and-braces rather than load-bearing.
+ * It was load-bearing: `BoardCardSchema.issueTypeKey` was `z.string()` and the
+ * mock board shipped `BUG`, so the map lookup missed and every bug card fell
+ * through to the generic glyph. CR-006 gave the field its schema, the pattern
+ * is lower-case only, and the fixture was corrected. Keep the call: the prop is
+ * still typed `string`, so a hand-written call site can pass anything, and a
+ * case fold is cheaper than a wrong icon.
  *
  * Icons are named imports, not `lucide-react[name]`. A string-to-module map
  * ships the whole set; AGENTS.md's Lucide rule exists to stop that.
  *
  * ### The key is required, because an issue always has a type
  *
- * `BoardCardSchema.issueTypeKey` is `z.string()`, not nullable. This prop used to
+ * `BoardCardSchema.issueTypeKey` is `IssueTypeKeySchema`, not nullable. This prop used to
  * accept `null` and render a `Skeleton` for it, which gave one value a meaning the
  * contract does not have — and the same `null` means *absent* in
  * `./relative-time.tsx`, `./user-avatar.tsx` and `./priority-icon.tsx`, where the

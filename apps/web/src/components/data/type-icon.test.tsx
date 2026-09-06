@@ -5,7 +5,15 @@ import { renderWithProviders } from '@/test/render'
 import { TypeIcon } from './type-icon'
 
 describe('TypeIcon', () => {
-  it('maps the mock board key case-insensitively', async () => {
+  /**
+   * The case fold is no longer needed for anything the API can send —
+   * `IssueTypeKeySchema` is lower-case only since CR-006, and the mock board's
+   * `BUG` was corrected to `bug` in the same change. It is still pinned, because
+   * the prop is typed `string`: this asserts that a caller who passes the wrong
+   * case gets the right glyph rather than the fallback, and that `data-issue-type`
+   * reflects what was passed rather than what was looked up.
+   */
+  it('folds case on lookup without rewriting the value it reports', async () => {
     const { container } = renderWithProviders(<TypeIcon issueTypeKey="BUG" />)
     expect(screen.getByRole('img', { name: 'Bug' })).toHaveAttribute('data-issue-type', 'BUG')
     await expectNoAxeViolations(container)
