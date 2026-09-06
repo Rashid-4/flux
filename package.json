@@ -28,6 +28,7 @@
     "check:errors": "node scripts/check-error-codes.mjs",
     "check:events": "node scripts/check-event-types.mjs",
     "check:docs": "node scripts/check-doc-links.mjs",
+    "check:tsconfigs": "node scripts/check-tsconfig-coverage.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:integration": "node scripts/check-integration-suites.mjs"

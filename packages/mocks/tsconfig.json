@@ -1,34 +1,68 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * The project a language server discovers. Checks everything,
+     * including the tests. `tsconfig.src.json` holds the guarantee.
+     * ═══════════════════════════════════════════════════════════════════
+     *
+     * A TypeScript language server finds a project only through a file *named*
+     * `tsconfig.json`. Any other name is a config that only a command line will
+     * pass with `-p`, so a file this one `exclude`s belongs to no project at all
+     * and the editor checks it in an **inferred** project: default options, no
+     * `paths`, no `types`, **no `strict`**.
+     *
+     * This package used to exclude `src/**\/*.test.ts` here and hand the tests
+     * to a `tsconfig.test.json`, with `pnpm typecheck` invoking both by hand. CI
+     * was green and correct, and every test file in the package was being
+     * checked in the editor against weaker rules than CI, with nothing saying
+     * so. `apps/web` had the identical arrangement and it cost 117 phantom
+     * errors there; here it cost the opposite and worse — **silence**. These
+     * tests import relatively and take their matchers from `vitest` explicitly,
+     * so they produced no visible errors while quietly not being held to
+     * `strict`. That is the blind-spot shape, not the loud-failure shape, and
+     * CLAUDE.md's rule is that a check passing over a blind spot is worse than
+     * no check.
+     *
+     * ### Why `types: ["node"]` here, when this package's whole point is `[]`
+     *
+     * The no-ambient-API guarantee — no `crypto.randomUUID()`, no `process.env`
+     * — **now lives in `tsconfig.src.json` alone**, and `pnpm typecheck` runs
+     * both configs so CI still enforces it.
+     *
+     * That is a real loss, and the measurement that forced it is worth keeping
+     * because the obvious alternative looks like it works. Declaring `types: []`
+     * over source *and* tests compiles clean, which reads as proof the tests
+     * never needed node. It is not: excluding the test files from the very same
+     * config makes `process.env` in a source file fail with TS2591 again. The
+     * tests were not surviving `types: []`, they were **supplying** the node
+     * globals — `import { describe } from 'vitest'` pulls `@vitest/*`
+     * declarations that reference `@types/node`, and an ambient type reached by
+     * any file in a program is available to every file in it.
+     *
+     * So the tests and the guarantee cannot share one program. The editor gets
+     * the tests, because the failure modes are not symmetrical: an unchecked
+     * test file is invisible indefinitely, whereas a `process.env` in a fixture
+     * is caught by `pnpm typecheck` in minutes. `["node"]` is declared rather
+     * than left to arrive through vitest, so the editor's behaviour does not
+     * silently depend on which packages a test imports.
+     *
+     * **While editing a fixture, this config will not stop you reading the
+     * environment.** `tsconfig.src.json` will, and so will CI.
+     */
     "noEmit": true,
     /** composite + noEmit are incompatible; this config only ever checks. */
     "composite": false,
     "declaration": false,
     "declarationMap": false,
-    /**
-     * NO ambient types AT ALL — not `["node"]`, not `["vite/client"]`.
-     *
-     * @flux/contracts restricts itself to node types so it can never
-     * reference the DOM. This package has the harder constraint: it is
-     * imported by `apps/web` (browser), by that app's vitest run (jsdom),
-     * and eventually by a worker's suite (node). Anything ambient it relied
-     * on would work in one of those and fail in the others, and the failure
-     * would land on the agent that imported it rather than on the agent that
-     * introduced it.
-     *
-     * The practical consequences, both deliberate:
-     *   • no `crypto.randomUUID()` — ids are derived by a pure hash instead
-     *     (determinism.ts), which is also what makes them stable
-     *   • no `process.env` — a fixture that reads the environment is not a
-     *     fixture
-     *
-     * This is the config that enforces it, so `pnpm typecheck` runs
-     * tsconfig.test.json (which adds node types for the test files) *and*
-     * this one. Dropping either half loses the guarantee.
-     */
-    "types": []
+    "types": ["node"]
   },
+  /**
+   * Tests included — that is the entire point of this file. Vitest strips types
+   * with esbuild and never typechecks, so a test could otherwise reference a
+   * fixture field that no longer exists and still pass.
+   */
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+  "exclude": ["dist", "node_modules"]
 }

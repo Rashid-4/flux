@@ -144,6 +144,18 @@ jobs:
       - name: Audit doc links and section references
         run: pnpm check:docs
 
+      # `typecheck` cannot catch this by construction: it names its configs by
+      # hand, so it is green whether or not the editor sees the same program. A
+      # language server discovers a project only through a file *named*
+      # tsconfig.json, and all three packages once excluded their tests from it —
+      # which showed 117 errors that did not exist in apps/web and, worse,
+      # nothing at all in contracts and mocks, where the tests were quietly
+      # checked without `strict`. This also asserts that a `types: []` config
+      # still excludes the tests: one that includes them is a no-op that passes,
+      # because a test importing vitest pulls @types/node into the whole program.
+      - name: Audit tsconfig coverage and the no-ambient-types guarantee
+        run: pnpm check:tsconfigs
+
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.
       - name: Assert no test files in build output

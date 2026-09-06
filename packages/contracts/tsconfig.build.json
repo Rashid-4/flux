@@ -1,0 +1,56 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * The config that emits. `tsconfig.json` is the one editors discover.
+     * ═══════════════════════════════════════════════════════════════════
+     *
+     * This *was* `tsconfig.json`, and the rename is the fix: an editor only
+     * discovers a project called `tsconfig.json`, so whichever config holds
+     * that name decides what the editor checks — and the emit config cannot
+     * hold it, because it must exclude the tests to keep them out of `dist/`
+     * and out of the emitted `.d.ts`. Excluding them from the *discovered*
+     * project is what left them checked in an inferred project with no
+     * `strict`. See `tsconfig.json`'s header.
+     *
+     * Three things this config is the sole owner of, so none can be dropped by
+     * "simplifying" the pair back into one file:
+     *
+     * 1. **`types: []` — the no-ambient-types guarantee, and this is now the
+     *    only place it holds.** This package must typecheck under the
+     *    intersection of browser, node and jsdom, because it is imported by all
+     *    three as source; `lib: ES2023` (from the repo base) keeps the DOM out
+     *    and this keeps node out. A schema file reaching for `process.env` or
+     *    `Buffer` compiles in a browser bundle right up until it does not.
+     *
+     *    It cannot also hold in `tsconfig.json`, and the reason is measured
+     *    rather than assumed: that config includes the test files, one
+     *    `import { describe } from 'vitest'` pulls `@vitest/*` declarations that
+     *    reference `@types/node`, and an ambient type reached by *any* file in a
+     *    program is available to *every* file in it. Excluding the tests from an
+     *    otherwise identical config brings TS2591 straight back. So the tests
+     *    and the guarantee cannot share one program, and the editor was given
+     *    the tests. **`pnpm typecheck` must therefore keep running this config**
+     *    — dropping it from the script loses the guarantee outright, with a
+     *    green tick either way.
+     * 2. **Declaration emit.** `--noEmit` hides the entire TS4023 class of
+     *    failures ("cannot be named without a reference to..."), which only
+     *    appear when a `.d.ts` is actually written. CLAUDE.md's working
+     *    agreements say so.
+     * 3. **`rootDir: src` with the tests excluded**, which is what keeps
+     *    `dist/` free of test files and their declarations.
+     *
+     * It extends the repo base directly rather than `./tsconfig.json`, so its
+     * emit settings are not written as overrides of a `noEmit: true` parent —
+     * and, more to the point, so `types` is set here outright instead of
+     * narrowing a parent's. The two are siblings with one owner each.
+     */
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}
