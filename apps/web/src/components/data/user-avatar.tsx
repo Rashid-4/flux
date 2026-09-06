@@ -7,15 +7,27 @@ import { cn } from '@/lib/cn'
  * A person, as the product renders them.
  *
  * The primitive in `ui/avatar` is a box. This is the person: initials from
- * `displayName`, a hash-stable `data-tone` so a later palette can colour them
- * without a layout shift, and a greyed treatment when `UserRef.isInactive` —
- * Linus, the fixture for "assigned to someone who left".
+ * `displayName`, a hash-stable tone that colours the disc, and a greyed treatment
+ * when `UserRef.isInactive` — Linus, the fixture for "assigned to someone who
+ * left". Inactive is `opacity-50` over the person's own hue rather than a ninth
+ * colour, so a departed assignee still reads as the same person.
  *
- * There is no per-user hue token yet (`tokens.css` deletes Tailwind's default
- * palette on purpose). Shipping invented hex here would fail lint and, worse,
- * paint eight unmeasured pairs. So every tone currently shares `surface-2` /
- * `fg-muted` (7.41:1 / 6.97:1) and the attribute is the stable contract; the
- * palette itself is docs/change-requests/004-entity-colour-palette.md.
+ * ### Eight measured hues, written out one at a time
+ *
+ * `tokens.css` declares eight `--entity-*` fill and foreground pairs — every one
+ * measured in both themes, 6.19:1 in light and 6.75:1 or better in dark, and
+ * checked on every test run by `design/contrast.test.ts`. `data-tone` stays on the
+ * element beside the class, because it is what a test and a screenshot diff read,
+ * and neither should have to parse a class list to find out who is who.
+ *
+ * The pairs are spelled out in `TONE_CLASSES` because `bg-entity-${tone}` produces
+ * no CSS at all. Tailwind v4 finds utilities by scanning source text, so a class
+ * that only exists once a template literal has run is a class it never sees: the
+ * disc would paint with no background, silently, in the one state — a user whose
+ * avatar image is missing — that no build step can fail on. `TONE_COUNT` is that
+ * table's length rather than a second `8`, so the hash cannot address a tone the
+ * table does not have. See docs/change-requests/004-entity-colour-palette.md for
+ * why the palette is indices rather than names.
  *
  * ### `null` is unassigned, and never "loading"
  *
@@ -37,7 +49,18 @@ import { cn } from '@/lib/cn'
  * than as a person whose name failed to load. It keeps the box the same size, so
  * assigning someone does not reflow the row.
  */
-const TONE_COUNT = 8
+const TONE_CLASSES = [
+  'bg-entity-0 text-entity-0-fg',
+  'bg-entity-1 text-entity-1-fg',
+  'bg-entity-2 text-entity-2-fg',
+  'bg-entity-3 text-entity-3-fg',
+  'bg-entity-4 text-entity-4-fg',
+  'bg-entity-5 text-entity-5-fg',
+  'bg-entity-6 text-entity-6-fg',
+  'bg-entity-7 text-entity-7-fg',
+] as const
+
+const TONE_COUNT = TONE_CLASSES.length
 
 export type UserAvatarSize = 'sm' | 'md' | 'lg'
 
@@ -131,7 +154,9 @@ export function UserAvatar({
       className={cn(user.isInactive && 'opacity-50', className)}
     >
       {user.avatarUrl !== null && <AvatarImage src={user.avatarUrl} alt={user.displayName} />}
-      <AvatarFallback aria-hidden="true">{initials}</AvatarFallback>
+      <AvatarFallback aria-hidden="true" className={TONE_CLASSES[tone]}>
+        {initials}
+      </AvatarFallback>
     </Avatar>
   )
 }

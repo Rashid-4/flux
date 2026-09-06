@@ -81,6 +81,25 @@ export const COLOR_KEYS = [
   'neutral-solid',
   'neutral-soft',
   'neutral-soft-fg',
+  // Per-person avatar fills. Indices, not names: the hue is an identity, so it
+  // carries no meaning to name it by. `UserAvatar` derives the index from a hash
+  // of the user id; `tokens.css` documents the construction.
+  'entity-0',
+  'entity-0-fg',
+  'entity-1',
+  'entity-1-fg',
+  'entity-2',
+  'entity-2-fg',
+  'entity-3',
+  'entity-3-fg',
+  'entity-4',
+  'entity-4-fg',
+  'entity-5',
+  'entity-5-fg',
+  'entity-6',
+  'entity-6-fg',
+  'entity-7',
+  'entity-7-fg',
   'ring',
 ] as const
 

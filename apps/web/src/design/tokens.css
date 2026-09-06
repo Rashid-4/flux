@@ -48,6 +48,29 @@
 
 @import 'tailwindcss';
 
+/*
+ * Test files do not generate CSS.
+ *
+ * Tailwind v4 finds utilities by scanning source text, and with no `@source` at all
+ * it scans everything the project is not ignoring — `*.test.tsx` included. So a
+ * class name written in an assertion emits a real rule in the shipped stylesheet.
+ * Measured before adding this line: `.h-40` and `.h-80` were both in
+ * `dist/assets/index-*.css`, and neither appears in a single component. Two dead
+ * rules is nothing; the mechanism is not nothing.
+ *
+ * A test that spells a class out is how a *component* that fails to spell it out
+ * goes unnoticed. `bg-entity-${tone}` produces no CSS, which is why
+ * `components/data/user-avatar.tsx` holds a literal table — but if the avatar's own
+ * test listed the eight class names, Tailwind would emit them from the test file and
+ * the broken component would paint correctly in the browser and in every screenshot.
+ * The check would pass and the thing it checks would be gone. Excluding tests from
+ * the scan means a utility exists because production code asked for it.
+ *
+ * Nothing in the test suite depends on the stylesheet: jsdom never loads it, and
+ * every assertion is on class names rather than computed styles.
+ */
+@source not '../**/*.test.{ts,tsx}';
+
 /* -------------------------------------------------------------------------- */
 /* 1. Dark variant                                                            */
 /* -------------------------------------------------------------------------- */
@@ -85,12 +108,16 @@
   --overlay: oklch(0.209 0.009 264.4 / 0.42);
 
   /* -- Text ---------------------------------------------------------------- */
-  /* #16181c — 17.8:1 on surface, 15.7:1 on canvas. */
-  --fg: oklch(0.209 0.009 264.4);
-  /* Secondary text: descriptions, values in a label/value row. #4a5261 — 7.9:1 */
-  --fg-muted: oklch(0.437 0.027 263);
-  /* Meta and placeholders: counts, timestamps, section labels. #63697a — 5.5:1 */
-  --fg-subtle: oklch(0.522 0.028 270);
+  /* The ratios are written beside the token in the form `N:1 on --token` because
+     that is the form `contrast.test.ts` parses: it re-measures every claim in this
+     file from the value itself, so a number here is checked rather than promised.
+     Each of these three is also asserted against all four surfaces, since text
+     lands on a hover row and a filter bar as often as on a card. */
+  --fg: oklch(0.209 0.009 264.4); /* #16181c — 17.77:1 on --surface, 15.68:1 on --canvas */
+  /* Secondary text: descriptions, values in a label/value row. */
+  --fg-muted: oklch(0.437 0.027 263); /* #4a5261 — 7.86:1 on --surface */
+  /* Meta and placeholders: counts, timestamps, section labels. */
+  --fg-subtle: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface, 4.83:1 on --canvas */
 
   /* -- Lines --------------------------------------------------------------- */
   /* Decorative separators and card edges. Exempt from 1.4.11: a card is not a
@@ -129,8 +156,14 @@
   /* Violet as a *foreground*: links, active tab text, the focus ring. #5f3dff
      — 5.8:1 on surface, 5.2:1 on canvas. */
   --primary-accent: oklch(0.535 0.265 280.6);
-  /* Selected row / active nav tint. #f0ecff */
-  --primary-soft: oklch(0.952 0.026 295.6);
+  /* Selected row / active nav tint. #f0ecff
+     0.025 rather than 0.026: at this lightness sRGB runs out of blue, and 0.026
+     sat 0.0024 outside the gamut in linear-light terms. The browser gamut-maps
+     an out-of-range oklch() by reducing chroma, so the *painted* colour was
+     already this one — 0.025 says so instead of relying on the round trip
+     through a clip. Measured by `contrast.test.ts`, which asserts every colour
+     in this file is displayable. */
+  --primary-soft: oklch(0.952 0.025 295.6);
   /* #4c2fd4 — 6.8:1 on primary-soft. */
   --primary-soft-fg: oklch(0.462 0.233 280.2);
 
@@ -149,44 +182,114 @@
        -fg        text on -solid
        -soft      tinted chip background
        -soft-fg   text on -soft
-     A chip is -soft + -soft-fg with a dot in -solid. */
+     A chip is -soft + -soft-fg with a dot in -solid.
 
-  /* #188253 4.8:1 / #209e64 sampled / #e3f5ec / #0f6642 6.2:1 */
-  --success-accent: oklch(0.538 0.118 158.1);
-  --success-solid: oklch(0.62 0.137 157.3);
-  --success-fg: oklch(1 0 89.9);
-  --success-soft: oklch(0.954 0.022 164.5);
-  --success-soft-fg: oklch(0.452 0.098 159.4);
+     `-solid` is a *fill*, and two of them cannot carry text. White on the light
+     green is 3.42:1 and on the light blue 3.98:1 — both clear the 3:1 a graphic
+     needs and neither clears the 4.5:1 text needs, which is why `-accent` exists
+     and why nothing in the product renders a label on either. The two that do
+     carry text are measured beside them below: amber with dark text at 9.26:1
+     (the only light `-solid` a chip may print on) and red with white at 4.80:1,
+     which is the destructive button. Reach for `-accent` on a `-soft` background,
+     not for white on a `-solid`; `contrast.test.ts` fails a new pair that gets
+     this wrong. */
 
-  /* Amber cannot be both legible as text on white and the vivid #f2af2d of the
+  --success-accent: oklch(0.538 0.118 158.1); /* #188253 — 4.82:1 on --surface */
+  --success-solid: oklch(0.62 0.137 157.3); /* #219e64 — fill only, 3.42:1 on --surface */
+  --success-fg: oklch(1 0 89.9); /* #ffffff */
+  --success-soft: oklch(0.954 0.022 164.5); /* #e3f5ec */
+  --success-soft-fg: oklch(0.452 0.098 159.4); /* #0e6642 — 6.18:1 on --success-soft */
+
+  /* Amber cannot be both legible as text on white and the vivid amber of the
      reference, so it is both: a dark amber for text, the sampled amber for the
-     dot. #a16207 4.9:1 / #f2af2d / #fdf0da / #8a5406 5.6:1 */
-  --warning-accent: oklch(0.554 0.121 66.4);
-  --warning-solid: oklch(0.797 0.154 78.4);
-  /* Dark text on the amber fill — white on it is 1.9:1. #16181c — 9.3:1 */
-  --warning-fg: oklch(0.209 0.009 264.4);
-  --warning-soft: oklch(0.96 0.032 81);
-  --warning-soft-fg: oklch(0.496 0.107 67);
+     dot. */
+  --warning-accent: oklch(0.554 0.121 66.4); /* #a16206 — 4.92:1 on --surface */
+  --warning-solid: oklch(0.797 0.154 78.4); /* #f2af2d — sampled from the reference */
+  /* Dark text on the amber fill — white on it is 1.9:1. */
+  --warning-fg: oklch(0.209 0.009 264.4); /* #16181c — 9.26:1 on --warning-solid */
+  --warning-soft: oklch(0.96 0.032 81); /* #fdf0da */
+  --warning-soft-fg: oklch(0.496 0.107 67); /* #8a5407 — 5.56:1 on --warning-soft */
 
-  /* #1f6fe0 4.8:1 / #2f7ff0 / #e7f0fd / #1559b8 5.8:1 */
-  --info-accent: oklch(0.56 0.188 258.5);
-  --info-solid: oklch(0.603 0.183 256.9);
-  --info-fg: oklch(1 0 89.9);
-  --info-soft: oklch(0.952 0.02 257.5);
-  --info-soft-fg: oklch(0.481 0.164 258.5);
+  --info-accent: oklch(0.56 0.188 258.5); /* #1f6fe0 — 4.76:1 on --surface */
+  /* #2a7eeb, approaching the reference's #2f7ff0 as closely as this lightness
+     allows — the sample itself is a touch brighter than sRGB reaches here. */
+  --info-solid: oklch(0.603 0.183 256.9); /* #2a7eeb — fill only, 3.98:1 on --surface */
+  --info-fg: oklch(1 0 89.9); /* #ffffff */
+  --info-soft: oklch(0.952 0.02 257.5); /* #e7f0fd */
+  --info-soft-fg: oklch(0.481 0.164 258.5); /* #1559b8 — 5.80:1 on --info-soft */
 
-  /* #c4262c 5.7:1 / #d92d33 white 4.8:1 / #fdeced / #a71d23 6.5:1 */
-  --danger-accent: oklch(0.534 0.193 25.2);
-  --danger-solid: oklch(0.578 0.207 25.2);
-  --danger-hover: oklch(0.528 0.191 25.2);
-  --danger-fg: oklch(1 0 89.9);
-  --danger-soft: oklch(0.957 0.019 13.4);
-  --danger-soft-fg: oklch(0.473 0.173 25.2);
+  --danger-accent: oklch(0.534 0.193 25.2); /* #c4262c — 5.74:1 on --surface */
+  --danger-solid: oklch(0.578 0.207 25.2); /* #d92d33 */
+  --danger-hover: oklch(0.528 0.191 25.2); /* #c1252b */
+  --danger-fg: oklch(1 0 89.9); /* #ffffff — 4.80:1 on --danger-solid */
+  --danger-soft: oklch(0.957 0.019 13.4); /* #fdeced */
+  --danger-soft-fg: oklch(0.473 0.173 25.2); /* #a71d23 — 6.47:1 on --danger-soft */
 
-  /* The unstyled chip: labels, counts, "todo". #eef1f4 / #4a5261 6.9:1 */
-  --neutral-solid: oklch(0.522 0.028 270);
-  --neutral-soft: oklch(0.957 0.005 247.9);
-  --neutral-soft-fg: oklch(0.437 0.027 263);
+  /* The unstyled chip: labels, counts, "todo". */
+  --neutral-solid: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface */
+  --neutral-soft: oklch(0.957 0.005 247.9); /* #eef1f4 */
+  --neutral-soft-fg: oklch(0.437 0.027 263); /* #4a5261 — 6.94:1 on --neutral-soft */
+
+  /* -- Entity -------------------------------------------------------------- */
+  /* Eight hues that identify a *person*: the fill behind their initials in an
+     avatar. Not status and not brand — no hue here means anything. It only has
+     to be stable for one user and distinguishable from the next, which is what
+     makes a wall of assignees scannable. `UserAvatar` picks the index by hashing
+     the user id, so the same person is the same colour on every surface.
+
+     Constructed, not picked. Every fill is `oklch(0.855 0.06 h)` and every
+     foreground `oklch(0.39 0.062 h)`, so all sixteen values below come from four
+     numbers and one list of angles. That is the whole point of doing it this way:
+     with L and C held constant the foreground ratio is 6.11:1–6.23:1 across all
+     eight, no single hue can be nudged into a failing state, and a ninth entity
+     is a choice of angle rather than a re-measured palette.
+
+     The chroma is a gamut ceiling, not a taste. The widest constant chroma that
+     keeps all eight hues inside sRGB at these lightnesses is 0.071, and teal
+     (h 190) is what binds it; 0.06 leaves the tightest of the sixteen 0.0044 of
+     headroom in linear-light channel terms. Past the ceiling the browser
+     gamut-maps and the hue that gets painted is no longer the hue declared.
+
+     The angles are hand-chosen rather than an arithmetic sequence, and the gaps
+     are deliberately uneven — 38° to 58°. A constant step would be the obvious
+     construction and it is the wrong one: OKLCH's hue angle is not perceptually
+     uniform, so 45° buys a large difference through the blues and almost none
+     through the yellow-greens, where two low-chroma fills 45° apart both read as
+     the same drab sand. The gaps are widest where the eye is least sensitive.
+     Minimum separation is 38°, which `contrast.test.ts` asserts rather than
+     trusting the list.
+
+     --entity-6 (h 278) does sit within 6° of --primary (283.7), which is worth
+     saying out loud rather than leaving to be discovered. It is not a collision:
+     at C 0.06 and L 0.855 it is a pale lavender, --primary is C 0.251 at L 0.562,
+     and the selected-row tint --primary-soft is C 0.026 at L 0.952. Hue is not
+     what separates a 24px disc with initials in it from a filled button or a
+     tinted row — none of those three could be mistaken for each other at any hue.
+
+     SC 1.4.11 does not apply to the fill: the initials and the accessible name
+     carry the identity, so the hue is redundant recognition — the same call
+     --border makes above. A visibility floor is enforced regardless, because a
+     disc nobody can see is a design failure wherever it is not a conformance
+     failure. Worst fill against each surface a disc can sit on: 1.51:1 on
+     --surface, 1.42:1 on --surface-2, 1.36:1 on --surface-3, 1.34:1 on --canvas.
+     Two discs never meet hue-to-hue — `AvatarGroup` cuts each one out of its
+     neighbour with `ring-2 ring-surface`. */
+  --entity-0: oklch(0.855 0.06 20); /* #f4c0bf */
+  --entity-0-fg: oklch(0.39 0.062 20); /* #623737 — 6.19:1 on --entity-0 */
+  --entity-1: oklch(0.855 0.06 58); /* #eec6a9 */
+  --entity-1-fg: oklch(0.39 0.062 58); /* #5e3c22 — 6.19:1 on --entity-1 */
+  --entity-2: oklch(0.855 0.06 96); /* #dbd0a3 */
+  --entity-2-fg: oklch(0.39 0.062 96); /* #4f451a — 6.17:1 on --entity-2 */
+  --entity-3: oklch(0.855 0.06 145); /* #b8dab8 */
+  --entity-3-fg: oklch(0.39 0.062 145); /* #2f4e30 — 6.11:1 on --entity-3 */
+  --entity-4: oklch(0.855 0.06 190); /* #a2ddd8 */
+  --entity-4-fg: oklch(0.39 0.062 190); /* #0e4f4c — 6.19:1 on --entity-4 */
+  --entity-5: oklch(0.855 0.06 235); /* #aad6f2 */
+  --entity-5-fg: oklch(0.39 0.062 235); /* #1f4a61 — 6.16:1 on --entity-5 */
+  --entity-6: oklch(0.855 0.06 278); /* #c6ccf7 */
+  --entity-6-fg: oklch(0.39 0.062 278); /* #3d4166 — 6.23:1 on --entity-6 */
+  --entity-7: oklch(0.855 0.06 322); /* #e3c3e7 */
+  --entity-7-fg: oklch(0.39 0.062 322); /* #553a59 — 6.19:1 on --entity-7 */
 
   /* -- Focus --------------------------------------------------------------- */
   --ring: oklch(0.535 0.265 280.6);
@@ -259,7 +362,7 @@
   --contrast-fg: oklch(0.209 0.009 264.4);
 
   /* -- Status -------------------------------------------------------------- */
-  --success-accent: oklch(0.687 0.138 159.9); /* #34b47c — 6.8:1 */
+  --success-accent: oklch(0.687 0.138 159.9); /* #35b47c — 6.75:1 on --surface */
   --success-solid: oklch(0.687 0.138 159.9);
   --success-fg: oklch(0.154 0.005 264.4);
   --success-soft: oklch(0.245 0.031 162.5); /* #12251c */
@@ -282,11 +385,49 @@
   --danger-hover: oklch(0.626 0.193 23);
   --danger-fg: oklch(1 0 89.9);
   --danger-soft: oklch(0.233 0.037 14.8); /* #2d1618 */
-  --danger-soft-fg: oklch(0.833 0.093 17.6); /* #ffb0b2 — 9.8:1 */
+  /* 0.092, not 0.093: red is the channel sRGB runs out of first at this
+     lightness, and 0.093 sat 0.0009 outside the gamut — close enough that the
+     clip cost nothing visually and far enough that the declared colour was not
+     the painted one. Same hex either way. */
+  --danger-soft-fg: oklch(0.833 0.092 17.6); /* #ffb0b2 — 9.8:1 on --danger-soft */
 
   --neutral-solid: oklch(0.662 0.018 250.9);
   --neutral-soft: oklch(0.246 0.009 255.6);
   --neutral-soft-fg: oklch(0.738 0.019 253.4);
+
+  /* -- Entity -------------------------------------------------------------- */
+  /* The same eight angles, inverted: a dark fill with light initials on it. Fill
+     is `oklch(0.4 0.06 h)` and foreground `oklch(0.9 0.048 h)`, giving 6.75:1 to
+     6.94:1 across all eight.
+
+     0.4 is a floor, not a preference. The dark surfaces occupy L 0.154 to 0.287,
+     so a fill anywhere inside that band disappears into one of them — the first
+     attempt at 0.305 measured 1.04:1 against --surface-3, which is a hover row.
+     A dark fill has to sit *above* the tallest surface, for the reason --raised
+     gives above: elevation in a dark theme is lightness. Worst fill against each
+     surface: 1.87:1 on --surface, 1.70:1 on --surface-2, 1.50:1 on --surface-3,
+     2.06:1 on --canvas.
+
+     The foreground chroma drops to 0.048 because the gamut ceiling falls with
+     lightness in the other direction too: at L 0.9 the widest constant chroma
+     holding all eight hues is 0.050. The tightest of the sixteen sits 0.0052
+     inside the boundary, at h 278. */
+  --entity-0: oklch(0.4 0.06 20); /* #643a3a */
+  --entity-0-fg: oklch(0.9 0.048 20); /* #fdd2d1 — 6.94:1 on --entity-0 */
+  --entity-1: oklch(0.4 0.06 58); /* #603f26 */
+  --entity-1-fg: oklch(0.9 0.048 58); /* #f7d7bf — 6.90:1 on --entity-1 */
+  --entity-2: oklch(0.4 0.06 96); /* #51471f */
+  --entity-2-fg: oklch(0.9 0.048 96); /* #e7dfbb — 6.90:1 on --entity-2 */
+  --entity-3: oklch(0.4 0.06 145); /* #325033 */
+  --entity-3-fg: oklch(0.9 0.048 145); /* #cbe7cb — 6.79:1 on --entity-3 */
+  --entity-4: oklch(0.4 0.06 190); /* #16524f */
+  --entity-4-fg: oklch(0.9 0.048 190); /* #bbe9e5 — 6.75:1 on --entity-4 */
+  --entity-5: oklch(0.4 0.06 235); /* #234d63 */
+  --entity-5-fg: oklch(0.9 0.048 235); /* #c0e4fa — 6.80:1 on --entity-5 */
+  --entity-6: oklch(0.4 0.06 278); /* #404468 */
+  --entity-6-fg: oklch(0.9 0.048 278); /* #d6dcfe — 6.92:1 on --entity-6 */
+  --entity-7: oklch(0.4 0.06 322); /* #573d5b */
+  --entity-7-fg: oklch(0.9 0.048 322); /* #eed4f1 — 6.89:1 on --entity-7 */
 
   /* -- Focus --------------------------------------------------------------- */
   --ring: oklch(0.693 0.174 290.1);
@@ -381,6 +522,28 @@
   --color-neutral-solid: var(--neutral-solid);
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-soft-fg: var(--neutral-soft-fg);
+
+  /* Eight pairs, written out. `bg-entity-${i}` composed at runtime produces no
+     CSS at all — Tailwind v4 finds utilities by scanning source text, so a class
+     that only exists once a template literal has run is a class it never sees.
+     `UserAvatar` keeps the eight literals in a table for the same reason, and
+     `palette.test.ts` scans for exactly that. */
+  --color-entity-0: var(--entity-0);
+  --color-entity-0-fg: var(--entity-0-fg);
+  --color-entity-1: var(--entity-1);
+  --color-entity-1-fg: var(--entity-1-fg);
+  --color-entity-2: var(--entity-2);
+  --color-entity-2-fg: var(--entity-2-fg);
+  --color-entity-3: var(--entity-3);
+  --color-entity-3-fg: var(--entity-3-fg);
+  --color-entity-4: var(--entity-4);
+  --color-entity-4-fg: var(--entity-4-fg);
+  --color-entity-5: var(--entity-5);
+  --color-entity-5-fg: var(--entity-5-fg);
+  --color-entity-6: var(--entity-6);
+  --color-entity-6-fg: var(--entity-6-fg);
+  --color-entity-7: var(--entity-7);
+  --color-entity-7-fg: var(--entity-7-fg);
 
   --color-ring: var(--ring);
 

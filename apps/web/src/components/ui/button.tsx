@@ -55,7 +55,12 @@ const buttonVariants = cva(
           'border border-border-control bg-surface text-fg shadow-xs hover:bg-surface-2 focus-visible:border-ring',
         /** Toolbar and row actions. Quiet until hovered, then a surface step. */
         ghost: 'text-fg-muted hover:bg-surface-3 hover:text-fg',
-        /** Irreversible. `danger-solid` carries `danger-fg` at 4.9:1. */
+        /**
+         * Irreversible. `danger-solid` carries `danger-fg` at 4.80:1 — AA with
+         * 0.30 to spare, and the number is re-derived from `tokens.css` on every
+         * run by `design/contrast.test.ts`. This comment claimed 4.9:1 until that
+         * test existed to contradict it.
+         */
         danger: 'bg-danger-solid text-danger-fg shadow-xs hover:bg-danger-hover',
         /**
          * Destructive but not the point of the screen — "Remove" in a settings

@@ -4,6 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { DURATION, EASE } from './motion'
 import {
+  declaredProps,
+  declaredValue,
+  namespaceValues,
+  readTokens,
+  referencedVars,
+} from './read-tokens'
+import {
   ANIMATE_KEYS,
   COLOR_KEYS,
   EASE_KEYS,
@@ -20,20 +27,20 @@ import {
  * five separate instances of, every one of them invisible to `tsc` and to
  * review. So this file is the machine check for this one.
  *
- * It reads the CSS off disk as text on purpose. `import './tokens.css'` would
- * hand the question to Tailwind's compiler, which is the thing being checked,
- * and `?raw` returns an empty string here because `css: false` in
- * vitest.config.ts stubs every CSS module — including the raw form. Parsing the
- * bytes is the only way to assert what the file actually *says*.
+ * It reads the CSS off disk as text on purpose, and parses it with
+ * `read-tokens.ts` — the same reader `contrast.test.ts` uses, whose header holds
+ * the argument for text over `import './tokens.css'` and over `?raw`, and the
+ * limits of what it can see.
  *
- * The blind spots, recorded because a check that quietly sees nothing is worse
- * than no check:
+ * The blind spots of *this* file, recorded because a check that quietly sees
+ * nothing is worse than no check:
  *   • only the `@theme inline`, `:root` and `.dark` blocks are read. A token
  *     declared inside a media query or a nested rule is invisible here. Nothing
  *     does that today; if something needs to, extend the parser in that commit.
- *   • it says nothing about whether a *value* is right — that a contrast ratio
- *     holds, or that a radius matches the reference. Those are recorded as
- *     measurements in the CSS comments and checked by eye against `UI Images/`.
+ *   • it says nothing about whether a *value* is right. Colour is no longer in
+ *     that gap — `contrast.test.ts` re-derives every ratio a comment claims from
+ *     the CSS itself — but a radius, a duration or a spacing step is still only
+ *     checked by eye against `UI Images/`.
  */
 
 /**
@@ -47,68 +54,12 @@ import {
 const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'tokens.css'), 'utf8')
 
 /**
- * Comments removed. Every assertion below runs against this rather than the raw
- * file, because the header comment names `@theme` and `@custom-variant` while
- * explaining them — so counting occurrences in the raw text counts prose.
+ * `code` is the file with comments stripped, and every assertion below runs
+ * against it rather than the raw text: the header comment names `@theme` and
+ * `@custom-variant` while explaining them, so counting occurrences in the raw
+ * file counts prose.
  */
-const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
-
-/**
- * The text between `<opener>` and the next line that is exactly `}`.
- *
- * Adequate because all three blocks are top-level and contain no nested rules —
- * which `it('has no nested blocks …')` asserts rather than assumes.
- */
-function block(opener: string): string {
-  const start = code.indexOf(opener)
-  if (start === -1) throw new Error(`tokens.css has no ${opener} block`)
-  const from = start + opener.length
-  const end = code.indexOf('\n}', from)
-  if (end === -1) throw new Error(`tokens.css: ${opener} block is never closed`)
-  return code.slice(from, end)
-}
-
-/**
- * Custom-property names declared directly in a block, ignoring the `--modifier`
- * forms (`--text-sm--line-height`) which belong to the property before them.
- */
-function declaredProps(source: string): string[] {
-  const names: string[] = []
-  for (const line of source.split('\n')) {
-    const match = /^ {2}--([a-z0-9-]+)\s*:/.exec(line)
-    const name = match?.[1]
-    if (name !== undefined && !name.includes('--')) names.push(name)
-  }
-  return names
-}
-
-/** Value names in one `@theme` namespace, e.g. `card` from `--radius-card`. */
-function namespaceValues(source: string, namespace: string): string[] {
-  return declaredProps(source)
-    .filter((name) => name.startsWith(`${namespace}-`))
-    .map((name) => name.slice(namespace.length + 1))
-}
-
-/** The declared value of one custom property, without its trailing semicolon. */
-function declaredValue(source: string, property: string): string | undefined {
-  return new RegExp(`^ {2}--${property}\\s*:\\s*([^;]+);`, 'm').exec(source)?.[1]?.trim()
-}
-
-/** Semantic tokens a block reads through `var()`. */
-function referencedVars(source: string): Set<string> {
-  const names = new Set<string>()
-  for (const match of source.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
-    const name = match[1]
-    if (name !== undefined) names.add(name)
-  }
-  return names
-}
-
-// The semantic blocks come first; the base layer redeclares `:root` and `.dark`
-// for `color-scheme`, so the first occurrence of each is the one wanted.
-const themeBlock = block('@theme inline {')
-const rootBlock = block(':root {')
-const darkBlock = block('.dark {')
+const { code, theme: themeBlock, root: rootBlock, dark: darkBlock } = readTokens(css)
 
 const NAMESPACES: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['color', COLOR_KEYS],

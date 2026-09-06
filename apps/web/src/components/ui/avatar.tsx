@@ -21,10 +21,12 @@ import { cn } from '@/lib/cn'
  * how the two drift apart.
  *
  * The fallback is `bg-surface-2 text-fg-muted` — **7.41:1** light, **6.97:1**
- * dark. Deliberately not a per-user colour: hashing an id to a hue needs a hue
- * palette, and `tokens.css` deletes Tailwind's on purpose. If flux wants coloured
- * initials, the flux-level `<UserAvatar>` owns that decision and passes
- * `className`, because it is the thing that knows whose avatar this is.
+ * dark — and deliberately not a per-user colour, even though `tokens.css` now has
+ * eight `--entity-*` pairs to pick from. This primitive does not know whose avatar
+ * it is drawing. A team name, a project, a webhook and a person all render through
+ * it, and only one of those has an identity worth hashing; a default hue here would
+ * paint the other three at random. So the neutral pair is the base and
+ * `<UserAvatar>` passes `className`, which `cn` merges over it.
  */
 const avatarSizes = cva('relative flex shrink-0 overflow-hidden rounded-chip select-none', {
   variants: {

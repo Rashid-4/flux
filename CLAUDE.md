@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Six distinct kinds of contract drift have now been found here, and each one was
-**invisible to the checks that catch the other five**. That is the pattern worth
+Nine distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other eight**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -139,6 +139,20 @@ because none of them are visible to `tsc`, to review, or to each other.
 | **error codes** the specs name and the enum lacks | 45 + 8 | `check:errors` |
 | **event types** the specs name and the enum lacks | 30 | `check:events` |
 | **section references** that resolve to the wrong section | 2 | `check:docs` |
+| a **utility** that resolves to no token, so it emits no CSS | ~30 + a vocabulary | `design/palette.test.ts` |
+| a **colour** whose comment describes a colour the browser does not paint | 2 + 7 hexes + 1 ratio | `design/contrast.test.ts` (CR-004) |
+
+The last row is the newest and the least expected, because the value and its
+documentation were in the *same line of the same file*. `--primary-soft` and
+`--danger-soft-fg` were outside sRGB by 0.0024 and 0.0009, so the browser
+gamut-mapped both and the declared colour was never the painted one; six hexes in
+comments had drifted from the values beside them; and `button.tsx` claimed 4.9:1
+where the pair measures 4.80:1. A comment is not checkable by `tsc` and a colour is
+not checkable by eye — 0.002 of chroma is invisible — so the only way to know was to
+re-derive every claim from the CSS. `design/oklch.test.ts` is what makes that
+trustworthy: **every** expected value in it comes from outside this repository, because
+a transposed matrix row would otherwise produce numbers that are wrong and
+self-consistent, and the test would agree with the comments all the way down.
 
 The error-code, event-type and section-reference rows are the same shape as the
 first three, one layer up: the specs are what a build agent implements, and a spec
