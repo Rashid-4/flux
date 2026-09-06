@@ -1,5 +1,5 @@
 import { Outlet } from 'react-router'
-import { ErrorState } from '@/components/error-state'
+import { BootstrapError } from '@/components/shell/bootstrap-error'
 import type { ShellContext } from '@/components/shell/context'
 import { IconRail } from '@/components/shell/icon-rail'
 import { ProjectSidebar } from '@/components/shell/project-sidebar'
@@ -65,18 +65,19 @@ export function Shell() {
   if (bootstrap.isError) {
     return (
       <ShellFrame chrome={null}>
-        <ErrorState
+        {/**
+         * Four causes, four recoveries — ../components/shell/bootstrap-error.tsx.
+         * This used to be a single `ErrorState` for every failure, which meant a
+         * revoked membership and a dropped connection produced the same screen with
+         * the same retry button, and only one of them can be fixed by retrying. §4
+         * requires them distinguished and is explicit that *"Never `Something went
+         * wrong` when the response told you which of these it was."*
+         */}
+        <BootstrapError
           error={bootstrap.error}
-          /**
-           * `h1`, because this *is* the page. Every other use of ErrorState sits
-           * inside a surface that already has an `h1`; here there is no other heading
-           * on the screen, and a page with none is its own accessibility failure.
-           */
-          heading="h1"
           onRetry={() => {
             void bootstrap.refetch()
           }}
-          className="flex-1"
         />
       </ShellFrame>
     )

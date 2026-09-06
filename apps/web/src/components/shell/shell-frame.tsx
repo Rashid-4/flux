@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ConnectionStatus } from '@/components/shell/connection-status'
 
 /**
  * The window: chrome on the left, one `<main>` filling the rest.
@@ -65,6 +66,12 @@ export function ShellFrame({ header = null, chrome, children, busy = false }: Sh
      * — which is precisely the two-scrollbar failure §3 forbids.
      */
     <div data-slot="shell" className="flex h-dvh flex-col overflow-hidden bg-canvas">
+      {/**
+       * Above the header, and outside the `header` slot, so it is present in all
+       * three shell states — including the failed one, where "you are offline" is
+       * very often the explanation for the failure being shown underneath it.
+       */}
+      <ConnectionStatus />
       {header}
       <div className="flex min-h-0 flex-1">
         {chrome}

@@ -122,8 +122,14 @@ type CopyOutcome = 'idle' | 'copied' | 'failed'
  * copied nothing sends the user to support with an empty paste buffer, so the
  * outcome is announced either way. ../test/dom.ts deliberately does **not** install
  * a clipboard stub, so a test asserting the success path has to prove a real write.
+ *
+ * Exported for `components/shell/bootstrap-error.tsx`. That surface needs the trace
+ * id on a *retryable* failure — `docs/specs/web/shell.md` §4 asks for it on the
+ * network case specifically — where `ErrorState` only renders it for the `support`
+ * action. Sharing the component rather than copying twelve lines keeps one copy
+ * affordance, one set of clipboard failure paths, and one accessible name.
  */
-function TraceId({ traceId }: { traceId: string }) {
+export function TraceId({ traceId }: { traceId: string }) {
   const [outcome, setOutcome] = useState<CopyOutcome>('idle')
 
   /** Back to `idle` after a moment, so the tick is feedback and not a new state. */

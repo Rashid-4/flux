@@ -1,5 +1,6 @@
 import type { Bootstrap } from '@flux/contracts'
-import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { useMatch, useNavigate } from 'react-router'
 import { CommandPalette, openPalette } from '@/command-palette/command-palette'
 import { scopeRecents, useRecentsStore } from '@/command-palette/recents'
@@ -75,6 +76,36 @@ export function ShellKeyboard({ bootstrap }: ShellKeyboardProps) {
   useEffect(() => {
     setRecentsScope(scope)
   }, [setRecentsScope, scope])
+
+  /**
+   * On an organization switch, drop every cached server query.
+   *
+   * §11: *"Org switch | every server-state query invalidated. Cached data from the
+   * previous org must be unreachable, not **merely unrendered**."* The emphasis is
+   * the requirement: an invalidated query still holds its previous data and serves
+   * it while refetching, so a board from the old organization would paint for a
+   * frame in the new one. `removeQueries` deletes the entries instead, which is why
+   * it is that call and not `invalidateQueries`.
+   *
+   * `bootstrap` itself is excluded — it is the query that just told us the org
+   * changed, and removing it would restart the gate and loop.
+   *
+   * There is no way to switch organizations yet
+   * (`docs/change-requests/003-organization-selection-mechanism.md`), so this cannot
+   * fire today. It is here because the alternative is remembering to add it at the
+   * moment the switcher is wired, which is the moment least likely to be thinking
+   * about a stale cache.
+   */
+  const queryClient = useQueryClient()
+  const organizationId = bootstrap.organization.id
+  const previousOrganization = useRef(organizationId)
+  useEffect(() => {
+    if (previousOrganization.current === organizationId) return
+    previousOrganization.current = organizationId
+    queryClient.removeQueries({
+      predicate: (query) => query.queryKey[0] !== 'bootstrap',
+    })
+  }, [organizationId, queryClient])
 
   useShortcut({
     id: 'shell.palette',

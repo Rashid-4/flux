@@ -74,8 +74,22 @@ function emitOpen(): void {
   for (const listener of openListeners) listener()
 }
 
+/**
+ * Whatever had focus when the palette opened, so it can be given back.
+ *
+ * Radix's `FocusScope` restores focus to the element that *triggered* the dialog,
+ * and this dialog frequently has no trigger: `⌘K` opens it from wherever the user
+ * was. Measured in jsdom, that case restored focus to `<body>` — which for a
+ * keyboard user means the next Tab starts from the top of the document, and
+ * `docs/specs/web/README.md` §9 names losing focus to `<body>` as the failure to
+ * avoid. §7.3 asks for restoration *"to the element that had it"*, which is this
+ * rather than a trigger.
+ */
+let restoreFocusTo: HTMLElement | null = null
+
 export function openPalette(): void {
   if (paletteOpen) return
+  restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
   paletteOpen = true
   emitOpen()
 }
@@ -100,6 +114,7 @@ function getOpen(): boolean {
 /** Test-only: drop the open state so one file cannot leak into the next. */
 export function resetPalette(): void {
   paletteOpen = false
+  restoreFocusTo = null
   emitOpen()
 }
 
@@ -330,6 +345,21 @@ export function CommandPalette({ bootstrap, providers = DEFAULT_PROVIDERS }: Com
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in" />
         <Dialog.Content
+          /**
+           * Restore focus ourselves. `preventDefault` stops Radix aiming at a
+           * trigger that may not exist, and the element captured at open time is
+           * where the user actually was. `isConnected` because the thing that had
+           * focus may have unmounted while the palette was open — a board card
+           * behind a navigation, for instance — and focusing a detached node
+           * silently does nothing.
+           */
+          onCloseAutoFocus={(event) => {
+            const target = restoreFocusTo
+            restoreFocusTo = null
+            if (target === null || !target.isConnected) return
+            event.preventDefault()
+            target.focus()
+          }}
           data-slot="command-palette"
           /**
            * Anchored high rather than centred. A palette that opens in the vertical
