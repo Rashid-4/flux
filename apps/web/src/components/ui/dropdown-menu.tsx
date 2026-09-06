@@ -138,8 +138,8 @@ function DropdownMenuItem({
   variant = 'default',
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
-  inset?: boolean
-  variant?: 'default' | 'danger'
+  inset?: boolean | undefined
+  variant?: 'default' | 'danger' | undefined
 }) {
   return (
     <DropdownMenuPrimitive.Item
@@ -218,7 +218,7 @@ function DropdownMenuLabel({
   inset,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
-  inset?: boolean
+  inset?: boolean | undefined
 }) {
   return (
     <DropdownMenuPrimitive.Label
@@ -276,7 +276,7 @@ function DropdownMenuSubTrigger({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
-  inset?: boolean
+  inset?: boolean | undefined
 }) {
   return (
     <DropdownMenuPrimitive.SubTrigger

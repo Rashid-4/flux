@@ -103,7 +103,7 @@ export interface AxeRunOptions {
    * If the rule is wrong about the product, that is a change request, not an
    * exemption.
    */
-  exempt?: RuleExemptions
+  exempt?: RuleExemptions | undefined
 }
 
 /** A violation, flattened to what a failure message needs. */

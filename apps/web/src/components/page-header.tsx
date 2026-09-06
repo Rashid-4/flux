@@ -29,16 +29,16 @@ import { cn } from '@/lib/cn'
 export interface PageHeaderProps {
   title: string
   /** One line under the title. Sentence case, no trailing stop. */
-  description?: string
+  description?: string | undefined
   /**
    * Left of the title — a project glyph, a back button, an issue type icon.
    * Vertically aligned to the heading rather than centred in the header, so it does
    * not drift down when a description is present.
    */
-  lead?: ReactNode
+  lead?: ReactNode | undefined
   /** Right-aligned controls, primary last so it sits at the edge under the thumb. */
-  actions?: ReactNode
-  className?: string
+  actions?: ReactNode | undefined
+  className?: string | undefined
 }
 
 export function PageHeader({ title, description, lead, actions, className }: PageHeaderProps) {

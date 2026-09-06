@@ -38,9 +38,9 @@ export interface PageSectionProps {
    * Interactive content is allowed here, unlike inside a ./project-card.tsx — this is
    * a heading row, not a link.
    */
-  aside?: ReactNode
+  aside?: ReactNode | undefined
   children: ReactNode
-  className?: string
+  className?: string | undefined
 }
 
 export function PageSection({ title, aside, children, className }: PageSectionProps) {

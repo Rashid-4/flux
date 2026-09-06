@@ -132,7 +132,7 @@ function DialogContent({
   onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
+  showCloseButton?: boolean | undefined
 }) {
   const openerRef = useRef<HTMLElement | null>(null)
 
@@ -203,7 +203,7 @@ function DialogFooter({
   children,
   ...props
 }: React.ComponentProps<'div'> & {
-  showCloseButton?: boolean
+  showCloseButton?: boolean | undefined
 }) {
   return (
     <div

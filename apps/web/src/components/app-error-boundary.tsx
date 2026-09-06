@@ -42,7 +42,7 @@ interface AppErrorBoundaryProps {
    * boundary is mounted in `main.tsx`, which is where the decision about what
    * happens to an error report belongs.
    */
-  onError?: (error: unknown, componentStack: string) => void
+  onError?: ((error: unknown, componentStack: string) => void) | undefined
 }
 
 interface AppErrorBoundaryState {

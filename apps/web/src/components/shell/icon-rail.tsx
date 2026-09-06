@@ -70,7 +70,7 @@ interface RailItem {
    * refuses these routes independently; this only keeps the rail from advertising a
    * screen that would refuse the user.
    */
-  permission?: keyof OrgPermissions
+  permission?: keyof OrgPermissions | undefined
 }
 
 const RAIL_ITEMS: readonly RailItem[] = [

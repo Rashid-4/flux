@@ -31,7 +31,7 @@ import { paths } from '@/lib/paths'
  */
 export interface ProjectCardProps {
   project: ProjectSummary
-  className?: string
+  className?: string | undefined
 }
 
 export function ProjectCard({ project, className }: ProjectCardProps) {

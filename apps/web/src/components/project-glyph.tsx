@@ -49,7 +49,7 @@ const glyphVariants = cva(
 
 export interface ProjectGlyphProps extends VariantProps<typeof glyphVariants> {
   project: ProjectSummary
-  className?: string
+  className?: string | undefined
 }
 
 export function ProjectGlyph({ project, size, className }: ProjectGlyphProps) {

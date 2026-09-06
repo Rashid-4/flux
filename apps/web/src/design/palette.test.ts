@@ -388,8 +388,8 @@ it('no component suppresses the focus outline', () => {
  */
 it('the npm "cn" package is not a dependency', () => {
   const manifest: {
-    dependencies?: Record<string, string>
-    devDependencies?: Record<string, string>
+    dependencies?: Record<string, string> | undefined
+    devDependencies?: Record<string, string> | undefined
   } = JSON.parse(readFileSync(join(APP, 'package.json'), 'utf8'))
 
   expect(Object.keys(manifest.dependencies ?? {})).not.toContain('cn')

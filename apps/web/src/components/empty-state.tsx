@@ -37,7 +37,7 @@ export interface EmptyStateProps {
    * an inbox glyph tells a screen-reader user nothing the title does not already
    * say, and announcing it would be noise.
    */
-  icon?: ReactNode
+  icon?: ReactNode | undefined
   /** What is absent. Sentence case, no trailing stop — "No issues in this sprint". */
   title: string
   /**
@@ -46,7 +46,7 @@ export interface EmptyStateProps {
    * Optional because some titles carry the whole message, and a detail line added
    * to fill the space ends up restating the title in more words.
    */
-  detail?: string
+  detail?: string | undefined
   /**
    * The way out. Usually one `<Button>`; occasionally two, primary first.
    *
@@ -55,8 +55,8 @@ export interface EmptyStateProps {
    * they cannot explain, and permission is a fact the caller has and this component
    * does not.
    */
-  children?: ReactNode
-  className?: string
+  children?: ReactNode | undefined
+  className?: string | undefined
 }
 
 export function EmptyState({ icon, title, detail, children, className }: EmptyStateProps) {

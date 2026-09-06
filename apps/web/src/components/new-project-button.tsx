@@ -34,7 +34,7 @@ export interface NewProjectButtonProps {
    * bootstrap and are never inferred — docs/specs/web/README.md §4.
    */
   permitted: boolean
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | undefined
   /**
    * Which side the explanation opens on.
    *
@@ -44,8 +44,8 @@ export interface NewProjectButtonProps {
    * space actually is. Radix collision-detection would flip a bottom-side tooltip to
    * `top` there, which lands it on top of the project list it is explaining.
    */
-  tooltipSide?: 'top' | 'right' | 'bottom' | 'left'
-  className?: string
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left' | undefined
+  className?: string | undefined
 }
 
 export function NewProjectButton({

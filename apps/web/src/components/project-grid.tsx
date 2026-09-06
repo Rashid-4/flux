@@ -33,7 +33,7 @@ export const PROJECT_GRID_CLASS = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'
 
 export interface ProjectGridProps {
   projects: readonly ProjectSummary[]
-  className?: string
+  className?: string | undefined
 }
 
 export function ProjectGrid({ projects, className }: ProjectGridProps) {

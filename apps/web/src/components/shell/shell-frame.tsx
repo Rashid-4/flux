@@ -39,7 +39,7 @@ export interface ShellFrameProps {
    * reading out six empty boxes is worse than silence, so the *container* is what
    * says work is in progress.
    */
-  busy?: boolean
+  busy?: boolean | undefined
 }
 
 export function ShellFrame({ chrome, children, busy = false }: ShellFrameProps) {
