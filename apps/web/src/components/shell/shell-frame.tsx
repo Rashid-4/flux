@@ -54,9 +54,27 @@ export interface ShellFrameProps {
    * says work is in progress.
    */
   busy?: boolean | undefined
+  /**
+   * A full-width row above the header — the same slot `ConnectionStatus` occupies.
+   *
+   * Here rather than inside the header, and here rather than at each call site,
+   * because the geometry is the point: a warning that appears *over* the header
+   * covers the search field at the moment the network wobbles, and one that appears
+   * inside `<main>` scrolls away with the content it is warning about. Both failures
+   * are invisible until the condition is live, which is the worst time to find them.
+   *
+   * `undefined` in every state but loaded. Nothing has refreshed if nothing loaded.
+   */
+  notice?: ReactNode | undefined
 }
 
-export function ShellFrame({ header = null, chrome, children, busy = false }: ShellFrameProps) {
+export function ShellFrame({
+  header = null,
+  chrome,
+  children,
+  busy = false,
+  notice = null,
+}: ShellFrameProps) {
   return (
     /**
      * `flex-col` at the top level now, with the header first and the
@@ -72,6 +90,7 @@ export function ShellFrame({ header = null, chrome, children, busy = false }: Sh
        * very often the explanation for the failure being shown underneath it.
        */}
       <ConnectionStatus />
+      {notice}
       {header}
       <div className="flex min-h-0 flex-1">
         {chrome}

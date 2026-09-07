@@ -1,5 +1,6 @@
 import { CloudOff } from 'lucide-react'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
+import { StatusStrip } from '@/components/shell/status-strip'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -68,26 +69,18 @@ export function ConnectionStatus() {
   const online = useIsOnline()
 
   /**
-   * Announced once when it changes, rather than living permanently in a live
-   * region. A `role="status"` that is present from mount announces on every route
-   * change in some screen readers; mounting it only while offline means the
-   * announcement happens exactly when the state does.
+   * Nothing is mounted while online, which is what makes the announcement work.
+   *
+   * A `role="status"` present from mount is a live region that some screen readers
+   * re-announce on every route change; a region that *appears* when the condition
+   * does announces exactly once, when it becomes true. So the early return is the
+   * accessibility behaviour, not just an optimisation.
    */
-  useEffect(() => {
-    if (online) return
-    /** Nothing to do — the element below carries the announcement by appearing. */
-  }, [online])
-
   if (online) return null
 
   return (
-    <div
-      data-slot="connection-status"
-      role="status"
-      className="flex h-6 shrink-0 items-center justify-center gap-2 bg-warning-soft px-3 text-sm text-warning-soft-fg"
-    >
-      <CloudOff aria-hidden="true" className="size-3.5 shrink-0" />
-      <span>You are offline. Everything on screen already loaded; changes will not save.</span>
-    </div>
+    <StatusStrip data-slot="connection-status" role="status" icon={CloudOff}>
+      You are offline. Everything on screen already loaded; changes will not save.
+    </StatusStrip>
   )
 }

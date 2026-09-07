@@ -169,7 +169,7 @@ const COPY: Record<Exclude<BootstrapFailure, 'unavailable'>, { title: string; bo
  * already performs. When the auth surface lands this becomes its href and the
  * comment goes.
  */
-function SignInAgain() {
+export function SignInAgain({ children = 'Sign in again' }: { children?: string }) {
   return (
     <Button
       variant="primary"
@@ -189,7 +189,7 @@ function SignInAgain() {
         window.location.reload()
       }}
     >
-      Sign in again
+      {children}
     </Button>
   )
 }

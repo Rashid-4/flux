@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import { classifyBootstrapFailure } from '@/components/shell/bootstrap-error'
 import { resetPalette } from '@/command-palette/command-palette'
 import { resetShortcuts } from '@/keyboard/registry'
 import { expectNoAxeViolations } from '@/test/axe'
+import { keys } from '@/queries/keys'
 import { renderWithProviders } from '@/test/render'
 import { fails } from '@/test/failures'
 import { server } from '@/test/server'
@@ -103,6 +104,148 @@ describe('the bootstrap gate', () => {
     const loaded = renderShell()
     await screen.findByRole('banner')
     expect(loaded.container.querySelector('#main')).not.toBeNull()
+  })
+
+  /**
+   * ────────────────────────────────────────────────────────────────────
+   * A failed *refresh* must not tear the app down.
+   * ────────────────────────────────────────────────────────────────────
+   *
+   * §11: *"never a redirect that discards a half-written comment"*. The gate used to
+   * test `isError` **before** `data === undefined`, which meant a bootstrap that had
+   * loaded, painted, and then failed a background refetch got the full-page bootstrap
+   * error — the entire working app, and anything unsaved in it, replaced over a blip,
+   * with a valid `bootstrap` sitting unused in the cache. It now branches on
+   * `isLoadingError`, which is `isError && !hasData`.
+   *
+   * The trigger is ordinary rather than exotic: `refetchOnWindowFocus` is on and
+   * bootstrap's `staleTime` is five minutes, so returning to a tab after lunch
+   * refetches, and that refetch can fail for a reason with no bearing on what is
+   * already on screen.
+   *
+   * **`waitFor`, and that is the point of this comment.** The first version of this
+   * test asserted immediately after `await refetchQueries()` and passed against the
+   * broken gate. Measured against `@tanstack/query-core@5.102.8`, the cache reaches
+   * `status: 'error'` synchronously but the observer result the component renders
+   * lags by one notification tick — so a single sample taken right after the await
+   * reads `status=success isError=false` and proves nothing. Anything asserting that
+   * a refetch failure was survived has to wait for the failure to arrive first, or it
+   * is asserting about the moment before it.
+   */
+  it('keeps the loaded shell when a background refetch fails', async () => {
+    const { queryClient, container } = renderShell()
+    await screen.findByRole('banner')
+
+    server.use(fails('GET', '/bootstrap', 'internal_error'))
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+
+    /**
+     * Wait for the observer to actually deliver the error, so the assertions below
+     * are about a rendered failure rather than about the tick before one.
+     */
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="refresh-failure"]')).not.toBeNull()
+    })
+
+    /** The cached data is still valid, so the surface stays whole. */
+    expect(screen.getByRole('banner')).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="bootstrap-error"]')).toBeNull()
+
+    /** §13: it says which failure it was, not "something went wrong". */
+    expect(screen.getByRole('status')).toHaveTextContent(/could not refresh/i)
+  })
+
+  /**
+   * And it recovers on its own. §11: *"the indicator clears itself; no manual reload"*.
+   * A strip that outlives the condition it reports is the same defect as a toast that
+   * expires while the condition is still true, pointed the other way.
+   */
+  it('clears the refresh warning once a later refetch succeeds', async () => {
+    const { queryClient, container } = renderShell()
+    await screen.findByRole('banner')
+
+    server.use(fails('GET', '/bootstrap', 'internal_error'))
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="refresh-failure"]')).not.toBeNull()
+    })
+
+    server.resetHandlers()
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="refresh-failure"]')).toBeNull()
+    })
+    expect(screen.getByRole('banner')).toBeInTheDocument()
+  })
+
+  /**
+   * The half that was missing entirely: a refetch that fails because the *session*
+   * went away is the one failure the user has to be interrupted for, because
+   * everything they do next will fail too. Nothing in the app read `isRefetchError`,
+   * so a mid-session 401 changed **nothing on screen** — the user kept typing into an
+   * app that could no longer save. §11 requires a modal that preserves the location
+   * and the work.
+   */
+  it('interrupts without unmounting the surface when the session lapses mid-session', async () => {
+    const { queryClient, container } = renderShell()
+    await screen.findByRole('banner')
+
+    server.use(fails('GET', '/bootstrap', 'unauthenticated'))
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveAccessibleName(/session has expired/i)
+    expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument()
+
+    /**
+     * The work is still behind it — this is a warning, not a teardown.
+     *
+     * Queried by element and not by role, deliberately. Radix marks everything outside
+     * an open modal `aria-hidden`, which is correct — the dialog is the only thing to
+     * interact with while it is up — and it also removes the header from the
+     * accessibility tree, so `getByRole('banner')` fails here for a reason that has
+     * nothing to do with what this test is checking. The DOM query asks the actual
+     * question: is the shell still mounted underneath?
+     */
+    expect(container.querySelector('header')).not.toBeNull()
+    expect(container.querySelector('[data-slot="bootstrap-error"]')).toBeNull()
+  })
+
+  /**
+   * §11 asks the modal to *preserve unsaved work*, and a draft the user cannot reach
+   * is not preserved in any useful sense — so it closes, and closing demotes it to the
+   * persistent strip rather than clearing it. A warning that disappears when dismissed
+   * would leave the user in an unsaveable app with nothing on screen saying so.
+   */
+  it('demotes the session modal to a persistent strip when dismissed', async () => {
+    const user = userEvent.setup()
+    const { queryClient, container } = renderShell()
+    await screen.findByRole('banner')
+
+    server.use(fails('GET', '/bootstrap', 'unauthenticated'))
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+    await screen.findByRole('alertdialog')
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+    })
+    const strip = container.querySelector('[data-slot="refresh-failure"]')
+    expect(strip).not.toBeNull()
+    expect(strip).toHaveTextContent(/session has expired/i)
   })
 
   /**

@@ -3,6 +3,7 @@ import { BootstrapError } from '@/components/shell/bootstrap-error'
 import type { ShellContext } from '@/components/shell/context'
 import { IconRail } from '@/components/shell/icon-rail'
 import { ProjectSidebar } from '@/components/shell/project-sidebar'
+import { RefreshFailure } from '@/components/shell/refresh-failure'
 import { ShellFrame } from '@/components/shell/shell-frame'
 import { ShellKeyboard } from '@/components/shell/shell-keyboard'
 import { TopBar } from '@/components/shell/top-bar'
@@ -37,6 +38,24 @@ import { useSidebarOpen } from '@/stores/chrome'
  *
  * **Loaded** — the rail, the sidebar if it is open, and the surface.
  *
+ * ### Failed to *start* is not failed to *refresh*
+ *
+ * `isLoadingError` and not `isError`, and the distinction is the whole reason the
+ * fourth state below exists. `isError` is true for both — a bootstrap that never
+ * arrived, and a bootstrap that arrived, painted, and then failed a background
+ * refetch five minutes later when the tab regained focus. Only the first of those
+ * means the app cannot run. Treating the second the same way replaces a working
+ * application, and anything unsaved in it, with a full-page error over a network blip,
+ * while a perfectly valid `bootstrap` sits unused in the cache — the failure §11
+ * names as *"never a redirect that discards a half-written comment"*.
+ *
+ * TanStack already draws the line: `isLoadingError` is `isError && !hasData` and
+ * `isRefetchError` is `isError && hasData`. So the gate reads the first and the loaded
+ * branch reads the second, and neither can be reached by the other's failure.
+ * ../components/shell/refresh-failure.tsx holds what a failed refresh does instead,
+ * along with the measurement that shows the error genuinely arrives — one notification
+ * tick later, which is the part that made this look fine in a test.
+ *
  * All three go through `ShellFrame`, which is what guarantees `<main id="main">` is
  * on the page in every one of them. The skip link in `index.html` points at that id;
  * a state that omitted it would give a keyboard user a link that silently does
@@ -62,7 +81,7 @@ export function Shell() {
   const bootstrap = useBootstrap()
   const sidebarOpen = useSidebarOpen()
 
-  if (bootstrap.isError) {
+  if (bootstrap.isLoadingError) {
     return (
       <ShellFrame chrome={null}>
         {/**
@@ -96,6 +115,21 @@ export function Shell() {
   return (
     <ShellFrame
       header={<TopBar bootstrap={bootstrap.data} />}
+      notice={
+        /**
+         * The refresh that failed while the app was up. A strip for most causes and a
+         * modal for a session that went away — see
+         * ../components/shell/refresh-failure.tsx. It renders `null` unless
+         * `isRefetchError`, so this slot costs nothing in the ordinary case.
+         */
+        <RefreshFailure
+          isRefetchError={bootstrap.isRefetchError}
+          error={bootstrap.error}
+          onRetry={() => {
+            void bootstrap.refetch()
+          }}
+        />
+      }
       chrome={
         <>
           <IconRail bootstrap={bootstrap.data} />
