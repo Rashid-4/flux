@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 import { AccountPopover } from '@/components/shell/account-popover'
+import { NavDrawer } from '@/components/shell/nav-drawer'
 import { ThemeMenu } from '@/components/shell/theme-menu'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -156,6 +157,16 @@ export function IconRail({ bootstrap }: IconRailProps) {
       </nav>
 
       <div className="flex flex-col items-center gap-1">
+        {/**
+         * The drawer trigger and the sidebar toggle are complements, not
+         * alternatives: `md:hidden` on one and `hidden md:inline-flex` on the other,
+         * so exactly one of them is on screen at every width. That is the invariant
+         * that closes the bug in `docs/specs/web/shell.md` §9 — before the drawer
+         * existed the toggle was hidden below 768px and nothing replaced it, so the
+         * project tree had no affordance at all on a phone.
+         */}
+        <NavDrawer bootstrap={bootstrap} />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -163,10 +174,11 @@ export function IconRail({ bootstrap }: IconRailProps) {
               size="icon"
               onClick={toggleSidebar}
               /**
-               * `hidden md:inline-flex`, matching ./project-sidebar.tsx's own
-               * `hidden md:flex`. Below 768px the sidebar is not rendered at all — see
-               * that file for why — so a toggle for it would be a control with no
-               * effect, which §13 rates as worse than no control.
+               * `hidden md:inline-flex`, matching ./sidebar-slot.tsx's own
+               * `hidden md:block` — the slot owns the breakpoint, not
+               * ./project-sidebar.tsx. Below 768px the sidebar is not on screen at all
+               * — see those files for why — so a toggle for it would be a control with
+               * no effect, which §13 rates as worse than no control.
                */
               className="hidden md:inline-flex"
               /**

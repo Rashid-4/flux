@@ -1,4 +1,5 @@
 import { PROJECT_GRID_CLASS } from '@/components/project-grid'
+import { SidebarSlot } from '@/components/shell/sidebar-slot'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/cn'
 
@@ -28,8 +29,22 @@ import { cn } from '@/lib/cn'
  * told the region is busy once, rather than read a list of empty boxes.
  */
 
+export interface ShellChromeSkeletonProps {
+  /**
+   * `stores/chrome.ts`'s `sidebarOpen` — the same value the loaded shell will use.
+   *
+   * A prop rather than a `useSidebarOpen()` in here, so this file stays a drawing of
+   * a shape and the one component that owns the toggle stays `../../routes/shell.tsx`.
+   * It has to be read at all because the placeholder must reserve *the width the real
+   * chrome is about to occupy*: unconditional 260px meant a user who had collapsed the
+   * sidebar saw a grey column appear and then vanish, which is precisely the
+   * data-lands re-layout this file's docblock says it exists to prevent.
+   */
+  sidebarOpen: boolean
+}
+
 /** The rail and sidebar placeholders, in the same 72px + 260px geometry. */
-export function ShellChromeSkeleton() {
+export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
   return (
     <>
       <div className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-canvas py-3">
@@ -46,30 +61,35 @@ export function ShellChromeSkeleton() {
       </div>
 
       {/**
-       * `hidden md:flex`, matching ./project-sidebar.tsx exactly. Below 768px the real
-       * sidebar is not rendered, so a placeholder for it would be a 260px grey column
-       * that resolves into nothing.
+       * Through ./sidebar-slot.tsx rather than drawing its own column, so the
+       * placeholder and the panel that replaces it cannot disagree about the
+       * breakpoint (`hidden md:block`), the width, or which of the two states the
+       * chrome is in. The panel inside carries the same out-of-flow `absolute inset-y-0
+       * right-0 w-tree` the real sidebar does, which is what the slot requires of a
+       * child and the reason it can clip without reflowing anything.
        */}
-      <div className="hidden w-tree shrink-0 flex-col border-r border-border bg-canvas md:flex">
-        <div className="shrink-0 p-3">
-          <Skeleton className="h-8 w-full rounded-control" />
+      <SidebarSlot open={sidebarOpen}>
+        <div className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-canvas">
+          <div className="shrink-0 p-3">
+            <Skeleton className="h-8 w-full rounded-control" />
+          </div>
+          <div className="flex flex-col gap-0.5 px-3">
+            <Skeleton className="mb-1 ml-2 h-3 w-20 rounded-control" />
+            {/**
+             * Varied widths, from a fixed list rather than at random. A column of
+             * identically-sized bars reads as a table; project names are not the same
+             * length. `Math.random()` is also unavailable to a deterministic test and
+             * would make every snapshot different.
+             */}
+            {['w-32', 'w-40', 'w-28', 'w-36', 'w-24'].map((width) => (
+              <div key={width} className="flex h-row items-center gap-2 px-2">
+                <Skeleton className="size-4 shrink-0 rounded-sm" />
+                <Skeleton className={`h-3 rounded-control ${width}`} />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-0.5 px-3">
-          <Skeleton className="mb-1 ml-2 h-3 w-20 rounded-control" />
-          {/**
-           * Varied widths, from a fixed list rather than at random. A column of
-           * identically-sized bars reads as a table; project names are not the same
-           * length. `Math.random()` is also unavailable to a deterministic test and
-           * would make every snapshot different.
-           */}
-          {['w-32', 'w-40', 'w-28', 'w-36', 'w-24'].map((width) => (
-            <div key={width} className="flex h-row items-center gap-2 px-2">
-              <Skeleton className="size-4 shrink-0 rounded-sm" />
-              <Skeleton className={`h-3 rounded-control ${width}`} />
-            </div>
-          ))}
-        </div>
-      </div>
+      </SidebarSlot>
     </>
   )
 }
@@ -105,5 +125,28 @@ export function ShellMainSkeleton() {
         ))}
       </div>
     </>
+  )
+}
+
+/**
+ * The top bar's shape while bootstrap is in flight.
+ *
+ * §4: *"a skeleton frame, not a spinner on blank"*, and §11: *"no layout jump when
+ * data lands"*. The bar is `h-topbar` in both states and the two context columns
+ * are drawn at the same two type steps the real ones use, so the swap changes
+ * pixels rather than geometry.
+ */
+export function ShellTopBarSkeleton() {
+  return (
+    <div
+      data-slot="top-bar-skeleton"
+      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-surface px-4"
+    >
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-2.5 w-16 rounded-control" />
+        <Skeleton className="h-3.5 w-32 rounded-control" />
+      </div>
+      <Skeleton className="ml-auto h-7 w-28 rounded-control" />
+    </div>
   )
 }

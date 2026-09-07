@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ConnectionStatus } from '@/components/shell/connection-status'
 
 /**
  * The window: chrome on the left, one `<main>` filling the rest.
@@ -28,6 +29,19 @@ import type { ReactNode } from 'react'
  * scrolls as one document and the navigation slides off the top of the screen.
  */
 export interface ShellFrameProps {
+  /**
+   * The top bar, spanning the full width above the sidebar and the content.
+   *
+   * `docs/specs/web/shell.md` §3 diagrams it that way — the header sits above the
+   * `sidebar | content` row rather than beside the rail — and §3 requires *"exactly
+   * one `<header>`"*, which is why it is a slot here rather than something a
+   * surface can render for itself.
+   *
+   * A slot rather than built in, for the same reason `chrome` is one: the failed
+   * state has no bootstrap, so it has no organization to name and no palette corpus
+   * to search. It passes `null` and gets a frame with no header, which is honest.
+   */
+  header?: ReactNode | undefined
   /** The rail, and the sidebar when it is open. Or their skeletons. */
   chrome: ReactNode
   children: ReactNode
@@ -40,27 +54,62 @@ export interface ShellFrameProps {
    * says work is in progress.
    */
   busy?: boolean | undefined
+  /**
+   * A full-width row above the header — the same slot `ConnectionStatus` occupies.
+   *
+   * Here rather than inside the header, and here rather than at each call site,
+   * because the geometry is the point: a warning that appears *over* the header
+   * covers the search field at the moment the network wobbles, and one that appears
+   * inside `<main>` scrolls away with the content it is warning about. Both failures
+   * are invisible until the condition is live, which is the worst time to find them.
+   *
+   * `undefined` in every state but loaded. Nothing has refreshed if nothing loaded.
+   */
+  notice?: ReactNode | undefined
 }
 
-export function ShellFrame({ chrome, children, busy = false }: ShellFrameProps) {
+export function ShellFrame({
+  header = null,
+  chrome,
+  children,
+  busy = false,
+  notice = null,
+}: ShellFrameProps) {
   return (
-    <div data-slot="shell" className="flex h-dvh overflow-hidden bg-canvas">
-      {chrome}
-      <main
-        /**
-         * `id="main"` matches the skip link's `href="#main"`. `tabIndex={-1}` is what
-         * makes the skip actually move focus: `<main>` is not focusable by default, so
-         * without it the browser scrolls the element into view and leaves focus on the
-         * link — the next Tab goes back into the navigation the user just skipped.
-         * `-1` makes it programmatically focusable without adding a tab stop.
-         */
-        id="main"
-        tabIndex={-1}
-        aria-busy={busy || undefined}
-        className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface"
-      >
-        {children}
-      </main>
+    /**
+     * `flex-col` at the top level now, with the header first and the
+     * `chrome | main` row beneath it. `min-h-0` on that row is the part that is easy
+     * to miss: without it a flex child refuses to shrink below its content, so a
+     * long project tree would push the row past the viewport and scroll the window
+     * — which is precisely the two-scrollbar failure §3 forbids.
+     */
+    <div data-slot="shell" className="flex h-dvh flex-col overflow-hidden bg-canvas">
+      {/**
+       * Above the header, and outside the `header` slot, so it is present in all
+       * three shell states — including the failed one, where "you are offline" is
+       * very often the explanation for the failure being shown underneath it.
+       */}
+      <ConnectionStatus />
+      {notice}
+      {header}
+      <div className="flex min-h-0 flex-1">
+        {chrome}
+        <main
+          /**
+           * `id="main"` matches the skip link's `href="#main"`. `tabIndex={-1}` is what
+           * makes the skip actually move focus: `<main>` is not focusable by default, so
+           * without it the browser scrolls the element into view and leaves focus on the
+           * link — the next Tab goes back into the navigation the user just skipped.
+           * `-1` makes it programmatically focusable without adding a tab stop.
+           */
+          id="main"
+          tabIndex={-1}
+          aria-busy={busy || undefined}
+          className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface"
+        >
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
