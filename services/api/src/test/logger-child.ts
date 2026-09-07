@@ -101,8 +101,12 @@ const scenarios: Record<string, () => void> = {
         refreshToken: 'SECRET-REFRESH',
         apiKey: 'SECRET-API',
         secret: 'SECRET-SECRET',
-        DATABASE_URL: 'postgres://flux_app:SECRET-DSN@db.internal:5432/flux',
-        connectionString: 'postgres://flux_app:SECRET-CONN@db.internal:5432/flux',
+        // Every `SECRET-` value in this file is a planted fixture the test greps
+        // the child's stdout for, so the DSN-shaped ones are exempted by hand
+        // rather than by teaching `check-secrets` a prefix — a magic string that
+        // silences the check is worth strictly less than five visible exemptions.
+        DATABASE_URL: 'postgres://flux_app:SECRET-DSN@db.internal:5432/flux', // check-secrets:allow
+        connectionString: 'postgres://flux_app:SECRET-CONN@db.internal:5432/flux', // check-secrets:allow
         credentialRef: 'vault://SECRET-REF',
         credential_ref: 'vault://SECRET-SNAKE-REF',
         passphrase: 'SECRET-PASSPHRASE',
@@ -113,8 +117,8 @@ const scenarios: Record<string, () => void> = {
           refreshToken: 'SECRET-N-REFRESH',
           apiKey: 'SECRET-N-API',
           secret: 'SECRET-N-SECRET',
-          DATABASE_URL: 'postgres://u:SECRET-N-DSN@h/d',
-          connectionString: 'postgres://u:SECRET-N-CONN@h/d',
+          DATABASE_URL: 'postgres://u:SECRET-N-DSN@h/d', // check-secrets:allow
+          connectionString: 'postgres://u:SECRET-N-CONN@h/d', // check-secrets:allow
           credentialRef: 'vault://SECRET-N-REF',
           credential_ref: 'vault://SECRET-N-SNAKE',
           passphrase: 'SECRET-N-PASSPHRASE',
@@ -131,10 +135,10 @@ const scenarios: Record<string, () => void> = {
   /** A whole `Config`-shaped object, which is the accident redaction exists for. */
   'config-object': () => {
     const logger = createLogger(config)
-    logger.info(
-      { config: { DATABASE_URL: 'postgres://flux_app:SECRET-PW@db:5432/flux', NODE_ENV: 'test' } },
-      'boot configuration',
-    )
+    // Hoisted so the exemption sits on the line the check flags: it matches per
+    // line, and a comment above the match is not an exemption at all.
+    const dsn = 'postgres://flux_app:SECRET-PW@db:5432/flux' // check-secrets:allow
+    logger.info({ config: { DATABASE_URL: dsn, NODE_ENV: 'test' } }, 'boot configuration')
     logger.flush()
   },
 
