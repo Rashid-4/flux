@@ -19,15 +19,25 @@ where a mistake is visible on every screen of the product.
 
 | Thing | State |
 | --- | --- |
-| The frame — landmarks, regions, responsive layout | partly built (`routes/shell.tsx`) |
-| Global navigation — org switcher, project nav, section nav | not built |
-| Command palette (`⌘K` / `Ctrl+K`) | **not built** |
-| Shortcut registry (`keyboard/`) | **not built** — directory does not exist |
-| The `?` shortcut sheet, generated from the registry | **not built** |
-| Mobile navigation drawer (< 768px) | **not built — this is a live bug, see §9** |
-| User menu, theme control, sign-out | not built |
+| The frame — landmarks, regions, responsive layout | built (`components/shell/shell-frame.tsx`), desktop measured to §3.2; responsive deferred |
+| Global navigation — rail, project sidebar, section nav | built (`components/shell/icon-rail.tsx`, `project-sidebar.tsx`) |
+| Command palette (`⌘K` / `Ctrl+K`) | built (`command-palette/`); reached from every surface header via `components/palette-action.tsx` |
+| Shortcut registry (`keyboard/`) | built |
+| The `?` shortcut sheet, generated from the registry | built |
+| Mobile navigation drawer (< 768px) | built (`components/shell/nav-drawer.tsx`) |
+| User menu, theme control, sign-out | built (`account-popover.tsx`, `theme-menu.tsx`) — at the **bottom of the rail**, see §3 |
 | Clock-skew correction from `serverTime` | not built |
-| Shell-level loading, error, offline and session-expiry states | partly built |
+| Shell-level loading, error, offline and session-expiry states | built, and tested per mode (`routes/shell.test.tsx`) |
+
+There is **no top bar**, and there was one for two commits: a 56px full-width strip
+holding an org switcher, a breadcrumb, a `⌘K` hint and a user menu. Neither reference
+draws it, and it cost 56px of vertical space on every screen of the product. Its
+contents did not disappear — the breadcrumb belongs to the surface header (§3.2), the
+palette hint moved into `palette-action.tsx`'s tooltip *and* its `aria-keyshortcuts`,
+and the theme and account controls moved to the bottom of the rail. That last one is a
+**departure** from the references, which end the rail with a single chevron; a mockup
+has no theme to switch and nobody to be signed in as, and `icon-rail.tsx` carries the
+argument for why every other position was worse.
 
 **Out of scope.** Anything inside the content region. The board, backlog, issue
 view, search results page, settings and admin are their own surfaces with their
@@ -64,12 +74,12 @@ and are the shell's error and empty surfaces. Use them.
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ connection / refresh notice — full width, present in all three states        │
 ├──────┬───────────┬───────────────────────────────────────────────────────────┤
-│      │           │ top bar   org switcher · breadcrumb · ⌘K hint · user menu │
-│      │           │           <header>                                        │
-│ rail │ sidebar   ├───────────────────────────────────────────────────────────┤
-│      │ <nav>     │ content                                                   │
 │      │           │ <main id="main">                                          │
-│      │           │   <Outlet />                                              │
+│      │           │   <header>   title · breadcrumb · tabs · actions          │
+│ rail │ sidebar   │   ├──────────────────────────────────────────────────────┤│
+│      │ <nav>     │   │ toolbar   view switch · filters      (board only)     ││
+│      │           │   ├──────────────────────────────────────────────────────┤│
+│      │           │   └ <Outlet />   the surface, scrolling                    │
 └──────┴───────────┴───────────────────────────────────────────────────────────┘
 ```
 
@@ -83,10 +93,33 @@ sidebar cuts that column in two.
 
 Two things follow, and both are structural rather than matters of review:
 
-- The `<header>` is a **sibling** of `<main>`, never a child. `<header>` keeps its
-  implicit `banner` role only while it is outside `main`, `article`, `aside`, `nav`
-  and `section`; nesting it demotes it to a generic group for every assistive
-  technology that navigates by landmark, with nothing visibly wrong.
+- The `<header>` is the **first child of `<main>`**, and it is deliberately *not* a
+  `banner` landmark.
+
+  This reverses what this spec said for four commits — *"a **sibling** of `<main>`,
+  never a child"*, on the grounds that `<header>` keeps its implicit `banner` role
+  only while it is outside `main`, `article`, `aside`, `nav` and `section`. That
+  mechanism is real; the conclusion drawn from it was wrong. `banner` means
+  *site*-oriented, and measuring the references settled what this block contains:
+  one per-surface block holding the surface's own title, its breadcrumb, its tabs
+  and its actions. `routes/projects.tsx` puts a live pluralised count and a "New
+  project" button in it; `components/project-header.tsx` puts a three-crumb trail, a
+  tab row and a team stack. A header reading "Logistics Platform · Board" is not
+  site-oriented, so demotion to a generic group is the correct outcome rather than a
+  cost — and a frame-level slot fed by a route→header lookup would have had to drop
+  one surface's contents to serve another's.
+
+  There is no `header` slot on `ShellFrame`. `components/surface-header.tsx` is the
+  component, every surface renders it, and it owns the measured geometry in §3.2.
+
+  **Do not assert this with `getByRole('banner')`, in either direction.** Measured
+  against the installed `@testing-library/dom@10.4.1`: `aria-query@5.3.0` carries
+  both a `header → banner` entry constrained *"scoped to the body element"* and a
+  `header → generic` entry constrained *"scoped to the main element"*, but
+  `buildElementRoleList` reads only the `constraints` of an entry's **attributes**,
+  never the element's own — so both compile to the bare selector `header`, the first
+  wins, and a nested `<header>` still reports `banner`. Assert containment, which is
+  what a browser's role computation consults and the one thing jsdom models exactly.
 - The connection banner and the refresh notice stay **full width**, above the row.
   A dropped connection is a fact about the application rather than about the surface
   being viewed — it makes the rail's navigation as unreliable as the board — so a
@@ -96,7 +129,15 @@ The rest of the frame:
 
 - Exactly one `<header>`, one `<nav>`, one `<main>`, one `<footer>` if any. The
   skip link in `index.html` targets `#main`; that id lives on `<main>` and nowhere
-  else.
+  else. Note what a count of one cannot say: it is invariant under *moving* the
+  element, so it stayed green across the restructure above. §3's structural claims
+  are pinned by relationship assertions in `routes/shell.test.tsx`, not by censuses.
+- `<main>` **is** the content column — there is no wrapper element around it. There
+  was one for as long as the frame owned a header slot and had two children to
+  stack. The peek panel does not bring it back: the references draw that panel as a
+  full-height sibling column starting at y=0 with its own header row, so it belongs
+  beside `<main>` in the `chrome | content` row, not nested inside the column whose
+  header it sits level with.
 - The sidebar is `expanded` or `collapsed` (`stores/chrome.ts`), persisted, and
   the collapsed state shows icons with accessible names — not icons alone.
 - **The content region scrolls, not the page.** The board is a fixed-height

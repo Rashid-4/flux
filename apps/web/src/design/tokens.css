@@ -127,7 +127,7 @@
   /* The field the cards sit on: the board background and the sub-bar below the
      header rule. #f4f6f8 — sampled from the light board. */
   --canvas: oklch(0.972 0.003 247.9);
-  /* Cards, panels, menus, the topbar. #ffffff */
+  /* Cards, menus, dialogs, popovers. #ffffff */
   --surface: oklch(1 0 89.9);
   /* Inset areas: search fields, table header rows, empty columns. #f7f8fa */
   --surface-2: oklch(0.979 0.003 264.5);
@@ -205,6 +205,27 @@
   --chrome-raised: var(--surface-3);
   --chrome-hover: var(--surface-2);
 
+  /* The same role one surface over: a resting selected fill on the *canvas*
+     rather than on the chrome. The board's view switcher is the control that
+     needs it — the references draw Kanban / Table / List View as three unpadded
+     labels with no trough, and mark the selected one with this fill and nothing
+     else. No border, no shadow; both were looked for and neither is there.
+
+     It cannot be `--chrome-raised`, and that is a measurement rather than a
+     preference. The step the references take is the same *size* on both bases —
+     Δ14 from #ffffff on the chrome, Δ13 from #f4f6f8 on the canvas — so a single
+     value cannot serve two bases 11 apart. `--chrome-raised` is #f1f3f6, which
+     against this canvas is Δ3: a selected chip nobody can see.
+
+     Light is the reference's own sample, to within half a channel — the fill
+     averages (232.7, 238.2, 241.3) over the two ink-free bands inside the chip.
+     Dark is `--surface`, and that is not a compromise: the dark sample sits inside
+     the ±2 webp noise this file allows on a flat fill, and its measured hue lands
+     on 229.3 where `--surface` declares 229. The `.dark` block quotes both. So the
+     inversion is real in one theme only, and in the other the card colour was
+     already the right answer. */
+  --canvas-raised: oklch(0.945 0.007 234.1); /* #e8eef1 */
+
   /* -- Lines --------------------------------------------------------------- */
   /* The quietest line in the product — the rail/sidebar divider, and nothing
      else yet. Measured off the references rather than chosen: #f5f5f5 here and
@@ -228,6 +249,17 @@
   --border: oklch(0.923 0.008 253.9);
   /* Stronger structural divisions — sidebar/main, table rules. #cfd5dd */
   --border-strong: oklch(0.871 0.013 255.5);
+  /* The rule under a surface's toolbar, and the second cross-theme inversion in
+     this section. Both references draw two horizontal rules across the content
+     column: the header block's bottom edge, and the one under the view switcher.
+     Measured at one crisp pixel, the *second* is the stronger of the two in light
+     — (218,220,222) against a (244,246,248) field, so Δ26 — and the *weaker* of
+     the two in dark: (26,28,30) against (16,18,19), Δ10, where the header's own
+     rule reads Δ16. So it is `--border-strong` here and one rung below `--border`
+     there, and no single value is both. Same argument as `--border-subtle`
+     above, which is why this is a token and not a `dark:` at the call site.
+     Exempt from SC 1.4.11: it separates two regions and edges no control. */
+  --border-rule: var(--border-strong);
   /* The boundary of a *control* — text input, checkbox, outlined button, select
      trigger. This one does carry meaning (it is what makes the field
      identifiable), so SC 1.4.11 applies and it must clear 3:1 against whatever
@@ -238,18 +270,20 @@
      `--canvas`, inside a `--surface-2` filter bar, or on a `--surface-3` hover
      row. Measured across all of them, in the theme that matters for each:
 
-       #777f8c on surface   #ffffff  4.04:1
-                  chrome    #ffffff  4.04:1
-                  panel     #ffffff  4.04:1
-                  surface-2 #f7f8fa  3.80:1
-                  canvas    #f4f6f8  3.73:1
-                  surface-3 #f1f3f6  3.63:1
+       #777f8c on surface       #ffffff  4.04:1
+                  chrome        #ffffff  4.04:1
+                  panel         #ffffff  4.04:1
+                  surface-2     #f7f8fa  3.80:1
+                  canvas        #f4f6f8  3.73:1
+                  surface-3     #f1f3f6  3.63:1
+                  canvas-raised #e8eef1  3.45:1
 
      The old 0.635 gave 3.02:1 on canvas — passing by 0.02, which is not a
      margin, it is a rounding accident. 0.595 gives every light surface real
      headroom while still reading as a line rather than a stroke. The canvas row
-     moved up when `--canvas` was retuned to the reference's #f4f6f8; the binding
-     surface is now `--surface-3`, and it still clears by 0.63. */
+     moved up when `--canvas` was retuned to the reference's #f4f6f8, and the
+     binding surface is now `--canvas-raised` — the darkest light fill in the
+     file, added for the board's view switcher — which still clears by 0.45. */
   --border-control: oklch(0.595 0.021 258.3);
 
   /* -- Brand --------------------------------------------------------------- */
@@ -379,7 +413,7 @@
      disc nobody can see is a design failure wherever it is not a conformance
      failure. Worst fill against each surface a disc can sit on: 1.51:1 on
      --surface, 1.51:1 on --chrome, 1.51:1 on --panel, 1.42:1 on --surface-2,
-     1.40:1 on --canvas, 1.36:1 on --surface-3.
+     1.40:1 on --canvas, 1.36:1 on --surface-3, 1.29:1 on --canvas-raised.
      Two discs never meet hue-to-hue — `AvatarGroup` cuts each one out of its
      neighbour with `ring-2 ring-surface`. */
   --entity-0: oklch(0.855 0.06 20); /* #f4c0bf */
@@ -483,6 +517,12 @@
      selected two states rather than one with a rounding error. */
   --chrome-raised: var(--surface);
   --chrome-hover: var(--canvas);
+  /* The selected view-switcher chip, and in this theme it is the card colour.
+     The reference samples #1c2022 where `--surface` produces #1c1e1f — inside
+     webp's noise on a fill this flat, and the sample's own hue is 229.3 against
+     the 229 declared above. The light block carries the argument for why this is
+     a token at all; only that theme needs a value of its own. */
+  --canvas-raised: var(--surface);
 
   /* -- Lines --------------------------------------------------------------- */
   /* Lighter than the #000000 rail and the #101213 sidebar it sits between, where
@@ -491,6 +531,12 @@
   --border-subtle: oklch(0.248 0 89.9); /* #212121 */
   --border: oklch(0.287 0.011 254); /* #272b30 */
   --border-strong: oklch(0.357 0.015 252.3); /* #373d44 */
+  /* The toolbar rule, and it points the other way here — see the light comment.
+     `--border-subtle` and not `--border-strong`: on a field this close to black
+     the reference's second rule is the *quieter* of its two, and taking the
+     strong step would draw the loudest line on the screen under the least
+     important control on it. */
+  --border-rule: var(--border-subtle);
   /* #707881 — the value the light-mode comment describes, now actually produced.
      0.483 resolved to #575f68: 2.73:1 on surface and 2.48:1 on a surface-2 bar,
      both under SC 1.4.11, so a text input inside a dialog had no compliant
@@ -634,6 +680,7 @@
   --color-chrome-hover: var(--chrome-hover);
   --color-panel: var(--panel);
   --color-canvas: var(--canvas);
+  --color-canvas-raised: var(--canvas-raised);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -647,6 +694,7 @@
   --color-border-subtle: var(--border-subtle);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-border-rule: var(--border-rule);
   --color-border-control: var(--border-control);
 
   --color-rail-icon: var(--rail-icon);
@@ -788,8 +836,15 @@
   --text-2xl: 1.5rem; /* 24 / 32 */
   --text-2xl--line-height: 2rem;
   --text-2xl--letter-spacing: -0.015em;
-  --text-3xl: 1.75rem; /* 28 / 36 — page title */
-  --text-3xl--line-height: 2.25rem;
+  /* 30 / 38 — the surface title. 28 until the header was measured, and the two
+     pixels matter because this is the largest type in the product: the
+     references' title measures 28px of ink from the cap of `U` to the tail of
+     `q`, and Inter needs 30px to put 28px of ink on the screen. The line height
+     is 38 rather than 36 for the same reason — it is what lands the cap top at
+     y=44 under the header's 36px of top padding, which is the measurement
+     `docs/specs/web/shell.md` §3.2 records. */
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.375rem;
   --text-3xl--letter-spacing: -0.02em;
 
   /* -- Radius -------------------------------------------------------------- */
@@ -809,7 +864,7 @@
 
   /* -- Layout sizes -------------------------------------------------------- */
   /* The measured geometry of the reference chrome, as spacing tokens so they are
-     `w-rail` and `h-topbar` rather than a dozen arbitrary pixel values that drift
+     `w-rail` and `h-subbar` rather than a dozen arbitrary pixel values that drift
      apart — and so `pnpm ui:diff` reporting a 4px offset has exactly one place to
      be corrected.
      Every number below was taken off `UI Images/JIRA 1.webp` and `JIRA 2.webp` at
@@ -822,11 +877,26 @@
   --spacing-nav: 15rem; /* 240px — nav sidebar */
   --spacing-tree: 16.8125rem; /* 269px — project tree */
   --spacing-tree-inset: 0.8125rem; /* 13px  — its rows' horizontal inset */
-  --spacing-detail: 26.875rem; /* 430px — right detail / chat panel */
+  --spacing-detail: 27.5625rem; /* 441px — right detail / chat panel, x 1400..1841 */
   --spacing-column: 19rem; /* 304px — board column */
   --spacing-gutter: 2.25rem; /* 36px  — the content column's horizontal padding */
-  --spacing-topbar: 3.5rem; /* 56px */
-  --spacing-subbar: 3rem; /* 48px  — view switcher + filter row */
+  /* There is no `topbar` token, and there was one — 56px, for the frame-level bar
+     that spanned the content column. The references draw no such bar: the top of
+     the content column is one header block of three stacked rows, and its height
+     is not a constant. It is the sum of six type-derived steps — `pt-9`, a 38px
+     line box, `mt-3.25`, a 24px line box, `mt-10`, a 46px tab item — which
+     `components/surface-header.tsx` states once, in the order they stack, with
+     each landing pixel beside it. Retargeting the token to 198px would have
+     restated the total in a second place where it could disagree with the parts,
+     and `components/shell/shell-skeleton.tsx` needs the parts to draw the
+     placeholder anyway. */
+  /* 101px — the view switcher + filter row, rule included. Not the 48px this was:
+     the references' band runs from the header's rule at y=197 to its own at
+     y=298, so the box is 100px of content and the 101st pixel is the border. It
+     is written as the total because `h-subbar` is a border-box height — the 40px
+     switcher chip then sits on 38px of clear space above and 22px below, which
+     `board-toolbar.tsx` derives from the chip's own measured cap top. */
+  --spacing-subbar: 6.3125rem;
   --spacing-row: 2.5625rem; /* 41px  — sidebar and virtualised list row */
   --spacing-avatar: 1.5rem; /* 24px  — avatar in a stack */
 

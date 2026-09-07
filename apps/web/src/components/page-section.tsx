@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn'
  * make `aria-labelledby` resolve to whichever came first.
  *
  * The heading level is fixed at `h2`. Every surface's `h1` belongs to
- * ./page-header.tsx, so a section directly under one is `h2` — and making the level a
+ * ./surface-header.tsx, so a section directly under one is `h2` — and making the level a
  * prop is how a page ends up with an `h4` under an `h1`, which is the single most
  * common heading-structure failure in an audit.
  *

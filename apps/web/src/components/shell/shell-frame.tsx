@@ -2,17 +2,17 @@ import type { ReactNode } from 'react'
 import { ConnectionStatus } from '@/components/shell/connection-status'
 
 /**
- * The window: chrome floor-to-ceiling on the left, a header and one `<main>` beside it.
+ * The window: chrome floor-to-ceiling on the left, one `<main>` beside it.
  *
  * ```
- * ┌──────────────────────────────────────────────────┐
- * │ ConnectionStatus / notice — full width, global    │
- * ├──────┬───────────┬───────────────────────────────┤
- * │      │           │ {header}          <header>     │
- * │ rail │  sidebar  ├───────────────────────────────┤
- * │      │   <nav>   │ {children}   <main id="main">  │
- * │      │           │                               │
- * └──────┴───────────┴───────────────────────────────┘
+ * ┌─────────────────────────────────────────────────┐
+ * │ ConnectionStatus / notice — full width, global   │
+ * ├──────┬───────────┬──────────────────────────────┤
+ * │      │           │ <main id="main">  {children} │
+ * │ rail │  sidebar  │   ├ <header>   the surface's  │
+ * │      │   <nav>   │   ├ toolbar                  │
+ * │      │           │   └ the surface itself       │
+ * └──────┴───────────┴──────────────────────────────┘
  * ```
  *
  * Extracted so the three states of the shell — loading, failed, loaded — cannot
@@ -39,32 +39,27 @@ import { ConnectionStatus } from '@/components/shell/connection-status'
  * a page header fixed while content moves under them. Without this the whole app
  * scrolls as one document and the navigation slides off the top of the screen.
  */
+/**
+ * ### There is no `header` slot, and there used to be
+ *
+ * This frame rendered a `{header}` between the chrome and `<main>` for two commits, on
+ * the reading that `docs/specs/web/shell.md` §3's *"exactly one `<header>`"* meant the
+ * frame should own it. Measuring the references settled it the other way: they draw
+ * **one** block at the top of the content column — title, breadcrumb, tabs — and its
+ * contents are entirely per-surface. `routes/projects.tsx` puts a live pluralised count
+ * in it and a real "New project" button; `components/project-header.tsx` puts a
+ * breadcrumb, three tabs and a team stack. A frame-level slot fed by a route→header
+ * lookup would have had to drop one of them, and a slot fed by each route is a slot
+ * that adds a prop and an indirection for nothing.
+ *
+ * So the header is the first child of `<main>`, which is also where the semantics want
+ * it: `<header>` carries its implicit `banner` role only while it is *not* inside
+ * `main`, `article`, `aside`, `nav` or `section`, and `banner` means site-oriented.
+ * A header reading "Logistics Platform · Board" is surface-oriented, so being demoted
+ * to a generic group by the nesting is the correct outcome rather than a cost.
+ * `components/surface-header.tsx` carries the rest of that argument.
+ */
 export interface ShellFrameProps {
-  /**
-   * The top bar — inside the content column, beside the chrome rather than above it.
-   *
-   * `docs/specs/web/shell.md` §3 diagrams the frame this way, and it diagrammed the
-   * opposite until the reference match: a full-width header across the top with the
-   * `sidebar | content` row beneath it. `UI Images/JIRA 1.webp` and `JIRA 2.webp`
-   * run the rail and the sidebar **floor to ceiling** — the window's left edge is one
-   * unbroken column of chrome from the logo to the bottom bezel — and put the bar's
-   * content in the content column above the breadcrumb. The spec moved with the code
-   * in the same change; §3 is the diagram, not a second opinion.
-   *
-   * §3 still requires *"exactly one `<header>`"*, which is why this is a slot rather
-   * than something a surface renders for itself. It is a sibling of `<main>` and not
-   * a child of it, which is the part that is easy to get wrong: `<header>` only
-   * carries its implicit `banner` role while it is *not* inside `main`, `article`,
-   * `aside`, `nav` or `section`, so nesting it would silently demote it to a generic
-   * group for every assistive technology that navigates by landmark. The search
-   * field and the user menu do not belong inside `<main>` on the plain reading
-   * either — they are frame, not content.
-   *
-   * A slot rather than built in, for the same reason `chrome` is one: the failed
-   * state has no bootstrap, so it has no organization to name and no palette corpus
-   * to search. It passes `null` and gets a frame with no header, which is honest.
-   */
-  header?: ReactNode | undefined
   /** The rail, and the sidebar when it is open. Or their skeletons. */
   chrome: ReactNode
   children: ReactNode
@@ -78,26 +73,20 @@ export interface ShellFrameProps {
    */
   busy?: boolean | undefined
   /**
-   * A full-width row above the header — the same slot `ConnectionStatus` occupies.
+   * A full-width row above the content row — the same slot `ConnectionStatus` occupies.
    *
-   * Here rather than inside the header, and here rather than at each call site,
-   * because the geometry is the point: a warning that appears *over* the header
-   * covers the search field at the moment the network wobbles, and one that appears
-   * inside `<main>` scrolls away with the content it is warning about. Both failures
-   * are invisible until the condition is live, which is the worst time to find them.
+   * Here rather than inside a surface, and here rather than at each call site, because
+   * the geometry is the point: a warning that appears *over* the header covers its
+   * controls at the moment the network wobbles, and one that appears inside `<main>`
+   * scrolls away with the content it is warning about. Both failures are invisible
+   * until the condition is live, which is the worst time to find them.
    *
    * `undefined` in every state but loaded. Nothing has refreshed if nothing loaded.
    */
   notice?: ReactNode | undefined
 }
 
-export function ShellFrame({
-  header = null,
-  chrome,
-  children,
-  busy = false,
-  notice = null,
-}: ShellFrameProps) {
+export function ShellFrame({ chrome, children, busy = false, notice = null }: ShellFrameProps) {
   return (
     /**
      * `flex-col` at the top level, and what it stacks is now only the two global
@@ -124,53 +113,60 @@ export function ShellFrame({
       <div className="flex min-h-0 flex-1">
         {chrome}
         {/**
-         * The content column: the header, then the surface, stacked.
+         * The content column, and it is `<main>` itself — there is no wrapper around
+         * it. There was one for as long as the frame owned a header slot, because the
+         * header and `<main>` had to be stacked inside something; with the header now
+         * the first child of `<main>` that wrapper had exactly one child and one
+         * purpose left, which is not a purpose.
+         *
+         * It is worth saying what replaces it, because the obvious reason to keep it
+         * is the peek panel. The references draw that panel as a **full-height sibling
+         * column starting at y=0 with its own header row** — so it belongs beside
+         * `<main>` in this row, next to the chrome, not nested inside the column whose
+         * header it sits level with. A wrapper kept for it would have been kept for
+         * the wrong shape.
          *
          * `min-w-0` is load-bearing and invisible until a long name arrives. A flex
          * item defaults to `min-width: auto`, so without it this column refuses to
-         * shrink below the widest thing inside it, and a board with fifteen columns
-         * or a project called something long pushes the column wider than the row —
+         * shrink below the widest thing inside it, and a board with fifteen columns or
+         * a project called something long pushes the column wider than the row —
          * moving the *rail* off the left edge rather than scrolling the board. The
-         * same rule is why `truncate` in `page-header.tsx` needs its own `min-w-0`.
-         *
-         * No `overflow-hidden` here on purpose. `<main>` below has its own, which is
-         * what confines the scrolling, and a second clip at this level would trap any
-         * header overlay that is not portalled. Every overlay primitive in
-         * `components/ui/` portals to `body` today; this keeps the frame from being
-         * the reason a future one has to.
+         * same rule is why `truncate` on the title in `../surface-header.tsx` needs
+         * its own `min-w-0`.
          */}
-        <div data-slot="shell-content" className="flex min-w-0 flex-1 flex-col">
-          {header}
-          <main
-            /**
-             * `id="main"` matches the skip link's `href="#main"`. `tabIndex={-1}` is what
-             * makes the skip actually move focus: `<main>` is not focusable by default, so
-             * without it the browser scrolls the element into view and leaves focus on the
-             * link — the next Tab goes back into the navigation the user just skipped.
-             * `-1` makes it programmatically focusable without adding a tab stop.
-             */
-            id="main"
-            tabIndex={-1}
-            aria-busy={busy || undefined}
-            /**
-             * `bg-canvas`, not `bg-surface`. The content column is the *field* that
-             * cards, panels and headers sit on — it is not itself one of them, and it
-             * was painting the card colour across all 1108px of itself.
-             *
-             * In light that read as merely flat. In dark it was a defect with a
-             * measurable size: `--surface` is #1c1e1f and a board card is also
-             * `--surface`, so every card on this column would have been 1.00:1 against
-             * its own background — invisible, and invisible in the exact way
-             * `contrast.test.ts`'s entity floor exists to catch for avatars but cannot
-             * catch for a card, because nothing declares that a card and the thing
-             * behind it are supposed to differ. The reference draws three levels here
-             * (field, header block, card) and this is the bottom one.
-             */
-            className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas"
-          >
-            {children}
-          </main>
-        </div>
+        <main
+          /**
+           * `id="main"` matches the skip link's `href="#main"`. `tabIndex={-1}` is what
+           * makes the skip actually move focus: `<main>` is not focusable by default, so
+           * without it the browser scrolls the element into view and leaves focus on the
+           * link — the next Tab goes back into the navigation the user just skipped.
+           * `-1` makes it programmatically focusable without adding a tab stop.
+           */
+          id="main"
+          tabIndex={-1}
+          aria-busy={busy || undefined}
+          /**
+           * `bg-canvas`, not `bg-surface`. The content column is the *field* that
+           * cards, panels and headers sit on — it is not itself one of them, and it
+           * was painting the card colour across all 1108px of itself.
+           *
+           * In light that read as merely flat. In dark it was a defect with a
+           * measurable size: `--surface` is #1c1e1f and a board card is also
+           * `--surface`, so every card on this column would have been 1.00:1 against
+           * its own background — invisible, and invisible in the exact way
+           * `contrast.test.ts`'s entity floor exists to catch for avatars but cannot
+           * catch for a card, because nothing declares that a card and the thing
+           * behind it are supposed to differ. The reference draws three levels here
+           * (field, header block, card) and this is the bottom one.
+           *
+           * `overflow-hidden` is what confines the scrolling to the surface inside.
+           * Note that it also clips a `ring`, which is a box-shadow — the global focus
+           * indicator in `design/tokens.css` is an `outline` for exactly that reason.
+           */
+          className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas"
+        >
+          {children}
+        </main>
       </div>
     </div>
   )

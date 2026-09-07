@@ -5,7 +5,7 @@ import type { ProjectSummary } from '@/lib/bootstrap'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
- * Finding the board for a project — the one place CR-010 lands.
+ * Finding the board for a project — the one place CR-012 lands.
  * ══════════════════════════════════════════════════════════════════════
  *
  * `/projects/:projectKey/board` has a project key. `getBoard` needs a board **id**,
@@ -15,7 +15,7 @@ import type { ProjectSummary } from '@/lib/bootstrap'
  * `BoardSchema.projectIds` points the other way — a board knows its projects, and is
  * only reachable once you already have it.
  *
- * That is written up as `docs/change-requests/010-project-to-board-resolution.md`
+ * That is written up as `docs/change-requests/012-project-to-board-resolution.md`
  * rather than worked around with a guessed URL, per AGENTS.md §2.
  *
  * ### What this does in the meantime, and why it is a function rather than a hack
@@ -27,7 +27,7 @@ import type { ProjectSummary } from '@/lib/bootstrap'
  * requesting a URL that would 404.
  *
  * Everything about the gap is inside this one function, deliberately. Accepting
- * either option in CR-010 — a `GET /projects/:key/boards` endpoint, or a
+ * either option in CR-012 — a `GET /projects/:key/boards` endpoint, or a
  * `defaultBoardId` on the bootstrap project — is a change here and nowhere else:
  * the route, the columns and the cards all take a `BoardView` and do not know how
  * it was found.

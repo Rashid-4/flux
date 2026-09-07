@@ -1,9 +1,11 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
+import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import { classifyBootstrapFailure } from '@/components/shell/bootstrap-error'
+import { SurfaceHeader } from '@/components/surface-header'
 import { resetPalette } from '@/command-palette/command-palette'
 import { resetShortcuts } from '@/keyboard/registry'
 import { expectNoAxeViolations } from '@/test/axe'
@@ -54,9 +56,73 @@ function returnsWrongShape() {
   )
 }
 
+/**
+ * A surface with nothing in it but a header, mounted into the gate's `<Outlet />`.
+ *
+ * The gate needs a child route, and it now needs that route to render a
+ * `SurfaceHeader` — which is the whole difference this file's restructure made.
+ * `ShellFrame` used to own a `header` slot, so every assertion about "the header" was
+ * satisfied by the frame alone and `renderShell` could leave the outlet empty. It
+ * cannot now: `components/surface-header.tsx` is per-surface, so with an empty outlet
+ * there is no `<header>` on screen at all, which is exactly what eight of these tests
+ * started reporting.
+ *
+ * A stub rather than the real `ProjectsSurface`, deliberately. What §3 asks is *given a
+ * surface that renders a header, where does that header land* — and that question is
+ * answered more sharply by a surface with one thing in it than by one that also owns a
+ * query, a permission check and a grid. `routes/projects.test.tsx` covers the real one.
+ * Its title matches the route so the copy is not misleading in a failure dump.
+ */
+function StubSurface() {
+  return <SurfaceHeader title="Projects" />
+}
+
 /** The gate renders `<Outlet />`, so it needs a route to sit in. */
 function renderShell() {
-  return renderWithProviders(<Shell />, { initialPath: '/projects' })
+  return renderWithProviders(
+    <Routes>
+      <Route element={<Shell />}>
+        <Route path="/projects" element={<StubSurface />} />
+      </Route>
+    </Routes>,
+    { initialPath: '/projects' },
+  )
+}
+
+/**
+ * Resolves once the loaded shell is on screen — and it is **not**
+ * `findByRole('banner')`, which is what every one of these tests used to await.
+ *
+ * That query has to go, and the reason is worth the paragraph because it is the
+ * nastiest shape in `CLAUDE.md`'s table: `<header>` carries its implicit `banner`
+ * role only while it is *outside* `main`, `article`, `aside`, `nav` and `section`,
+ * and the header is now the first child of `<main>` on purpose
+ * (`components/surface-header.tsx` has the argument). So in a browser there is no
+ * `banner` on this screen at all. **In this stack there still is.** Measured against
+ * the installed `@testing-library/dom@10.4.1`:
+ *
+ *   getImplicitAriaRoles(<header> inside <main>)  ->  ['banner']
+ *
+ * `aria-query@5.3.0` does model the constraint — it carries both a
+ * `header -> banner` entry constrained *"scoped to the body element"* and a
+ * `header -> generic` entry constrained *"scoped to the main element"* — but
+ * `buildElementRoleList` in `role-helpers.js` only reads the `constraints` of an
+ * entry's **attributes**, never the element's own, so both entries compile to the
+ * bare selector `header` and the first one wins.
+ *
+ * Which means the move broke nothing here and would have broken nothing on a rerun:
+ * fifteen call sites kept awaiting a landmark that no longer exists, and stayed
+ * green. A `queryByRole('banner')).toBeNull()` is equally useless in the other
+ * direction — it would fail on correct markup. The role query cannot see this
+ * property at all, so the structural assertion in `describe('the frame')` is the
+ * only real one, and it is checked by containment rather than by role.
+ *
+ * The rail is the discriminator these tests actually wanted: it exists in the loaded
+ * state and in no other one (§4 — the failed state gets the frame with no chrome,
+ * the pending state gets skeletons).
+ */
+function findLoadedShell() {
+  return screen.findByRole('navigation', { name: 'Primary' })
 }
 
 describe('the bootstrap gate', () => {
@@ -69,7 +135,7 @@ describe('the bootstrap gate', () => {
     const main = await screen.findByRole('main')
     /** §4: the region says work is in progress; the skeletons inside are aria-hidden. */
     expect(main).toHaveAttribute('aria-busy', 'true')
-    expect(container.querySelector('[data-slot="top-bar-skeleton"]')).not.toBeNull()
+    expect(container.querySelector('[data-slot="surface-header-skeleton"]')).not.toBeNull()
     expect(container.querySelector('[data-slot="shell"]')).not.toBeNull()
     /** No spinner, and no blank page. */
     expect(screen.queryByRole('status')).toBeNull()
@@ -78,11 +144,16 @@ describe('the bootstrap gate', () => {
   it('renders the frame, the chrome and the surface once bootstrap resolves', async () => {
     const { container } = renderShell()
 
-    await screen.findByRole('banner')
-    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
+    const rail = await findLoadedShell()
+    expect(rail).toBeInTheDocument()
     expect(screen.getByRole('main')).not.toHaveAttribute('aria-busy')
 
-    /** §3: exactly one header, one main. The landmark count is the assertion. */
+    /**
+     * §3: exactly one header, one main. A *count*, and it is worth naming what a count
+     * cannot say — it is invariant under moving the element, so this stayed green
+     * through the restructure that moved the header inside `<main>`. That is why
+     * `describe('the frame')` below exists at all.
+     */
     expect(container.querySelectorAll('header')).toHaveLength(1)
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main')
@@ -111,7 +182,7 @@ describe('the bootstrap gate', () => {
 
     server.resetHandlers()
     const loaded = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
     expect(loaded.container.querySelector('#main')).not.toBeNull()
   })
 
@@ -143,7 +214,7 @@ describe('the bootstrap gate', () => {
    */
   it('keeps the loaded shell when a background refetch fails', async () => {
     const { queryClient, container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     server.use(fails('GET', '/bootstrap', 'internal_error'))
     await act(async () => {
@@ -159,7 +230,7 @@ describe('the bootstrap gate', () => {
     })
 
     /** The cached data is still valid, so the surface stays whole. */
-    expect(screen.getByRole('banner')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="surface-header"]')).not.toBeNull()
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
     expect(container.querySelector('[data-slot="bootstrap-error"]')).toBeNull()
 
@@ -174,7 +245,7 @@ describe('the bootstrap gate', () => {
    */
   it('clears the refresh warning once a later refetch succeeds', async () => {
     const { queryClient, container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     server.use(fails('GET', '/bootstrap', 'internal_error'))
     await act(async () => {
@@ -192,7 +263,7 @@ describe('the bootstrap gate', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-slot="refresh-failure"]')).toBeNull()
     })
-    expect(screen.getByRole('banner')).toBeInTheDocument()
+    expect(container.querySelector('[data-slot="surface-header"]')).not.toBeNull()
   })
 
   /**
@@ -205,7 +276,7 @@ describe('the bootstrap gate', () => {
    */
   it('interrupts without unmounting the surface when the session lapses mid-session', async () => {
     const { queryClient, container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     server.use(fails('GET', '/bootstrap', 'unauthenticated'))
     await act(async () => {
@@ -239,7 +310,7 @@ describe('the bootstrap gate', () => {
   it('demotes the session modal to a persistent strip when dismissed', async () => {
     const user = userEvent.setup()
     const { queryClient, container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     server.use(fails('GET', '/bootstrap', 'unauthenticated'))
     await act(async () => {
@@ -264,11 +335,19 @@ describe('the bootstrap gate', () => {
    */
   it('renders no navigation chrome when bootstrap fails', async () => {
     server.use(fails('GET', '/bootstrap', 'internal_error'))
-    renderShell()
+    const { container } = renderShell()
 
     await screen.findByRole('heading', { level: 1 })
     expect(screen.queryByRole('navigation')).toBeNull()
-    expect(screen.queryByRole('banner')).toBeNull()
+    /**
+     * And no surface header either — the error screen is the whole content column.
+     * This was `queryByRole('banner')`, which no longer asks anything: in a browser
+     * that role is absent from every state now, so the assertion would be vacuous, and
+     * in this stack it resolves for a `<header>` inside `<main>` anyway, so it cannot
+     * distinguish "no header" from "a header in the wrong place". Both readings are
+     * wrong in the same direction. `findLoadedShell`'s docblock has the measurement.
+     */
+    expect(container.querySelector('[data-slot="surface-header"]')).toBeNull()
   })
 })
 
@@ -291,14 +370,34 @@ describe('the bootstrap gate', () => {
  * jsdom has no layout, so none of this can be asserted in pixels. It does not need to
  * be. The geometry follows from the DOM relationships, and the relationships are what
  * a future edit would get wrong.
+ *
+ * ### It has now happened a second time, in the opposite direction
+ *
+ * The reference-matching pass moved the header **inside** `<main>` — deliberately, for
+ * reasons `components/surface-header.tsx` argues from measurement — and this block's
+ * second test asserted, by name, that it was outside. It would have gone green anyway:
+ * `getByRole('banner')` resolves for a nested `<header>` in this stack (see
+ * `findLoadedShell`), and the containment assertion read `main.contains(header)`
+ * against a `main` that no longer had the header's *former* parent above it.
+ *
+ * So the first lesson needs a second half. A relationship assertion is better than a
+ * census, and it is still only as good as the query that fetches its operands: a role
+ * query standing in for a structural property inherits every gap between the library's
+ * role mapping and the browser's. Fetch structure structurally.
  */
 describe('the frame', () => {
+  /**
+   * `main` **is** the content column. There is no wrapper around it any more — there
+   * was one for as long as the frame owned a header slot and had two children to
+   * stack, and `shell-frame.tsx` explains why the peek panel does not bring it back.
+   * So every assertion below that used to be about `[data-slot="shell-content"]` is
+   * now about `<main>`, and it is the same claim about the same box.
+   */
   function frame(container: HTMLElement) {
-    const column = container.querySelector('[data-slot="shell-content"]')
-    expect(column).not.toBeNull()
+    const header = container.querySelector('[data-slot="surface-header"]')
+    expect(header).not.toBeNull()
     return {
-      column: column as HTMLElement,
-      header: screen.getByRole('banner'),
+      header: header as HTMLElement,
       main: screen.getByRole('main'),
       rail: screen.getByRole('navigation', { name: 'Primary' }),
       sidebar: screen.getByRole('navigation', { name: 'Projects' }),
@@ -307,17 +406,17 @@ describe('the frame', () => {
 
   it('puts the header beside the chrome, not above it', async () => {
     const { container } = renderShell()
-    await screen.findByRole('banner')
-    const { column, header, rail, sidebar } = frame(container)
+    await findLoadedShell()
+    const { main, header, rail, sidebar } = frame(container)
 
     /**
      * The header lives in the content column, and the chrome does not. If the header
      * moved back above the `chrome | content` row it would no longer be a descendant
      * of the column — which is the single assertion that fails on that regression.
      */
-    expect(column.contains(header)).toBe(true)
-    expect(column.contains(rail)).toBe(false)
-    expect(column.contains(sidebar)).toBe(false)
+    expect(main.contains(header)).toBe(true)
+    expect(main.contains(rail)).toBe(false)
+    expect(main.contains(sidebar)).toBe(false)
 
     /**
      * And they are siblings, so the row's height is the window's and the rail's height
@@ -326,34 +425,54 @@ describe('the frame', () => {
      * failure this pins, because it is invisible to every other check here.
      *
      * `[data-slot="icon-rail"]` and not the `nav` itself: the rail's outer element is
-     * the 72px column and the `<nav>` is one level inside it, so comparing the nav's
+     * the 103px column and the `<nav>` is one level inside it, so comparing the nav's
      * parent would compare the wrong two nodes and pass or fail for a reason that has
      * nothing to do with the frame.
      */
     const railColumn = rail.closest('[data-slot="icon-rail"]')
     expect(railColumn).not.toBeNull()
-    expect(column.parentElement).toBe(railColumn?.parentElement)
+    expect(main.parentElement).toBe(railColumn?.parentElement)
   })
 
   /**
-   * §3: the header *"is a **sibling** of `<main>`, never a child"*, because `<header>`
-   * keeps its implicit `banner` role only while it is outside `main`, `article`,
-   * `aside`, `nav` and `section`. Nesting it demotes it to a generic group for every
-   * assistive technology that navigates by landmark, and nothing looks wrong.
+   * The header is the first child of `<main>`, and this test used to assert the exact
+   * opposite — *"keeps the header out of main, so it stays a banner landmark"*, quoting
+   * `docs/specs/web/shell.md` §3's *"is a **sibling** of `<main>`, never a child"*.
+   * Both the spec sentence and the test were rewritten with the measurement pass, not
+   * around it. `components/surface-header.tsx` and `components/shell/shell-frame.tsx`
+   * carry the argument; the short form is that both references draw **one** block at
+   * the top of the content column and everything in it is per-surface, so a
+   * frame-level slot could not have fed it, and `banner` means site-oriented while a
+   * header reading "Logistics Platform · Board" is not.
    *
-   * The second assertion is the one with teeth. `getByRole('banner')` resolving is not
-   * evidence on its own — a nested `<header>` would still be found by `querySelector`,
-   * and jsdom's role mapping is not the browser's — so the containment is checked
-   * directly rather than inferred from the query succeeding.
+   * ### Why this is containment and not a role query
+   *
+   * The demotion is the point, so the obvious assertion is
+   * `queryByRole('banner')).toBeNull()`. It fails — and it fails on markup that is
+   * correct. `findLoadedShell`'s docblock has the measurement: this stack reports
+   * `banner` for a `<header>` inside `<main>` because `@testing-library/dom` discards
+   * the element-level `constraints` that `aria-query` supplies. The role query is
+   * blind to the property in **both** directions here, which is also why the move
+   * broke none of the fifteen call sites it invalidated.
+   *
+   * Containment is what a browser's own role computation consults, and it is the one
+   * thing jsdom models exactly. So that is what is asserted.
    */
-  it('keeps the header out of main, so it stays a banner landmark', async () => {
+  it('keeps the header inside main, where it is deliberately not a banner', async () => {
     const { container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
     const { header, main } = frame(container)
 
     expect(header.tagName).toBe('HEADER')
-    expect(main.contains(header)).toBe(false)
-    expect(header.closest('main, article, aside, nav, section')).toBeNull()
+    /**
+     * `parentElement`, not `contains`. The header being *somewhere* under `<main>`
+     * would also be satisfied by it having been pushed inside the board's scroll
+     * container, which would make it scroll away with the cards — §3 requires it to
+     * stay put while content moves under it. Being `<main>`'s own child is the version
+     * of the claim that has that consequence.
+     */
+    expect(header.parentElement).toBe(main)
+    expect(header.closest('main')).toBe(main)
   })
 
   /**
@@ -368,7 +487,7 @@ describe('the frame', () => {
    */
   it('keeps the global strips outside the content column', async () => {
     const { queryClient, container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     server.use(fails('GET', '/bootstrap', 'internal_error'))
     await act(async () => {
@@ -381,25 +500,37 @@ describe('the frame', () => {
       expect(strip).not.toBeNull()
     })
 
-    const { column, main } = frame(container)
-    expect(column.contains(strip)).toBe(false)
+    const { main } = frame(container)
     expect(main.contains(strip)).toBe(false)
+    /**
+     * And above the row, not merely outside the column: a strip inside the
+     * `chrome | content` row would be confined to one of the two columns whatever it
+     * did next. `<main>`'s parent *is* that row.
+     */
+    expect(main.parentElement?.contains(strip)).toBe(false)
   })
 
   /**
    * The failed state has no chrome at all (§4), and it still has to be the same frame
-   * — the column and `<main id="main">` present, so the skip link resolves. Without
-   * this, the restructure could have put the column inside the loaded branch only, and
-   * the two error screens would have drifted into a different shape than the app.
+   * — `<main id="main">` in the same row, so the skip link resolves. Without this, the
+   * restructure could have put the column inside the loaded branch only, and the two
+   * error screens would have drifted into a different shape than the app.
+   *
+   * The row is asserted through `<main>`'s ancestry rather than by finding the column,
+   * because the column *is* `<main>` now: what is left to get wrong is the row above
+   * it, and a `<main>` rendered as a direct child of `[data-slot="shell"]` would skip
+   * the `min-h-0 flex-1` that stops the window itself from scrolling (§3).
    */
   it('keeps the content column in the state with no chrome', async () => {
     server.use(fails('GET', '/bootstrap', 'internal_error'))
     const { container } = renderShell()
     await screen.findByRole('heading', { level: 1 })
 
-    const column = container.querySelector('[data-slot="shell-content"]')
-    expect(column).not.toBeNull()
-    expect(column?.contains(screen.getByRole('main'))).toBe(true)
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('id', 'main')
+    const shell = container.querySelector('[data-slot="shell"]')
+    expect(shell).not.toBeNull()
+    expect(main.parentElement?.parentElement).toBe(shell)
     expect(screen.queryByRole('navigation')).toBeNull()
   })
 })
@@ -433,7 +564,7 @@ describe('the sidebar toggle', () => {
   it('keeps what the tree is holding across a collapse and an expand', async () => {
     const user = userEvent.setup()
     const { container } = renderShell()
-    await screen.findByRole('banner')
+    await findLoadedShell()
 
     /**
      * One filter field, not two: the drawer renders the same tree, but its
@@ -582,7 +713,7 @@ describe('the four bootstrap failure modes', () => {
 
     /** The retry is real: the gate recovers into the loaded state. */
     await waitFor(() => {
-      expect(screen.getByRole('banner')).toBeInTheDocument()
+      expect(container.querySelector('[data-slot="surface-header"]')).not.toBeNull()
     })
   })
 

@@ -136,8 +136,8 @@ There is no palette to fall back on. This is the complete colour vocabulary:
 And the non-colour scales: `rounded-{control,card,panel,window,chip}`;
 `shadow-{xs,card,raised,drag,overlay}`; `text-{2xs,xs,sm,base,md,lg,xl,2xl,3xl}`;
 `font-{sans,mono}`; the named spacing steps
-`{rail,nav,tree,detail,column,topbar,subbar,row,avatar}`, used as `w-rail`,
-`h-topbar`, `size-avatar`; `ease-{out,in-out,emphasis}`;
+`{rail,rail-head,rail-step,nav,tree,tree-inset,detail,column,gutter,subbar,row,avatar}`,
+used as `w-rail`, `h-subbar`, `size-avatar`; `ease-{out,in-out,emphasis}`;
 `animate-{fade-in,fade-out,pop-in,pop-out}`.
 
 Need a value that is not there? Add the token. Do not reach for an arbitrary

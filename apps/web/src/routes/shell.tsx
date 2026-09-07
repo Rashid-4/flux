@@ -7,12 +7,7 @@ import { RefreshFailure } from '@/components/shell/refresh-failure'
 import { ShellFrame } from '@/components/shell/shell-frame'
 import { ShellKeyboard } from '@/components/shell/shell-keyboard'
 import { SidebarSlot } from '@/components/shell/sidebar-slot'
-import { TopBar } from '@/components/shell/top-bar'
-import {
-  ShellChromeSkeleton,
-  ShellMainSkeleton,
-  ShellTopBarSkeleton,
-} from '@/components/shell/shell-skeleton'
+import { ShellChromeSkeleton, ShellMainSkeleton } from '@/components/shell/shell-skeleton'
 import { useBootstrap } from '@/queries/bootstrap'
 import { useSidebarOpen } from '@/stores/chrome'
 
@@ -108,7 +103,6 @@ export function Shell() {
   if (bootstrap.data === undefined) {
     return (
       <ShellFrame
-        header={<ShellTopBarSkeleton />}
         /**
          * The skeleton reserves the width the loaded shell will, not 260px
          * unconditionally — a user who collapsed the sidebar was otherwise shown a
@@ -127,7 +121,6 @@ export function Shell() {
 
   return (
     <ShellFrame
-      header={<TopBar bootstrap={bootstrap.data} />}
       notice={
         /**
          * The refresh that failed while the app was up. A strip for most causes and a

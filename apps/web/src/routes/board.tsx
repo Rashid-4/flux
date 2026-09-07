@@ -1,9 +1,12 @@
+import { Construction, SearchX } from 'lucide-react'
 import { useMatch } from 'react-router'
 import { BoardColumn } from '@/components/board/board-column'
-import { ProjectBand } from '@/components/board/project-band'
+import { BoardToolbar } from '@/components/board/board-toolbar'
 import { EmptyState } from '@/components/empty-state'
-import { PageHeader } from '@/components/page-header'
+import { PaletteAction } from '@/components/palette-action'
+import { ProjectHeader } from '@/components/project-header'
 import { useShellContext } from '@/components/shell/context'
+import { SurfaceHeader } from '@/components/surface-header'
 import { useProjectBoard } from '@/queries/board'
 import { ROUTE_PATTERNS } from '@/lib/paths'
 
@@ -56,11 +59,20 @@ export function BoardSurface() {
   if (project === null) {
     return (
       <>
-        <PageHeader title="Board" />
-        <EmptyState
-          title="No project with that key"
-          detail={`Nothing here is called ${projectKey ?? 'that'}. It may have been renamed, or you may not have access to it.`}
-        />
+        <SurfaceHeader title="Board" actions={<PaletteAction />} />
+        {/**
+         * `min-h-0 flex-1` and centred, matching `routes/planned.tsx`. Without the
+         * `min-h-0` a flex child refuses to shrink below its content and there is
+         * nothing for the centring to happen inside, so the message sits against the
+         * header instead of in the space it is explaining.
+         */}
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <EmptyState
+            icon={<SearchX className="size-5" />}
+            title="No project with that key"
+            detail={`Nothing here is called ${projectKey ?? 'that'}. It may have been renamed, or you may not have access to it.`}
+          />
+        </div>
       </>
     )
   }
@@ -68,20 +80,29 @@ export function BoardSurface() {
   if (view === null) {
     /**
      * Distinct from "no such project", per §13 of the quality bar. The cause is
-     * known — CR-010: nothing maps a project key to a board id — so the copy says
+     * known — CR-012: nothing maps a project key to a board id — so the copy says
      * that rather than "something went wrong".
      */
     return (
       <>
-        <PageHeader title={project.name} description={`Board · ${project.key}`} />
-        <EmptyState
-          title="This board cannot be opened yet"
-          detail={
-            unresolved
-              ? 'Boards are reached by id, and nothing yet maps a project to its board. See change request 010.'
-              : 'The board has not loaded.'
-          }
-        />
+        {/**
+         * The real project header, not a reduced one. The project resolved — only its
+         * *board* did not — so the crumb trail, the tab row and the team stack are all
+         * answerable, and a person who lands here can reach the backlog in one click
+         * instead of being shown a dead end with a title on it.
+         */}
+        <ProjectHeader bootstrap={bootstrap} project={project} />
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <EmptyState
+            icon={<Construction className="size-5" />}
+            title="This board cannot be opened yet"
+            detail={
+              unresolved
+                ? 'Boards are reached by id, and nothing yet maps a project to its board. Its backlog and settings are available from the tabs above.'
+                : 'The board has not loaded.'
+            }
+          />
+        </div>
       </>
     )
   }
@@ -90,8 +111,8 @@ export function BoardSurface() {
 
   return (
     <>
-      <ProjectBand
-        project={project}
+      <ProjectHeader bootstrap={bootstrap} project={project} />
+      <BoardToolbar
         {...(view.activeSprint === null
           ? {}
           : {
@@ -101,7 +122,23 @@ export function BoardSurface() {
 
       <div
         data-slot="board"
-        className="flex min-h-0 flex-1 gap-5 overflow-x-auto bg-surface-2 p-4"
+        /**
+         * No `bg`: the field is `--canvas`, which `components/shell/shell-frame.tsx`
+         * already paints on `<main>` and which the references measure at exactly
+         * (244, 246, 248) light / (16, 18, 19) dark. This was `bg-surface-2`, a *card*
+         * step, which put the columns on the wrong level — in dark it was within two
+         * rungs of the cards sitting on it.
+         *
+         * `px-gutter` is the same 36px inset the header and the toolbar use, so the
+         * first column's left edge lines up with the title, the breadcrumb, the first
+         * tab and the toolbar's rule. `p-4` put it 20px inside all four.
+         *
+         * The vertical padding is **provisional**: `docs/specs/web/shell.md` §3.2 has
+         * the header and the toolbar measured to the pixel and the board's own
+         * landmarks are the next pass, so `py-6` is a considered placeholder rather
+         * than a measurement, and it is the only number in this file that is.
+         */
+        className="flex min-h-0 flex-1 gap-5 overflow-x-auto px-gutter py-6"
         /**
          * A labelled region rather than a bare div: it is the main content of the
          * screen and a screen-reader user landing in `<main>` should be told what

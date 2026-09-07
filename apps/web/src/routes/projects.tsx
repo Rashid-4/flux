@@ -2,7 +2,8 @@ import { FolderPlus, SearchX } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import { NewProjectButton } from '@/components/new-project-button'
-import { PageHeader } from '@/components/page-header'
+import { PaletteAction } from '@/components/palette-action'
+import { SurfaceHeader } from '@/components/surface-header'
 import { PageSection } from '@/components/page-section'
 import { ProjectGrid } from '@/components/project-grid'
 import { useShellContext } from '@/components/shell/context'
@@ -73,7 +74,7 @@ export function ProjectsSurface() {
 
   return (
     <>
-      <PageHeader
+      <SurfaceHeader
         title="Projects"
         /**
          * The count is real data, not decoration: it is the one thing a list page can
@@ -83,7 +84,12 @@ export function ProjectsSurface() {
          * unconsidered.
          */
         description={`${String(total)} ${total === 1 ? 'project' : 'projects'} in ${bootstrap.organization.name}`}
-        actions={<NewProjectButton permitted={canCreateProject} />}
+        actions={
+          <>
+            <PaletteAction />
+            <NewProjectButton permitted={canCreateProject} />
+          </>
+        }
       />
 
       {/**

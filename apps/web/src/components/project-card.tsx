@@ -51,7 +51,7 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
         <div className="flex items-center gap-1.5">
           {/**
            * `truncate` needs the `min-w-0` on the flex parent above it to do
-           * anything — see ./page-header.tsx for why.
+           * anything — see ./surface-header.tsx for why.
            */}
           <span className="truncate text-md font-medium text-fg">{project.name}</span>
           {project.isFavourite && (

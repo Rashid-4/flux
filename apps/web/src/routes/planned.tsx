@@ -1,9 +1,10 @@
 import { ArrowRight, Construction, SearchX } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { EmptyState } from '@/components/empty-state'
-import { PageHeader } from '@/components/page-header'
-import { ProjectGlyph } from '@/components/project-glyph'
+import { PaletteAction } from '@/components/palette-action'
+import { ProjectHeader } from '@/components/project-header'
 import { useShellContext } from '@/components/shell/context'
+import { SurfaceHeader } from '@/components/surface-header'
 import { Button } from '@/components/ui/button'
 import { useDocumentTitle } from '@/lib/document-title'
 import { paths } from '@/lib/paths'
@@ -40,7 +41,12 @@ export function PlannedSurface({ title, description }: PlannedSurfaceProps) {
 
   return (
     <>
-      <PageHeader title={title} />
+      {/**
+       * The palette is offered even here — especially here. Three of these four
+       * surfaces are the ones a person reaches while looking for something, and the
+       * palette is the one thing on the page that can actually find it.
+       */}
+      <SurfaceHeader title={title} actions={<PaletteAction />} />
       {/**
        * `min-h-0` with `flex-1`, so this fills the space under the header and centres
        * in it rather than sitting against the top. Without the `min-h-0` a flex child
@@ -150,7 +156,13 @@ function useRouteProject() {
       : (bootstrap.projects.find((candidate) => candidate.key.toLocaleUpperCase() === wanted) ??
         null)
 
-  return { projectKey: projectKey ?? '', project }
+  /**
+   * `bootstrap` comes back out because `<ProjectHeader>` needs it — the breadcrumb
+   * names the organization and the tabs-row cluster is its teams. One `useShellContext`
+   * per surface rather than a second call inside the header, so a route cannot render a
+   * header for one bootstrap and a body for another.
+   */
+  return { bootstrap, projectKey: projectKey ?? '', project }
 }
 
 export interface ProjectPlannedSurfaceProps {
@@ -161,7 +173,7 @@ export interface ProjectPlannedSurfaceProps {
 }
 
 export function ProjectPlannedSurface({ surface, description }: ProjectPlannedSurfaceProps) {
-  const { projectKey, project } = useRouteProject()
+  const { bootstrap, projectKey, project } = useRouteProject()
 
   /**
    * The tab title carries the *key*, not the name. A person triaging has four boards
@@ -173,7 +185,7 @@ export function ProjectPlannedSurface({ surface, description }: ProjectPlannedSu
   if (project === null) {
     return (
       <>
-        <PageHeader title="Project not found" />
+        <SurfaceHeader title="Project not found" actions={<PaletteAction />} />
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <EmptyState
             icon={<SearchX className="size-5" />}
@@ -205,16 +217,17 @@ export function ProjectPlannedSurface({ surface, description }: ProjectPlannedSu
   return (
     <>
       {/**
-       * The project is the `h1` and the surface is the line under it. That ordering is
-       * what the real board will use — a project header with Board / Backlog / Settings
-       * beneath it — so the placeholder does not teach a layout the finished screen then
-       * contradicts.
+       * The **real** project header, not a placeholder version of one. That is the
+       * point: the project is the `h1`, the crumb trail says where it sits, and the tab
+       * row carries Board / Backlog / Settings with this surface marked — so a person
+       * who lands on the backlog before it is built can still see the shape of the
+       * product and get to the board in one click. The old placeholder wrote its own
+       * two-line header and therefore taught a layout the finished screen contradicts.
+       *
+       * It also means the tab row is exercised on every surface rather than only on the
+       * one that is finished, which is where a divergence between them would hide.
        */}
-      <PageHeader
-        lead={<ProjectGlyph project={project} size="lg" />}
-        title={project.name}
-        description={`${surface} · ${project.key}`}
-      />
+      <ProjectHeader bootstrap={bootstrap} project={project} />
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <EmptyState
           icon={<Construction className="size-5" />}
@@ -261,7 +274,11 @@ export function IssueSurface() {
 
   return (
     <>
-      <PageHeader title={key === '' ? 'Issue' : key} description="Issue" />
+      <SurfaceHeader
+        title={key === '' ? 'Issue' : key}
+        description="Issue"
+        actions={<PaletteAction />}
+      />
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <EmptyState
           icon={<Construction className="size-5" />}

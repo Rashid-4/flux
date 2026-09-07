@@ -120,7 +120,7 @@ const TYPE = [
   { className: 'text-lg', name: 'text-lg · 19px', sample: 'Tabs, panel headings' },
   { className: 'text-xl', name: 'text-xl · 21px', sample: 'Panel title' },
   { className: 'text-2xl', name: 'text-2xl · 24px', sample: 'Section display' },
-  { className: 'text-3xl', name: 'text-3xl · 28px', sample: 'Page title' },
+  { className: 'text-3xl', name: 'text-3xl · 30px', sample: 'Surface title' },
 ] as const
 
 const WIDTHS = [
@@ -132,7 +132,6 @@ const WIDTHS = [
 ] as const
 
 const HEIGHTS = [
-  { className: 'h-topbar', name: 'h-topbar' },
   { className: 'h-subbar', name: 'h-subbar' },
   { className: 'h-row', name: 'h-row' },
   { className: 'size-avatar', name: 'size-avatar' },

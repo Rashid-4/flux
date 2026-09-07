@@ -3,7 +3,8 @@ import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { EmptyState } from '@/components/empty-state'
 import { NewProjectButton } from '@/components/new-project-button'
-import { PageHeader } from '@/components/page-header'
+import { PaletteAction } from '@/components/palette-action'
+import { SurfaceHeader } from '@/components/surface-header'
 import { PageSection } from '@/components/page-section'
 import { ProjectGrid } from '@/components/project-grid'
 import { useShellContext } from '@/components/shell/context'
@@ -82,7 +83,11 @@ export function HomeSurface() {
 
   return (
     <>
-      <PageHeader title="Your work" description={bootstrap.organization.name} />
+      <SurfaceHeader
+        title="Your work"
+        description={bootstrap.organization.name}
+        actions={<PaletteAction />}
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-6 p-4">

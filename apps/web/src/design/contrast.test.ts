@@ -89,12 +89,60 @@ const THEMES: readonly Theme[] = [
   { name: 'dark', code: dark, raw: rawDark },
 ]
 
-/** Every token in a block whose value is a single colour, in declaration order. */
+/** Every declaration in a block, before any of it is understood as a colour. */
+function declarations(code: string): Map<string, string> {
+  const raw = new Map<string, string>()
+  for (const name of declaredProps(code)) {
+    const value = declaredValue(code, name)
+    if (value !== undefined) raw.set(name, value)
+  }
+  return raw
+}
+
+const DECLARED: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([
+  ['light', declarations(root)],
+  ['dark', declarations(dark)],
+])
+
+const ALIAS = /^var\(--([a-z0-9-]+)\)$/
+
+/**
+ * Every token in a block whose value is a single colour, in declaration order.
+ *
+ * **An alias counts.** This used to read `parseOklch(value)` and stop, which meant
+ * a token spelled `var(--surface)` was invisible to every assertion in the file —
+ * and roughly a dozen of the most load-bearing ones are spelled exactly that way
+ * on purpose, because a cross-theme inversion belongs to the theme rather than to
+ * the call site. `--chrome-raised`, `--chrome-hover`, `--rail-icon`,
+ * `--rail-selected`, `--border-rule` and `--canvas-raised` were all unmeasured, and
+ * the way that surfaced was a new token failing with *expected undefined to be
+ * defined* rather than with a ratio: the instrument could not see the thing it was
+ * asked about. That is the blind-spot shape CLAUDE.md names, so it is closed here
+ * rather than worked around by writing the target's literal value twice.
+ *
+ * Resolution follows the cascade, not just the block: `.dark` redeclares only some
+ * tokens, so an alias there is looked up in `.dark` first and in `:root` second,
+ * which is what the browser does. The depth cap makes a circular alias a `null`
+ * rather than a stack overflow — a mistake that would otherwise take out the whole
+ * suite with no token named.
+ */
 function colors(theme: Theme): Map<string, Oklch> {
+  const own = DECLARED.get(theme.name) ?? new Map<string, string>()
+  const base = DECLARED.get('light') ?? new Map<string, string>()
+
+  const resolve = (value: string, depth: number): Oklch | null => {
+    if (depth > 8) return null
+    const direct = parseOklch(value)
+    if (direct !== null) return direct
+    const target = ALIAS.exec(value.trim())?.[1]
+    if (target === undefined) return null
+    const next = own.get(target) ?? base.get(target)
+    return next === undefined ? null : resolve(next, depth + 1)
+  }
+
   const found = new Map<string, Oklch>()
-  for (const name of declaredProps(theme.code)) {
-    const value = declaredValue(theme.code, name)
-    const color = value === undefined ? null : parseOklch(value)
+  for (const [name, value] of own) {
+    const color = resolve(value, 0)
     // `--elevation-*` is a box-shadow and `--overlay` is translucent; both are
     // deliberately absent rather than composited against a guessed backdrop.
     if (color !== null && color.alpha === 1) found.set(name, color)
@@ -116,15 +164,25 @@ function measure(theme: Theme, fg: string, bg: string): number {
 /**
  * Every background a foreground in this product can end up on.
  *
- * Six, not four. `chrome` and `panel` were added when the neutral ladder went from
- * three levels to four, and adding them *here* is the half that is easy to forget:
+ * Seven, not four. `chrome` and `panel` were added when the neutral ladder went
+ * from three levels to four, and `canvas-raised` when the board's view switcher
+ * needed a selected fill the canvas could not supply. Adding them *here* is the
+ * half that is easy to forget:
  * two new surfaces that text, a control boundary and an avatar all land on would
  * otherwise be the only backgrounds in the product with no measurement behind
  * them, and every loop below would keep passing while covering less of the
  * product than it did before. A token added to the palette is a token added to
  * this list.
  */
-const SURFACES = ['surface', 'surface-2', 'surface-3', 'canvas', 'chrome', 'panel'] as const
+const SURFACES = [
+  'surface',
+  'surface-2',
+  'surface-3',
+  'canvas',
+  'canvas-raised',
+  'chrome',
+  'panel',
+] as const
 
 const ENTITY_HUES = [20, 58, 96, 145, 190, 235, 278, 322] as const
 const ENTITY_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const
@@ -183,6 +241,7 @@ const ORPHAN_HEXES: ReadonlyArray<readonly [string, string]> = [
   ['#f1f4f5', "the light reference's brand-disc fill, which --surface-3 matches to webp's noise"],
   ['#f0f5f5', "the light reference's selected project row — the same fill as its brand disc"],
   ['#1a1c1e', "the dark reference's selected project row, which --surface matches to that noise"],
+  ['#1c2022', "the dark reference's selected view chip, which --canvas-raised takes --surface for"],
 ]
 
 describe('the reader sees the same file the other tests see', () => {
@@ -336,7 +395,7 @@ describe('text clears AA on every surface it can land on', () => {
 
   for (const theme of THEMES) {
     for (const fg of TEXT) {
-      it(`${theme.name}: --${fg} is AA on all four surfaces`, () => {
+      it(`${theme.name}: --${fg} is AA on every surface`, () => {
         for (const surface of SURFACES) {
           const measured = measure(theme, fg, surface)
           expect(
@@ -532,6 +591,7 @@ describe('the entity palette', () => {
         'surface-2': '1.42',
         'surface-3': '1.36',
         canvas: '1.40',
+        'canvas-raised': '1.29',
         chrome: '1.51',
         panel: '1.51',
       },
@@ -540,6 +600,7 @@ describe('the entity palette', () => {
         'surface-2': '1.70',
         'surface-3': '1.50',
         canvas: '1.98',
+        'canvas-raised': '1.76',
         chrome: '2.21',
         panel: '1.98',
       },

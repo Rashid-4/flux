@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn'
  * content change and nothing else moves.
  *
  * So the widths here are the same tokens the real components use: `w-rail`, `w-tree`,
- * `h-topbar`, `h-row`, `pt-rail-head`, `px-tree-inset`. Not similar numbers — the same
+ * `h-row`, `pt-rail-head`, `px-tree-inset`, `px-gutter`. Not similar numbers — the same
  * tokens, so a change to one cannot leave the other behind.
  *
  * ### Not a spinner
@@ -122,17 +122,54 @@ export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
   )
 }
 
-/** The page placeholder: a header on the same 56px minimum, then a card grid. */
+/**
+ * The header block's shape while bootstrap is in flight — the two-row variant.
+ *
+ * Every number is the twin of one in `../surface-header.tsx`, not a similar number:
+ * `pt-9`, a **38px** title line box, `mt-3.25`, a **24px** second line box, `pb-9`,
+ * and `border-b border-border` on `bg-panel px-gutter`. That sums to 148px in both
+ * states, so the swap moves ink and nothing else. Using `min-h-topbar` and `px-4`
+ * here — which is what this drew before the header block was measured — put the
+ * placeholder 90px short and 20px in, so every surface visibly dropped and shifted
+ * right at the moment data landed.
+ *
+ * The bars are the measured *ink* rather than the line box: `text-3xl` inks 28px tall
+ * and `text-md` inks 13, so `h-7` and `h-3.5` are where the letters actually are.
+ * Centring each inside its line box is what keeps the grey where the text will be
+ * instead of a bar that is taller than the words it stands for.
+ *
+ * ### It draws the two-row variant, and a board is three rows plus a toolbar
+ *
+ * This is the *landing* surface's shape — a title, a line of muted text, and the
+ * project grid below, which is what `../../routes/home.tsx` and `projects.tsx`
+ * render. A deep link straight to a board resolves into a taller header (198px) and
+ * a 101px toolbar under it, so that one case does jump. The fix is to make the
+ * skeleton route-aware, which is cheap — the URL is known before bootstrap resolves
+ * — but it needs the board's own body placeholder to be worth anything, and that
+ * arrives with the board. Drawing a tab row over a card grid in the meantime would
+ * be a shape that matches no surface at all.
+ */
+export function SurfaceHeaderSkeleton() {
+  return (
+    <div
+      data-slot="surface-header-skeleton"
+      className="shrink-0 border-b border-border bg-panel px-gutter pt-9 pb-9"
+    >
+      <div className="flex h-9.5 items-center">
+        <Skeleton className="h-7 w-56 rounded-control" />
+      </div>
+      <div className="mt-3.25 flex h-6 items-center">
+        <Skeleton className="h-3.5 w-80 rounded-control" />
+      </div>
+    </div>
+  )
+}
+
+/** The page placeholder: the header block, then a card grid. */
 export function ShellMainSkeleton() {
   return (
     <>
-      <div className="flex min-h-topbar shrink-0 items-center gap-3 border-b border-border px-4 py-3">
-        <Skeleton className="size-8 shrink-0 rounded-control" />
-        <div className="flex flex-1 flex-col gap-1.5">
-          <Skeleton className="h-4 w-48 rounded-control" />
-          <Skeleton className="h-3 w-64 rounded-control" />
-        </div>
-      </div>
+      <SurfaceHeaderSkeleton />
       {/**
        * The columns come from ../project-grid.tsx rather than being repeated here, so
        * the placeholder cannot reflow into a different grid than the one that replaces
@@ -153,44 +190,5 @@ export function ShellMainSkeleton() {
         ))}
       </div>
     </>
-  )
-}
-
-/**
- * The top bar's shape while bootstrap is in flight.
- *
- * §4: *"a skeleton frame, not a spinner on blank"*, and §11: *"no layout jump when
- * data lands"*. The bar is `h-topbar` in both states and the two context columns
- * are drawn at the same two type steps the real ones use, so the swap changes
- * pixels rather than geometry.
- *
- * `bg-panel`, tracking `./top-bar.tsx` — this is the top row of the content column's
- * header block now that §3's chrome runs floor to ceiling, and `--chrome` is #000000
- * in dark, so the old token would flash a black band across the column for exactly as
- * long as bootstrap takes. A skeleton that changes *colour* when data lands is the
- * same defect as one that changes geometry, and harder to notice in review because
- * both values are real.
- */
-export function ShellTopBarSkeleton() {
-  return (
-    <div
-      data-slot="top-bar-skeleton"
-      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-panel px-4"
-    >
-      <div className="flex flex-col gap-1">
-        <Skeleton className="h-3 w-16 rounded-control" />
-        <Skeleton className="h-4 w-32 rounded-control" />
-      </div>
-      {/**
-       * Three, matching the cluster `./top-bar.tsx` now renders on the right: the
-       * palette button, the theme control and the account menu. It was one, for as
-       * long as the latter two lived in the rail.
-       */}
-      <div className="ml-auto flex items-center gap-1">
-        <Skeleton className="h-8 w-28 rounded-control" />
-        <Skeleton className="size-9 rounded-control" />
-        <Skeleton className="size-9 rounded-chip" />
-      </div>
-    </div>
   )
 }

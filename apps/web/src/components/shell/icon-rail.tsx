@@ -10,7 +10,9 @@ import {
   Upload,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
+import { AccountPopover } from '@/components/shell/account-popover'
 import { NavDrawer } from '@/components/shell/nav-drawer'
+import { ThemeMenu } from '@/components/shell/theme-menu'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { OrgPermissions } from '@/lib/bootstrap'
@@ -42,6 +44,14 @@ import { useSidebarOpen, useToggleSidebar } from '@/stores/chrome'
  * would make every subsequent offset disagree with the reference by 40px, and the
  * content column's first ink (the page title, y=44) sits inside that band anyway, so
  * the rail's clear space is level with the header's and nothing reads as empty.
+ *
+ * ### What is deliberately *added*
+ *
+ * The bottom cluster carries the theme control and the account menu, which neither
+ * reference draws — they end the rail with one chevron. The reasoning is at the call
+ * site; the short form is that a mockup has no theme to switch and nobody to be
+ * signed in as, and every alternative position for two application-level controls was
+ * worse than this one.
  *
  * ### Every item is a real link
  *
@@ -202,6 +212,27 @@ export function IconRail({ bootstrap }: IconRailProps) {
          * project tree had no affordance at all on a phone.
          */}
         <NavDrawer bootstrap={bootstrap} />
+
+        {/**
+         * The theme control and the account menu, and this is a **departure** from the
+         * references: both end the rail with a single 24px chevron and nothing else.
+         *
+         * They are here because they are not optional and there is nowhere else. A
+         * mockup has no theme to switch and nobody to be signed in as; flux has both,
+         * and the alternative places are all worse. Repeating them in every surface
+         * header would put two application-level controls inside a block whose every
+         * other control is scoped to what the column is showing. A frame-level bar to
+         * hold them is the component this pass deleted, and it cost 56px of vertical
+         * space across the whole product for two glyphs.
+         *
+         * The bottom of a floor-to-ceiling rail is where every application with this
+         * shape puts them, which is the argument that matters: it is where someone
+         * looks. Both components already open `side="right"`, because that is the only
+         * direction available from a 103px column — they were built for this position
+         * and were on loan to the bar.
+         */}
+        <ThemeMenu />
+        <AccountPopover bootstrap={bootstrap} />
 
         <Tooltip>
           <TooltipTrigger asChild>

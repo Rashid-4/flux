@@ -1,4 +1,4 @@
-# CR-010 — `/projects/:projectKey/board` cannot resolve a board id
+# CR-012 — `/projects/:projectKey/board` cannot resolve a board id
 
 | | |
 | --- | --- |

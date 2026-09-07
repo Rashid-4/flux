@@ -1,7 +1,7 @@
 import { ArrowRight, Compass } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 import { EmptyState } from '@/components/empty-state'
-import { PageHeader } from '@/components/page-header'
+import { SurfaceHeader } from '@/components/surface-header'
 import { Button } from '@/components/ui/button'
 import { useDocumentTitle } from '@/lib/document-title'
 import { paths } from '@/lib/paths'
@@ -35,7 +35,7 @@ export function NotFoundSurface() {
 
   return (
     <>
-      <PageHeader title="Page not found" />
+      <SurfaceHeader title="Page not found" />
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <EmptyState
           icon={<Compass className="size-5" />}

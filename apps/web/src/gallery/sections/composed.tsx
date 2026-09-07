@@ -140,20 +140,21 @@ export function ComposedSection() {
         className="flex-col items-stretch"
       >
         {/*
-          `min-h-subbar`, not `h-subbar`. A fixed height and `flex-wrap` cannot both
-          hold: measured at 375px, the box stayed 46px while its children reached
-          155px, so the search input and the avatar stack rendered *outside* the bar
-          and on top of the next panel. At any width where the row fits it is still
-          exactly 48px, so the specimen shows the real height where the real height
-          is the point.
+          `min-h-12`, and it used to be `min-h-subbar`. That token is no longer a
+          plausible height for a row of primitives: `--spacing-subbar` is the board
+          toolbar's measured 101px band — 38px of clear space above a 40px chip and
+          22px below — which `components/board/board-toolbar.tsx` derives from the
+          references. Borrowing it here would have drawn a 101px specimen to make a
+          point about 48px density.
 
-          This is the rule `page-header.tsx` already writes down for `min-h-topbar`
-          — reused rather than rediscovered. The product's own bars were right; only
-          this specimen was wrong, which is the shape worth noticing: the gallery is
-          the instrument, and an instrument that overlaps its own panels is telling
-          you something about itself.
+          `min-h-`, not `h-`, for the reason that outlived the token: a fixed height
+          and `flex-wrap` cannot both hold. Measured at 375px, the box stayed 46px
+          while its children reached 155px, so the search input and the avatar stack
+          rendered *outside* the bar and on top of the next panel. At any width where
+          the row fits it is still exactly 48px, which is where the baseline the panel
+          is about actually lives.
         */}
-        <div className="flex min-h-subbar w-full flex-wrap items-center gap-2 rounded-card border border-border bg-surface px-3">
+        <div className="flex min-h-12 w-full flex-wrap items-center gap-2 rounded-card border border-border bg-surface px-3">
           <Tabs defaultValue="kanban">
             <TabsList>
               <TabsTrigger value="kanban">Kanban</TabsTrigger>
