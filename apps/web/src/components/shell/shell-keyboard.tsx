@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMatch, useNavigate } from 'react-router'
 import { CommandPalette, openPalette } from '@/command-palette/command-palette'
 import { scopeRecents, useRecentsStore } from '@/command-palette/recents'
+import { PendingSequence } from '@/keyboard/pending-sequence'
 import { ShortcutSheet } from '@/keyboard/shortcut-sheet'
 import { useShortcut, useShortcutListener } from '@/keyboard/use-shortcuts'
 import { paths, ROUTE_PATTERNS } from '@/lib/paths'
@@ -214,6 +215,16 @@ export function ShellKeyboard({ bootstrap }: ShellKeyboardProps) {
     <>
       <CommandPalette bootstrap={bootstrap} />
       <ShortcutSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      {/**
+       * The half-typed chord, made visible — ../../keyboard/pending-sequence.tsx.
+       *
+       * Here, beside the listener that arms it, because `g` is only a modal state for
+       * as long as this component is mounted: `useShortcutListener()` above is what
+       * installs the dispatcher, so a pending sequence cannot exist anywhere this is
+       * not. Rendering it from `ShellFrame` instead would put the indicator in the
+       * bootstrap error and loading states, where no shortcut is armed and none can be.
+       */}
+      <PendingSequence />
     </>
   )
 }
