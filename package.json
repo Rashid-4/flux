@@ -35,7 +35,8 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:integration": "node scripts/check-integration-suites.mjs"
+    "check:integration": "node scripts/check-integration-suites.mjs",
+    "ui:diff": "node scripts/reference-diff.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
