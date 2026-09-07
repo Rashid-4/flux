@@ -44,11 +44,20 @@ import { ProjectTree } from '@/components/shell/project-tree'
  * breaking one or the other. Favouriting belongs on the project's own page, where it
  * can be a real control. Same trade as ../project-card.tsx, for the same reason.
  *
+ * ### The geometry is not this file's any more
+ *
+ * `absolute inset-y-0 right-0 w-tree`, inside `./sidebar-slot.tsx`. Out of flow and a
+ * fixed width, so collapsing the sidebar cannot reflow the tree — read that file for
+ * why the toggle animates a wrapper's width rather than this panel's, and for what
+ * the mount/unmount it replaced was throwing away. The breakpoint (`hidden md:block`)
+ * moved there too, so the panel and its reserved space cannot disagree about which
+ * widths they exist at.
+ *
  * ### Below 768px this is not rendered, and that is no longer a gap
  *
- * `hidden md:flex`, and the rail's toggle carries the same pair so the two appear
- * and disappear together. The rail is 72px and this is 260px, which is 332px of a
- * 375px phone: three columns of chrome and 43px of content.
+ * The rail's toggle carries the complementary `hidden md:inline-flex` so the two
+ * appear and disappear together. The rail is 72px and this is 260px, which is 332px
+ * of a 375px phone: three columns of chrome and 43px of content.
  *
  * What used to be here was a note saying an overlay drawer was *"the next increment
  * rather than this one"*, and that the tree was simply unreachable on a phone in the
@@ -71,7 +80,7 @@ export function ProjectSidebar({ bootstrap }: ProjectSidebarProps) {
        */
       aria-label="Projects"
       data-slot="project-sidebar"
-      className="hidden w-tree shrink-0 flex-col border-r border-border bg-canvas md:flex"
+      className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-canvas"
     >
       <ProjectTree bootstrap={bootstrap} />
     </nav>

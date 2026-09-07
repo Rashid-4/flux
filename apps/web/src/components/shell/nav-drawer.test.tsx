@@ -48,7 +48,7 @@ describe('NavDrawer', () => {
      */
     const trigger = screen.getByRole('button', { name: 'Open navigation' })
     expect(trigger).toBeInTheDocument()
-    /** `md:hidden` — the exact complement of the sidebar's `hidden md:flex`. */
+    /** `md:hidden` — the exact complement of `sidebar-slot.tsx`'s `hidden md:block`. */
     expect(trigger).toHaveClass('md:hidden')
 
     await expectNoAxeViolations(container)

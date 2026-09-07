@@ -6,6 +6,7 @@ import { ProjectSidebar } from '@/components/shell/project-sidebar'
 import { RefreshFailure } from '@/components/shell/refresh-failure'
 import { ShellFrame } from '@/components/shell/shell-frame'
 import { ShellKeyboard } from '@/components/shell/shell-keyboard'
+import { SidebarSlot } from '@/components/shell/sidebar-slot'
 import { TopBar } from '@/components/shell/top-bar'
 import {
   ShellChromeSkeleton,
@@ -36,7 +37,9 @@ import { useSidebarOpen } from '@/stores/chrome'
  * retry is the query's own `refetch`, which is the correct action for the one thing
  * that can be wrong at this point.
  *
- * **Loaded** — the rail, the sidebar if it is open, and the surface.
+ * **Loaded** — the rail, the sidebar, and the surface. The sidebar is always
+ * rendered and its slot is what opens and closes; see
+ * ../components/shell/sidebar-slot.tsx for why a condition here was the wrong shape.
  *
  * ### Failed to *start* is not failed to *refresh*
  *
@@ -104,7 +107,17 @@ export function Shell() {
 
   if (bootstrap.data === undefined) {
     return (
-      <ShellFrame header={<ShellTopBarSkeleton />} chrome={<ShellChromeSkeleton />} busy>
+      <ShellFrame
+        header={<ShellTopBarSkeleton />}
+        /**
+         * The skeleton reserves the width the loaded shell will, not 260px
+         * unconditionally — a user who collapsed the sidebar was otherwise shown a
+         * grey column that resolved into nothing, which is the layout jump
+         * ../components/shell/shell-skeleton.tsx's own docblock exists to prevent.
+         */
+        chrome={<ShellChromeSkeleton sidebarOpen={sidebarOpen} />}
+        busy
+      >
         <ShellMainSkeleton />
       </ShellFrame>
     )
@@ -133,7 +146,18 @@ export function Shell() {
       chrome={
         <>
           <IconRail bootstrap={bootstrap.data} />
-          {sidebarOpen && <ProjectSidebar bootstrap={bootstrap.data} />}
+          {/**
+           * Always rendered, and hidden by a clip rather than by a condition.
+           *
+           * This used to be `{sidebarOpen && <ProjectSidebar … />}`, which is a
+           * mount/unmount — no animation, against §3 and §12, and it discarded the
+           * tree's filter text, its manual expansions and its scroll position on every
+           * `[`. ../components/shell/sidebar-slot.tsx holds the reasoning and the
+           * geometry; what matters here is that `open` is a prop and not a branch.
+           */}
+          <SidebarSlot open={sidebarOpen}>
+            <ProjectSidebar bootstrap={bootstrap.data} />
+          </SidebarSlot>
         </>
       }
     >

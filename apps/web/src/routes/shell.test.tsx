@@ -12,6 +12,7 @@ import { renderWithProviders } from '@/test/render'
 import { fails } from '@/test/failures'
 import { server } from '@/test/server'
 import { Shell } from '@/routes/shell'
+import { initialChromeState, SIDEBAR_STORAGE_KEY, useChromeStore } from '@/stores/chrome'
 
 /**
  * `docs/specs/web/shell.md` §13: *"`routes/shell.tsx` … currently ha[s] **no
@@ -28,6 +29,14 @@ import { Shell } from '@/routes/shell'
 afterEach(() => {
   resetShortcuts()
   resetPalette()
+  /**
+   * The chrome store is a singleton and `setSidebar` writes through to
+   * `localStorage`, so a test that collapses the sidebar would otherwise hand the next
+   * one a collapsed shell — and the next one queries the filter field inside it. The
+   * key is removed first because `initialChromeState()` reads it.
+   */
+  window.localStorage.removeItem(SIDEBAR_STORAGE_KEY)
+  useChromeStore.setState(initialChromeState())
 })
 
 /**
@@ -260,6 +269,97 @@ describe('the bootstrap gate', () => {
     await screen.findByRole('heading', { level: 1 })
     expect(screen.queryByRole('navigation')).toBeNull()
     expect(screen.queryByRole('banner')).toBeNull()
+  })
+})
+
+/**
+ * ────────────────────────────────────────────────────────────────────────
+ * The sidebar toggle — §3 and §12
+ * ────────────────────────────────────────────────────────────────────────
+ *
+ * §3: *"No layout shift when the sidebar animates: reserve the width, animate the
+ * transform."* §12: *"Sidebar toggle: no layout thrash, transform-animated."*
+ *
+ * What was here was `{sidebarOpen && <ProjectSidebar … />}` — a mount and an unmount,
+ * so neither clause held and a third cost nobody had written down was being paid every
+ * time: `components/shell/project-tree.tsx` keeps its filter text and its manual
+ * expand/collapse `overrides` in `useState`, and an unmount discards both along with
+ * the scroll position of a list that can run to hundreds of rows. `[` is a shortcut.
+ *
+ * The state-survival test below is the one that matters, because it is the only
+ * assertion in this tree that fails if someone writes the conditional back — and the
+ * conditional is the obvious way to write a toggle. `components/shell/sidebar-slot.tsx`
+ * holds the geometry and its own tests, including what jsdom cannot see.
+ */
+describe('the sidebar toggle', () => {
+  function slotOf(container: HTMLElement): HTMLElement {
+    const slot = container.querySelector('[data-slot="sidebar-slot"]')
+    expect(slot).not.toBeNull()
+    return slot as HTMLElement
+  }
+
+  it('keeps what the tree is holding across a collapse and an expand', async () => {
+    const user = userEvent.setup()
+    const { container } = renderShell()
+    await screen.findByRole('banner')
+
+    /**
+     * One filter field, not two: the drawer renders the same tree, but its
+     * `Dialog.Content` is unmounted while closed, so this is the sidebar's.
+     */
+    const filter = screen.getByLabelText('Filter projects')
+    await user.type(filter, 'LOG')
+    expect(filter).toHaveValue('LOG')
+
+    await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(slotOf(container)).toHaveAttribute('data-state', 'collapsed')
+    /**
+     * Still mounted, and still the same element holding the same text. `toBe` on the
+     * node rather than `toHaveValue` on a fresh query, because a remount that happened
+     * to restore the value would pass the weaker assertion and is the bug.
+     */
+    expect(screen.getByLabelText('Filter projects')).toBe(filter)
+    expect(filter).toHaveValue('LOG')
+
+    await user.click(screen.getByRole('button', { name: 'Expand sidebar' }))
+    expect(slotOf(container)).toHaveAttribute('data-state', 'expanded')
+    expect(screen.getByLabelText('Filter projects')).toBe(filter)
+    expect(filter).toHaveValue('LOG')
+  })
+
+  /**
+   * The coupling `sidebar-slot.tsx` requires of its child, asserted against the real
+   * panel rather than the stand-in that file's own tests use. If the sidebar ever
+   * rejoined the flow, narrowing the slot would reflow every row in the tree on every
+   * frame of the transition — which is §12's *"layout thrash"* exactly, and it would
+   * look completely fine in a diff.
+   */
+  it('holds the real sidebar out of flow at a fixed width', async () => {
+    renderShell()
+    const sidebar = await screen.findByRole('navigation', { name: 'Projects' })
+
+    expect(sidebar).toHaveClass('absolute', 'inset-y-0', 'right-0', 'w-tree')
+    expect(sidebar.className).not.toContain('md:flex')
+  })
+
+  /**
+   * The skeleton's own docblock: *"a skeleton whose geometry differs from the real
+   * thing produces a visible re-layout at the moment data arrives"*. It drew 260px
+   * unconditionally, so a user who had collapsed the sidebar was shown a grey column
+   * that resolved into nothing — the jump the file exists to prevent, in the file that
+   * prevents it. Both states go through the same slot now.
+   */
+  it('reserves the collapsed width while bootstrap is still in flight', async () => {
+    useChromeStore.getState().setSidebar('collapsed')
+    server.use(http.get('*/api/v1/bootstrap', () => new Promise(() => {})))
+
+    const { container } = renderShell()
+    await screen.findByRole('main')
+
+    const slot = slotOf(container)
+    expect(slot).toHaveAttribute('data-state', 'collapsed')
+    expect(slot).toHaveClass('w-0')
+    expect(slot).not.toHaveClass('w-tree')
   })
 })
 

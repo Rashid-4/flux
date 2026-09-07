@@ -174,10 +174,11 @@ export function IconRail({ bootstrap }: IconRailProps) {
               size="icon"
               onClick={toggleSidebar}
               /**
-               * `hidden md:inline-flex`, matching ./project-sidebar.tsx's own
-               * `hidden md:flex`. Below 768px the sidebar is not rendered at all — see
-               * that file for why — so a toggle for it would be a control with no
-               * effect, which §13 rates as worse than no control.
+               * `hidden md:inline-flex`, matching ./sidebar-slot.tsx's own
+               * `hidden md:block` — the slot owns the breakpoint, not
+               * ./project-sidebar.tsx. Below 768px the sidebar is not on screen at all
+               * — see those files for why — so a toggle for it would be a control with
+               * no effect, which §13 rates as worse than no control.
                */
               className="hidden md:inline-flex"
               /**

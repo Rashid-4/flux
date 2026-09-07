@@ -123,7 +123,7 @@ not know `lh` is not a slightly-wrong height, it is a skeleton 0px tall.
 
 ## State of this tree
 
-**804 tests in 60 files.** That number is not the same as "this tree is
+**812 tests in 61 files.** That number is not the same as "this tree is
 verified", and the difference is the most useful thing this section can tell you.
 Four directories have been reviewed line by line; the rest has been written and
 never read back.
@@ -138,19 +138,31 @@ never read back.
 | `gallery/` — 9 modules | `fixtures` | **yes** — dev-only, and two specimens overflowed their own panels at 375px |
 | `keyboard/` — 5 modules | `registry`, `shortcut-sheet`, `pending-sequence` | **yes** — §6's partial-sequence state had zero consumers, so every rule about it was correct and none of it reached the screen |
 | `command-palette/` — 4 modules | `command-palette`, `match` | **yes** — focus restore was read from a module singleton and a torn-down palette consumed the next one's opener |
-| `routes/` — 7 modules | `router`, `shell` | **yes** for `shell` — it tore the whole surface down when a *background refetch* failed, which is the worst defect found in this tree so far |
-| `components/shell/` — 15 modules | `connection-status`, `icon-rail`, `nav-drawer` | **yes** — a dead effect, a duplicated warning strip, and a drawer whose docblock promised a gesture it did not have |
+| `routes/` — 7 modules | `router`, `shell` | **yes** for `shell` — it tore the whole surface down when a *background refetch* failed, which is the worst defect found in this tree so far. Also: its sidebar toggle was a mount/unmount |
+| `components/shell/` — 16 modules | `connection-status`, `icon-rail`, `nav-drawer`, `sidebar-slot` | **yes** — a dead effect, a duplicated warning strip, a drawer whose docblock promised a gesture it did not have, and a skeleton that reserved 260px the loaded shell was about to not use |
 | `components/` top level — 9 components | **none** | no |
 | `stores/chrome`, `lib/document-title`, `main.tsx` | **none** | no |
 
-So **33 shipped modules have no test at all** — more than the 24 this section
-recorded before the shell landed, because the shell added modules faster than it
-added coverage. The number going *up* while four directories were reviewed is the
-honest shape of the tree: review found real defects in what it looked at, and what
-it did not look at grew. (Eight of `gallery/`'s nine are untested too, and are
+So **34 shipped modules have no test file of their own** — more than the 24 this
+section recorded before the shell landed, because the shell added modules faster
+than it added coverage. The number going *up* while four directories were reviewed
+is the honest shape of the tree: review found real defects in what it looked at, and
+what it did not look at grew. (Eight of `gallery/`'s nine are untested too, and are
 counted separately because they never reach a build.) Treat anything marked "no" as
 unverified: it compiles, it renders, and nobody has checked what it does on an empty
 list, a slow network, a 403, or a keyboard.
+
+That figure is every `.ts`/`.tsx` under `src/` with no sibling `.test.ts(x)`,
+excluding `gallery/`, `test/` and `vite-env.d.ts` — count it rather than trust it,
+because this line said 33 until it was counted. "No test file of its own" is also
+weaker than "untested", and the two ends of that range are both in the 34.
+`components/shell/project-tree.tsx` is exercised hard — `nav-drawer.test.tsx` and
+`routes/shell.test.tsx` both mount it and assert against what it renders.
+`components/shell/theme-menu.tsx` is *mounted* by `icon-rail.test.tsx`, because the
+rail contains it, and that file asserts nothing about it at all: it is covered in the
+sense a coverage tool would report and unverified in every sense that matters. Being
+rendered by somebody else's test is the weakest position in this table, and it is
+indistinguishable from the strongest one in a coverage percentage.
 
 The four reviewed rows added on this branch are worth reading as a set, because
 every defect in them was a *seam* rather than a mistake inside a function — state
@@ -158,8 +170,25 @@ whose producer and consumer were both correct and were not connected (the pendin
 sequence), a gate that asked the right question of the wrong value
 (`isError` where `isLoadingError` was meant), module-level state consumed by a
 callback that outlived its component (the palette's opener), and a promise made in
-prose with no code behind it (the drawer's swipe). None of the four is visible to
+prose with no code behind it (the drawer's swipe). None of them is visible to
 `tsc`, and none would appear in a diff as anything but reasonable.
+
+The sidebar toggle was the fifth, and it is the same last shape one level up: the
+promise was in the *spec* rather than in the file's own comment. §3 asks for
+*"reserve the width, animate the transform"* and §12 for *"no layout thrash,
+transform-animated"*, and `routes/shell.tsx` had `{sidebarOpen && <ProjectSidebar
+… />}` — 260px appearing and vanishing between two frames. The animation was the
+visible half. The half nobody had written down is that an unmount discards what
+`project-tree.tsx` keeps in `useState`: the text in its filter field, the manual
+expand/collapse `overrides` layered over the route's own, and its scroll position.
+`[` is a shortcut, so that was the cost of the gesture this panel gets most often.
+`components/shell/sidebar-slot.tsx` is the fix — a reserved-width clip that keeps
+the panel mounted and `inert` while collapsed, which is also why `inert` is not
+optional: `overflow: hidden` hides pixels and leaves every link in it in the tab
+order. Reviewing it turned up a sixth, in the file whose docblock is about exactly
+this: `shell-skeleton.tsx` drew its 260px column unconditionally, so a user who had
+collapsed the sidebar was shown a grey placeholder that resolved into nothing. Both
+states go through the one slot now, which is what makes them unable to disagree.
 
 `gallery/` is in the upper half with a caveat worth reading, because it is the
 instrument the rest of the review is conducted with. `src/gallery/` is a second
@@ -190,6 +219,16 @@ inside 90ms) cannot be reproduced in this suite at all. The guard for it is a
 `useLayoutEffect`, its reasoning is in the file, and a jsdom test asserting it would
 pass with the effect deleted. It is an `e2e/` item, which is a second reason that
 directory's absence matters.
+
+The sidebar slot is a third and a fourth, and they are worth naming because
+`sidebar-slot.test.tsx` passes without covering either. **jsdom computes no layout**,
+so no transition it declares ever runs and no width it reserves is ever measured — the
+tests assert the classes, not the motion. And **jsdom does not implement `inert`**:
+measured, not assumed, with a probe that tabbed into an inert subtree and focused a
+button inside it programmatically, both of which succeeded. So the assertion that a
+collapsed sidebar contributes no tab stops is an assertion that the attribute is
+present, and nothing in this suite can check that a browser obeys it. Four things now
+wait on a directory that does not exist, which is the argument for creating it.
 
 ## Things that look like bugs and are not
 
