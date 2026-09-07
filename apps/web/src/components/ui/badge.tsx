@@ -58,6 +58,25 @@ const badgeVariants = cva(
          */
         sm: 'h-6 px-2 text-label uppercase',
         /**
+         * The board card's label pill, measured off `UI Images/JIRA 1` and
+         * `JIRA 2`: 24px tall, 8px of horizontal padding, 15px semibold, sentence
+         * case, **no tracking**.
+         *
+         * It is `sm`'s box with `sm`'s typography removed, and the arithmetic is
+         * what separates them. The reference's two pills measure 73px and 65px of
+         * fill for "Website" and "Design" — 7 and 6 characters. 15px semibold sets
+         * those at 57px and 49px, so 73 − 57 = 16 = two 8px paddings, and the same
+         * subtraction gives 16 for the second pill. `text-label`'s 0.08em would add
+         * 1.2px per character, which is 8px on "Website" alone and puts the pill at
+         * 81px — visibly wider than the reference at the size that repeats most
+         * often on the screen.
+         *
+         * So this rung exists rather than `LabelChip` overriding two of `sm`'s
+         * classes: a variant that has to be half-undone at its only call site is a
+         * variant that was the wrong shape.
+         */
+        chip: 'h-6 px-2 text-sm font-semibold',
+        /**
          * Both heights moved up with the measured type scale — 18/20 became 24/28.
          * `text-xs` is 14px on a 20px line-height, and a 20px line in a 20px box has
          * nowhere for a descender to go, so `h-5` was not a smaller chip: it was a

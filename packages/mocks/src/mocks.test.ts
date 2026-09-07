@@ -159,6 +159,46 @@ describe('the awkward cases are in the default fixtures', () => {
     expect(cards.some((c) => c.parentKey !== null)).toBe(true)
   })
 
+  /**
+   * The five fields the card body added, and each of them changes the card's
+   * height — so a fixture set where every card carries the same ones renders a
+   * column of identical cards and proves nothing about the surface that has to
+   * lay out unequal ones.
+   */
+  it('includes a card with no description, so nothing reserves space for one', () => {
+    expect(cards.some((c) => c.descriptionExcerpt === null)).toBe(true)
+    expect(cards.some((c) => c.descriptionExcerpt !== null)).toBe(true)
+  })
+
+  it('includes an excerpt at exactly the contract’s 240-character bound', () => {
+    // One under the limit proves the field parses; one *at* it is the only
+    // fixture that would catch an off-by-one in the server's truncation.
+    expect(cards.some((c) => (c.descriptionExcerpt?.length ?? 0) === 240)).toBe(true)
+  })
+
+  it('includes a card with a subtask checklist, and one with a done row in it', () => {
+    expect(cards.some((c) => c.subtasks.length > 0)).toBe(true)
+    expect(cards.some((c) => c.subtasks.some((s) => s.isDone))).toBe(true)
+    // Both treatments on one card, so the checked and open rows are visible
+    // side by side rather than on two different cards.
+    expect(
+      cards.some((c) => c.subtasks.some((s) => s.isDone) && c.subtasks.some((s) => !s.isDone)),
+    ).toBe(true)
+  })
+
+  it('includes a capped checklist, where subtaskTotal exceeds what was sent', () => {
+    // The card must say how many it is not showing. A checklist of four with no
+    // indication looks complete, which is the worst version of that row.
+    expect(cards.some((c) => c.subtaskTotal > c.subtasks.length)).toBe(true)
+  })
+
+  it('includes a card with neither comments nor attachments', () => {
+    // Zero renders nothing, so this is the fixture for the footer that is only
+    // an avatar — and its absence is why a `0` on every card went unnoticed.
+    expect(cards.some((c) => c.commentCount === 0 && c.attachmentCount === 0)).toBe(true)
+    expect(cards.some((c) => c.commentCount > 0 && c.attachmentCount > 0)).toBe(true)
+  })
+
   it('has a column over its WIP limit', () => {
     expect(view.columns.some((c) => c.wipExceeded)).toBe(true)
   })

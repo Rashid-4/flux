@@ -57,6 +57,9 @@ export const aBoardCard = builder(BoardCardSchema, () => ({
   id: id<'IssueId'>('issue', 1),
   key: 'LOG-101',
   summary: 'Warehouse scanner drops connection on shift change',
+  descriptionExcerpt:
+    'Scanners on the night shift lose their session at handover and re-authenticate ' +
+    'against the wrong depot, so the first ten scans land on yesterday’s manifest.',
   issueTypeKey: 'bug',
   statusId: STATE_TODO,
   statusCategory: 'todo',
@@ -66,7 +69,11 @@ export const aBoardCard = builder(BoardCardSchema, () => ({
   labels: ['warehouse'],
   parentKey: null,
   parentSummary: null,
+  subtasks: [],
+  subtaskTotal: 0,
   blockedByCount: 0,
+  commentCount: 18,
+  attachmentCount: 2,
   secondsInColumn: 2 * 24 * 3600,
   slaState: 'ok',
   rank: rankAt(0),
@@ -86,41 +93,157 @@ export const aBoardCard = builder(BoardCardSchema, () => ({
  *   106  assigned to Linus     → an inactive user; greyed, not offered
  *   107  very long summary     → the truncation/wrap case
  *   108  child of an epic      → parentKey/parentSummary rendering
+ *
+ * The card body added five more, and they are the ones a board built against
+ * tidy fixtures draws wrong — every one of them changes the card's height:
+ *
+ *   102  no description, no counts → the short card; nothing must reserve space
+ *   103  two subtasks, both open   → the checklist and its inset divider
+ *   104  four subtasks of nine     → the capped case, which must say so
+ *   106  a done subtask beside an  → the checked row, so the two treatments are
+ *        open one                     visible side by side
+ *   107  a 240-character excerpt   → the clamp at exactly the contract's bound
  */
 const CARD_SEEDS: Array<DeepPartial<BoardCard> & { n: number }> = [
   { n: 101 },
-  { n: 102, assignee: null, priority: 'medium', storyPoints: 5, labels: [] },
+  {
+    n: 102,
+    assignee: null,
+    priority: 'medium',
+    storyPoints: 5,
+    labels: [],
+    descriptionExcerpt: null,
+    commentCount: 0,
+    attachmentCount: 0,
+  },
   {
     n: 103,
     summary: 'Rewrite the label printer driver',
+    descriptionExcerpt:
+      'The vendor SDK is 32-bit only and the depot machines are not. Replace it with ' +
+      'a ZPL writer over the raw socket.',
     blockedByCount: 2,
     priority: 'critical',
     storyPoints: 8,
     assignee: GRACE,
     labels: ['warehouse', 'hardware'],
+    subtasks: [
+      {
+        id: id<'IssueId'>('issue', 1031),
+        key: 'LOG-131',
+        summary: 'Spike ZPL output',
+        isDone: false,
+      },
+      {
+        id: id<'IssueId'>('issue', 1032),
+        key: 'LOG-132',
+        summary: 'Retire the SDK wrapper',
+        isDone: false,
+      },
+    ],
+    subtaskTotal: 2,
+    commentCount: 4,
+    attachmentCount: 0,
   },
-  { n: 104, summary: 'Audit the pallet dimensions import', storyPoints: null, priority: 'low' },
+  {
+    n: 104,
+    summary: 'Audit the pallet dimensions import',
+    descriptionExcerpt:
+      'Half the pallet profiles came across from the 2024 migration with centimetres ' +
+      'in a millimetre column.',
+    storyPoints: null,
+    priority: 'low',
+    subtasks: [
+      {
+        id: id<'IssueId'>('issue', 1041),
+        key: 'LOG-141',
+        summary: 'Export current profiles',
+        isDone: true,
+      },
+      {
+        id: id<'IssueId'>('issue', 1042),
+        key: 'LOG-142',
+        summary: 'Reconcile against the vendor sheet',
+        isDone: false,
+      },
+      {
+        id: id<'IssueId'>('issue', 1043),
+        key: 'LOG-143',
+        summary: 'Backfill the unit column',
+        isDone: false,
+      },
+      {
+        id: id<'IssueId'>('issue', 1044),
+        key: 'LOG-144',
+        summary: 'Re-run the importer',
+        isDone: false,
+      },
+    ],
+    subtaskTotal: 9,
+    commentCount: 11,
+    attachmentCount: 3,
+  },
   {
     n: 105,
     summary: 'Customer cannot download proof of delivery',
+    descriptionExcerpt:
+      'The signed URL is minted against the depot’s region and the archive lives in ' +
+      'the tenant’s, so every download 403s after the first hour.',
     slaState: 'breached',
     priority: 'blocker',
     secondsInColumn: 9 * 24 * 3600,
     assignee: GRACE,
   },
-  { n: 106, summary: 'Retire the legacy manifest endpoint', assignee: LINUS, storyPoints: 2 },
+  {
+    n: 106,
+    summary: 'Retire the legacy manifest endpoint',
+    descriptionExcerpt: 'Two clients still call /v0/manifest. Both have a migration date.',
+    assignee: LINUS,
+    storyPoints: 2,
+    subtasks: [
+      {
+        id: id<'IssueId'>('issue', 1061),
+        key: 'LOG-161',
+        summary: 'Announce the sunset',
+        isDone: true,
+      },
+      {
+        id: id<'IssueId'>('issue', 1062),
+        key: 'LOG-162',
+        summary: 'Delete the handler',
+        isDone: false,
+      },
+    ],
+    subtaskTotal: 2,
+    commentCount: 2,
+    attachmentCount: 1,
+  },
   {
     n: 107,
     summary:
       'Investigate intermittent duplicate consignment records created when a driver ' +
       'submits the same delivery twice from an offline device that later reconnects',
+    /**
+     * Exactly 240 characters — `descriptionExcerpt`'s bound. A fixture one under
+     * the limit proves the field parses; a fixture *at* it proves the clamp, and
+     * it is the only one that would catch an off-by-one in the server's
+     * truncation.
+     */
+    descriptionExcerpt:
+      'The offline queue replays on reconnect without checking whether the server ' +
+      'has already accepted the delivery, so a driver who loses signal mid-submit ' +
+      'and retries creates two consignments carrying one barcode and two ' +
+      'proof-of-delivery scans.',
     priority: 'medium',
     storyPoints: 13,
     labels: ['offline', 'data-integrity'],
+    commentCount: 27,
+    attachmentCount: 6,
   },
   {
     n: 108,
     summary: 'Add scanner firmware version to the device list',
+    descriptionExcerpt: 'The column exists on the device record; it is not surfaced anywhere.',
     parentKey: 'LOG-90',
     parentSummary: 'Warehouse hardware refresh',
     storyPoints: 1,

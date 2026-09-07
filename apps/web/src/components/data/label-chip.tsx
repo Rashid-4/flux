@@ -43,6 +43,25 @@ import { cn } from '@/lib/cn'
  * Tailwind finds utilities by scanning source text.
  *
  * A hue is never the only signal. The label's own text is in the chip.
+ *
+ * ### The dark theme is a known divergence, and it is a colour decision
+ *
+ * The reference's pills **invert between themes**: light draws a saturated fill
+ * with white text (#349afe, #48c328), dark draws a pale pastel fill with
+ * near-black text (#acd2fe, #eaff88). `*-solid` is saturated in both, so the light
+ * theme matches to the hue family and the dark theme does not.
+ *
+ * Fixing it means a colour family that inverts — which is what `--entity-*` is,
+ * except inverted the other way round: `--entity-N` is pale in light and dark in
+ * dark. Turning that family over would be correct here and would also repaint
+ * every avatar disc in the product, and it lands with the three other findings the
+ * reference pass produced (its greys are pure neutral where ours carry blue, its
+ * accent is #2c87de where ours is violet, its badge red is #f8525a). Those belong
+ * in one colour commit that updates `design/contrast.test.ts` once, not four
+ * commits each re-deriving the same ratios.
+ *
+ * `size="chip"` is the geometry half, and that *is* measured here — 24px, `px-2`,
+ * 15px semibold, no tracking. `components/ui/badge.tsx` carries the arithmetic.
  */
 const TONE_CLASSES = [
   'bg-info-solid text-info-fg',
@@ -86,6 +105,7 @@ export function LabelChip({ label, className }: LabelChipProps) {
 
   return (
     <Badge
+      size="chip"
       data-slot="label-chip"
       data-tone={String(tone)}
       title={label}

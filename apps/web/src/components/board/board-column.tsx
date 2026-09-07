@@ -1,22 +1,46 @@
 import type { BoardCard as BoardCardValue, BoardColumn as BoardColumnValue } from '@flux/contracts'
-import { Plus } from 'lucide-react'
+import { EllipsisVertical, Plus } from 'lucide-react'
 import { BoardCard } from '@/components/board/board-card'
 import { cn } from '@/lib/cn'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
- * One column, matched to `UI Images/JIRA 1` and `JIRA 2`.
+ * One column, measured off `UI Images/JIRA 1` and `JIRA 2`.
  * ══════════════════════════════════════════════════════════════════════
  *
  * Read off the references at 1x, top to bottom:
  *
- * 1. A header of `● Name  count` — a small status dot, the name in body weight,
- *    the count muted beside it — with an overflow affordance at the far right.
- * 2. A **full-width bordered "+" box** under the header, roughly a card's width
- *    and about half a card's height. It is the most distinctive affordance in the
- *    reference and the easiest to miss: it is not a small icon button in the
- *    header, it is a card-shaped slot at the top of the stack.
- * 3. The cards, in rank order, with a consistent gap.
+ * 1. A header of `● Name  count` — a small status dot, the name, the count muted
+ *    beside it — with a vertical kebab at the far right.
+ * 2. A **full-width card-shaped "+" slot** under the header. It is the most
+ *    distinctive affordance in the reference and the easiest to miss: it is not a
+ *    small icon button in the header, it is a 44px card at the top of the stack.
+ * 3. The cards, in rank order, 8px apart.
+ *
+ * ### The vertical stack, and it lands on the measured pixel at every boundary
+ *
+ * Rule 2 under the sub-bar is at app y=298 — confirmed at raw y=401 in *both*
+ * themes, so the origin is not in question — and the board's own `pt-6` opens the
+ * column at 323. From there:
+ *
+ * ```
+ *   header    h-9    36   323..358    dot centre measured 340, box centre 340.5
+ *   gap-2            8    359..366
+ *   add slot  h-11   44   367..410    measured full-width rows 367..410 exactly
+ *   gap-2            8    411..418
+ *   card 1                419..       measured 419 in both themes
+ * ```
+ *
+ * ### There is no column background, and the header has no horizontal padding
+ *
+ * Two things the first pass got wrong, and both are visible at a glance once
+ * seen. The cards sit directly on `--canvas`; the reference draws no fill and no
+ * `rounded-panel` behind a column, so a column is a layout box rather than a
+ * surface. And the header's status dot begins at x 1055 — the card's own left
+ * edge to the pixel — which means the row is flush with the cards rather than
+ * inset by a `px-1`. The kebab at the other end measures x 1358..1360 against a
+ * column edge of 1363, which is `size-6` with `-mr-2`: the same pair the card's
+ * kebab needs, derived independently at each site.
  *
  * The dot is the reference's own encoding and it maps cleanly onto
  * `StatusCategorySchema`, so it carries real meaning here rather than being
@@ -62,24 +86,33 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
   return (
     <section
       data-slot="board-column"
-      aria-label={`${column.name}, ${String(totalCount)} issues`}
-      className={cn('flex w-column shrink-0 flex-col gap-3', className)}
+      aria-label={`${column.name}, ${String(totalCount)} issue${totalCount === 1 ? '' : 's'}`}
+      className={cn('flex w-column shrink-0 flex-col gap-2', className)}
     >
-      <header className="flex h-8 shrink-0 items-center gap-2 px-1">
+      {/**
+       * `h-9` and no horizontal padding, both measured. The label is `text-lg`
+       * (19px) and not the card title's 17px, which is the one place the reference
+       * inverts the usual hierarchy: the column name's cap ink is 14 rows against
+       * the card title's 13, and its 8 characters occupy 77px where 17px regular
+       * would need 71. Sentence case, not the uppercase micro-label a board header
+       * usually gets — `text-label` was the first attempt and it is 15px tracked
+       * uppercase, which is a different element entirely.
+       */}
+      <header className="flex h-9 shrink-0 items-center gap-2">
         <span
           aria-hidden="true"
-          className={cn('size-2 shrink-0 rounded-chip', DOT_TONE[category] ?? 'bg-neutral-solid')}
+          className={cn('size-2.5 shrink-0 rounded-chip', DOT_TONE[category] ?? 'bg-neutral-solid')}
         />
-        <h2 className="min-w-0 truncate text-md font-medium text-fg">{column.name}</h2>
+        <h2 className="min-w-0 truncate text-lg text-fg">{column.name}</h2>
         <span
           className={cn(
-            'shrink-0 text-base',
+            'shrink-0 text-lg',
             /**
              * Over the WIP limit the count is the warning, because the column is
              * where the limit applies. §9: not colour alone — the accessible name
              * on the section already carries the number, and the title says why.
              */
-            overLimit ? 'font-medium text-warning-accent' : 'text-fg-subtle',
+            overLimit ? 'font-medium text-warning-accent' : 'text-fg-muted',
           )}
           title={
             column.wipLimit === null
@@ -89,14 +122,42 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
         >
           {totalCount}
         </span>
+
+        {/**
+         * `size-6` + `-mr-2` puts this glyph's ink at x 1360.5 against a measured
+         * 1358..1360 and a column edge of 1363. The card's kebab is the same pair
+         * and predicts 1340.5 against a measured 1338..1340 — one rule, confirmed
+         * at two sites with different reference edges, which is what distinguishes
+         * it from a number chosen to fit.
+         *
+         * Disabled with a reason: column configuration is a board mutation and
+         * there is no board mutation layer (CR-002). §5's second rule.
+         */}
+        <button
+          type="button"
+          aria-disabled="true"
+          aria-label={`Configure ${column.name} — not available yet`}
+          title="Column settings arrive with the board mutation layer"
+          className={cn(
+            '-mr-2 ml-auto flex shrink-0 items-center justify-center rounded-control',
+            'text-fg-subtle aria-disabled:opacity-70',
+          )}
+        >
+          <EllipsisVertical aria-hidden="true" className="size-6" />
+        </button>
       </header>
 
       {/**
-       * The reference's add-slot: full width, card-shaped, centred `+`. Disabled
-       * with a reason rather than omitted, because creating an issue needs the
-       * create surface `docs/specs/web/issue.md` describes and that does not exist
-       * — and §5's second rule is that an action you cannot perform is shown and
-       * says why, not hidden.
+       * The reference's add-slot: full width, card-shaped, `h-11`, centred `+`.
+       * Measured as full-width card-coloured rows at y 367..410 — 44px, not the
+       * 48 this was — with the `+` ink 15px wide centred on x 1207.75 against a
+       * column centre of 1208.5. `Plus` at `size-6` draws 15.5px of ink after the
+       * global 1.5 stroke rule, which is the size that reproduces it.
+       *
+       * Disabled with a reason rather than omitted, because creating an issue
+       * needs the create surface `docs/specs/web/issue.md` describes and that does
+       * not exist — and §5's second rule is that an action you cannot perform is
+       * shown and says why, not hidden.
        */}
       <button
         type="button"
@@ -104,14 +165,32 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
         aria-label={`Add an issue to ${column.name} — not available yet`}
         title="Creating an issue arrives with the issue surface"
         className={cn(
-          'flex h-12 shrink-0 items-center justify-center rounded-card',
+          'flex h-11 shrink-0 items-center justify-center rounded-card',
           'bg-surface text-fg-subtle shadow-card',
-          'transition-colors duration-90 ease-out aria-disabled:opacity-60',
+          'transition-colors duration-90 ease-out aria-disabled:opacity-70',
         )}
       >
-        <Plus aria-hidden="true" className="size-4" />
+        <Plus aria-hidden="true" className="size-6" />
       </button>
 
+      {/**
+       * `gap-2` — 8px, and the dark reference measures it as exactly 8.0 (add-slot
+       * bottom 411.0, card top 419.0). It was `gap-2` here already and `gap-3`
+       * above; the column's own stack is the one that moved.
+       */}
+      {/**
+       * The scroll container, and every child of it carries `shrink-0` — the cards
+       * from their own root, these two from here.
+       *
+       * A flex child's default `flex-shrink: 1` outranks `overflow-y-auto`: given
+       * more content than height, this box does not scroll first, it *compresses
+       * its children* and scrolls only what is left over. Measured before the fix,
+       * on the real board: a card whose contents needed 315px rendered at 250.6,
+       * and since a card is `overflow-hidden` the 64px that lost the argument was
+       * its footer — avatar, comment count, attachment count, gone, on every card
+       * in the two longest columns. It reads as "the footer is conditional",
+       * which is why it survived a visual pass and was caught by a geometry probe.
+       */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {cards.map((card) => (
           <BoardCard key={card.id} card={card} />
@@ -124,7 +203,7 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
            * column is for, which is what §11 of the design system asks for — empty
            * states are designed, not defaulted.
            */
-          <p className="rounded-card border border-dashed border-border-strong px-3 py-6 text-center text-sm text-fg-subtle">
+          <p className="shrink-0 rounded-card border border-dashed border-border-strong px-3 py-6 text-center text-sm text-fg-subtle">
             Nothing in {column.name}
           </p>
         )}
@@ -135,7 +214,7 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
          * a page of a larger set.
          */}
         {totalCount > cards.length && (
-          <p className="px-1 pb-1 text-sm text-fg-subtle">
+          <p className="shrink-0 px-1 pb-1 text-sm text-fg-subtle">
             {totalCount - cards.length} more not shown
           </p>
         )}

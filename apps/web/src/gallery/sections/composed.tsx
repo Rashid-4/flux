@@ -1,11 +1,10 @@
-import { MessageSquare, MoreHorizontal, Paperclip, Plus } from 'lucide-react'
+import { aBoardView } from '@flux/mocks'
+import { Plus } from 'lucide-react'
+import { BoardColumn } from '@/components/board/board-column'
 import { IssueKey } from '@/components/data/issue-key'
-import { LabelChip } from '@/components/data/label-chip'
-import { PriorityIcon } from '@/components/data/priority-icon'
 import { StatusChip } from '@/components/data/status-chip'
 import { TypeIcon } from '@/components/data/type-icon'
 import { UserAvatar } from '@/components/data/user-avatar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,119 +20,72 @@ import { Note, Panel, Section } from '../frame'
 import { ADA, INACTIVE, ISSUE_KEY, LONG_SUMMARY, SHORT_SUMMARY, TONE_USERS } from '../fixtures'
 
 /**
- * The primitives assembled into the three shapes they actually appear in.
+ * Built once at module scope, not per render.
  *
- * This section builds nothing reusable and exports no component — it lives inside
- * `src/gallery/` on purpose. A shared `IssueCard` belongs to the board surface and
- * to the session that owns `routes/`, and inventing one here would be a second
- * definition for that session to collide with.
- *
- * What it is for is the thing a specimen grid cannot show: **density in
- * aggregate.** A chip judged on its own always looks fine. Eight of them on a
- * 280px card, three times down a column, is where one extra pixel of padding
- * becomes a card that fits five rows instead of six — and that comparison against
- * `UI Images/` is the whole of task 2.
+ * `aBoardView()` `.parse()`s the whole view through `BoardViewSchema` — that is the
+ * point of the builder — and doing it inside the component body would re-parse a
+ * ~30-card payload on every theme toggle. It is also what makes the identity
+ * stable, so React's reconciler is not handed a new `cards` array each time.
  */
-
-interface CardProps {
-  issueKeyValue: typeof ISSUE_KEY
-  summary: string
-  category: 'todo' | 'in_progress' | 'done' | 'cancelled'
-  priority: 'blocker' | 'high' | 'medium' | 'low' | null
-  typeKey: string
-  labels: readonly string[]
-  assignee: typeof ADA | null
-  comments: number
-  attachments: number
-}
+const BOARD_VIEW = aBoardView()
 
 /**
- * `rounded-card` + `shadow-card` on `surface`, which is the elevation rung the
- * README assigns to an issue card at rest. Not a component — a specimen.
+ * Two columns drawn with their cards, and a third drawn without any.
+ *
+ * The empty one is a **real fixture column** rather than an object built here.
+ * Spreading one to change its name was the first attempt and it does not even
+ * typecheck — a spread widens the required members of an inferred object type back
+ * to optional — but the reason to write it this way is not the compiler. A column
+ * assembled in the gallery is a second definition of a contract type, and the whole
+ * point of this panel is that it renders nothing of its own.
+ *
+ * Asserted rather than defaulted: a silent fallback would draw an invented column,
+ * and the page's claim is that it shows the real thing. The assertion is inside a
+ * function rather than beside the constants because `noUncheckedIndexedAccess`
+ * narrowing does not survive into a component body — a module-scope `if` would
+ * typecheck here and fail at the JSX.
  */
-function BoardCard({
-  issueKeyValue,
-  summary,
-  category,
-  priority,
-  typeKey,
-  labels,
-  assignee,
-  comments,
-  attachments,
-}: CardProps) {
-  return (
-    <article className="flex flex-col gap-2 rounded-card border border-border bg-surface p-3 shadow-card">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          {labels.map((label) => (
-            <LabelChip key={label} label={label} />
-          ))}
-        </div>
-        <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${issueKeyValue}`}>
-          <MoreHorizontal aria-hidden="true" />
-        </Button>
-      </div>
-
-      {/*
-        No `leading-snug`. The relative leading utilities multiply the font size,
-        and with a 13px base every one of them lands on a fraction — `snug` is
-        1.375 × 13 = 17.875px. A fractional line box puts every baseline in the
-        block on a half pixel, which is a real softness on text, and it made the
-        card's own height fractional too (175.63px). The type step already
-        carries an integer line-height; taking it is both crisper and less to
-        say.
-      */}
-      <p className="text-base text-fg">{summary}</p>
-
-      {/*
-        Two rows, not one, and this is the shape `UI Images/JIRA 3.webp` uses.
-        It started as a single `justify-between` row and it did not fit: measured
-        at the reference's own 280px column, the identifier group had 51px to
-        spend and `IssueKey` was crushed to 11px around 40px of content — the key
-        illegible, the copy button drawn over it. `IssueKey` now degrades to an
-        ellipsis at a legible floor rather than to a sliver, but degrading well is
-        not the same as fitting, and an issue key is the one thing on a card that
-        has to stay readable.
-
-        So the metadata that identifies the issue gets its own line, and the
-        counts and people get the next one. Nothing was dropped and nothing was
-        made smaller.
-      */}
-      <div className="flex min-w-0 items-center gap-1.5">
-        <TypeIcon issueTypeKey={typeKey} />
-        <IssueKey issueKey={issueKeyValue} />
-        <PriorityIcon priority={priority} />
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <StatusChip category={category} />
-          {comments > 0 && (
-            <span className="flex shrink-0 items-center gap-1 text-sm text-fg-subtle">
-              <MessageSquare aria-hidden="true" className="size-3.5" />
-              <span aria-label={`${String(comments)} comments`}>{comments}</span>
-            </span>
-          )}
-          {attachments > 0 && (
-            <span className="flex shrink-0 items-center gap-1 text-sm text-fg-subtle">
-              <Paperclip aria-hidden="true" className="size-3.5" />
-              <span aria-label={`${String(attachments)} attachments`}>{attachments}</span>
-            </span>
-          )}
-        </div>
-        <UserAvatar user={assignee} size="sm" className="shrink-0" />
-      </div>
-    </article>
-  )
+function columnAt(index: number) {
+  const column = BOARD_VIEW.board.columns[index]
+  if (column === undefined) {
+    throw new Error(
+      `gallery: aBoardView() has no column ${String(index)}; the board panel draws two filled and one empty`,
+    )
+  }
+  return column
 }
+
+const FILLED_COLUMNS = [columnAt(0), columnAt(1)]
+const EMPTY_COLUMN = columnAt(2)
+
+/**
+ * The primitives assembled into the shapes they actually appear in.
+ *
+ * ### It renders shipped components now, and it used to render specimens
+ *
+ * The paragraph that stood here said this section *"builds nothing reusable and
+ * exports no component"*, because a shared issue card belonged to the board surface
+ * and to the session that owned `routes/`. That boundary is gone: `components/board/`
+ * exists and one agent owns it, this file, and the measurement they are both built
+ * from. So the board panel below renders `BoardColumn` on `@flux/mocks` fixtures
+ * rather than a look-alike, and the look-alike is deleted rather than kept in step.
+ *
+ * The remaining panels are still assemblies rather than components, and deliberately:
+ * a filter bar and a list row are shapes the product composes from primitives at
+ * three different surfaces, so there is nothing single to import.
+ *
+ * What the section is for has not changed: the thing a specimen grid cannot show,
+ * **density in aggregate.** A chip judged on its own always looks fine. Two of them
+ * on a 308px card, six times down a column, is where one extra pixel of padding
+ * becomes a card that fits five rows instead of six.
+ */
 
 export function ComposedSection() {
   return (
     <Section
       id="composed"
       title="Composed"
-      note="The primitives in the shapes they actually ship in. Nothing here is reusable — the board surface belongs to another session — but density only shows up in aggregate, so this is where UI Images/ gets compared."
+      note="The primitives in the shapes they actually ship in. The board panel is the shipped BoardColumn on @flux/mocks fixtures, so it cannot drift from the board; the filter bar and the list row are assemblies with nothing single to import. Density only shows up in aggregate, which is what this section is for."
     >
       <Panel
         label="Filter bar · one baseline across five components"
@@ -198,84 +150,61 @@ export function ComposedSection() {
       </Panel>
 
       {/*
-        `flex-nowrap overflow-x-auto` because a board column is 300px and that is not
-        negotiable — it is the width the cards were designed against. `Panel`'s
-        default `flex-wrap` let each column escape the panel's padding box by 7px at
-        375px; shrinking them to fit would have shown a column at a width no board
-        ever uses. Scrolling is also what the real board will do.
+        The **real** `BoardColumn`, on the **real** fixtures — not a specimen.
+
+        This panel used to hold a hand-rolled `BoardCard` and a hand-rolled column
+        header, and its own comment explained why: a shared card belonged to the board
+        surface and to the session that owned `routes/`, so building one here would have
+        been a second definition for that session to collide with. Both halves of that
+        are now false. `components/board/` exists, and one agent owns it and this file.
+
+        A second definition would now be strictly worse than none: the specimen's column
+        was `w-[300px]` on a `bg-surface-2` fill with a `rounded-panel`, and the
+        measurement says 308px with **no fill at all** — so the gallery would have gone
+        on showing the geometry the board just stopped using, which is precisely the
+        regression this page exists to catch. Rendering the shipped component against
+        `@flux/mocks` means it cannot drift from the board by construction.
+
+        `flex-nowrap overflow-x-auto` because a column is 308px and that is not
+        negotiable — it is the width the cards are measured against. `Panel`'s default
+        `flex-wrap` let each column escape the padding box at 375px; shrinking them to
+        fit would show a column at a width no board ever uses.
       */}
-      <Panel label="Board column · three cards" className="flex-nowrap items-start overflow-x-auto">
-        <div className="flex w-[300px] shrink-0 flex-col gap-2 rounded-panel bg-surface-2 p-2">
-          <div className="flex items-center justify-between px-1 py-1">
-            <div className="flex items-center gap-2">
-              <span className="text-label text-fg-muted uppercase">In progress</span>
-              <Badge size="sm" variant="neutral">
-                3
-              </Badge>
-            </div>
-            <Button variant="ghost" size="icon-xs" aria-label="Add issue to In progress">
-              <Plus aria-hidden="true" />
-            </Button>
-          </div>
-
-          <BoardCard
-            issueKeyValue={ISSUE_KEY}
-            summary={LONG_SUMMARY}
-            category="in_progress"
-            priority="high"
-            typeKey="bug"
-            labels={['backend', 'needs-design']}
-            assignee={ADA}
-            comments={18}
-            attachments={2}
-          />
-          <BoardCard
-            issueKeyValue={ISSUE_KEY}
-            summary={SHORT_SUMMARY}
-            category="in_progress"
-            priority={null}
-            typeKey="task"
-            labels={[]}
-            assignee={null}
-            comments={0}
-            attachments={0}
-          />
-          <BoardCard
-            issueKeyValue={ISSUE_KEY}
-            summary="Assigned to someone who has left the organization"
-            category="todo"
-            priority="blocker"
-            typeKey="story"
-            labels={['regression-from-2024-q4-migration']}
-            assignee={INACTIVE}
-            comments={3}
-            attachments={0}
-          />
-        </div>
-
-        <div className="flex w-[300px] shrink-0 flex-col gap-2 rounded-panel bg-surface-2 p-2">
-          <div className="flex items-center justify-between px-1 py-1">
-            <div className="flex items-center gap-2">
-              <span className="text-label text-fg-muted uppercase">Done</span>
-              <Badge size="sm" variant="neutral">
-                0
-              </Badge>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-1 rounded-card border border-dashed border-border-strong px-4 py-8 text-center">
-            <p className="text-sm text-fg-muted">Nothing done yet</p>
-            <p className="text-sm text-fg-subtle">Move a card here to close it.</p>
-          </div>
-        </div>
+      <Panel
+        label="Board columns · the shipped component on mock fixtures"
+        className="flex-nowrap items-start overflow-x-auto bg-canvas"
+      >
+        {FILLED_COLUMNS.map((column) => {
+          const slice = BOARD_VIEW.columns.find((entry) => entry.columnId === column.id)
+          return (
+            <BoardColumn
+              key={column.id}
+              column={column}
+              cards={slice?.cards ?? []}
+              totalCount={slice?.totalCount ?? 0}
+            />
+          )
+        })}
+        {/*
+          The empty column, and it is a real fixture column drawn with no cards rather
+          than a hand-built one. `anEmptyBoardView()` empties every column at once, and
+          an empty column *beside* a full one is the comparison worth having — §11: an
+          empty state is designed, not defaulted.
+        */}
+        <BoardColumn column={EMPTY_COLUMN} cards={[]} totalCount={0} />
       </Panel>
 
       <Note>
-        Compare this column against <code className="font-mono">UI Images/JIRA 3.webp</code>: the
-        reference sets its issue key above the title in 10px muted uppercase and puts the assignee
-        on its own line with a name beside the face. Both are surface decisions, not primitive ones,
-        so they belong to whoever writes <code className="font-mono">docs/specs/web/board.md</code>{' '}
-        — what is being judged here is the chip padding, the control heights and the type scale
-        underneath.
+        The two columns above are{' '}
+        <code className="font-mono">components/board/board-column.tsx</code> rendering{' '}
+        <code className="font-mono">aBoardView()</code>, so what is on this page is what is on the
+        board. The card is measured against <code className="font-mono">UI Images/JIRA 1.webp</code>{' '}
+        at 308×255 with a 20px pad; its own header carries the boundary-by-boundary arithmetic. Two
+        things here are deliberately <em>not</em> the reference: the label pill&rsquo;s dark-theme
+        fill stays saturated where the reference goes pastel, and the type, key, priority, estimate
+        and blocked count have no equivalent in it at all — they live in the two bands the reference
+        leaves empty, beside the kebab and beside the avatar, so they cost the card no height. Both
+        are noted at their call sites with the reason.
       </Note>
 
       <Panel

@@ -140,15 +140,74 @@ export const CreateBoardSchema = z.object({
 // ── Board read model ─────────────────────────────────────────────────
 
 /**
+ * One line of a card's subtask checklist.
+ *
+ * A child issue, flattened to the three things a checklist row draws. Not
+ * `BoardCardSchema` recursively: a card is ~400 bytes and a board of 200 cards
+ * with five children each would carry 1000 of them, which is the payload
+ * `BoardCardSchema`'s own header exists to prevent.
+ *
+ * `key` is here rather than derived because the row is a link target and the
+ * board must not have to resolve a child's key from its id.
+ */
+export const BoardCardSubtaskSchema = z.object({
+  id: IssueIdSchema,
+  key: IssueKeySchema,
+  summary: z.string(),
+  /** From the child's own `status_category`, resolved server-side. */
+  isDone: z.boolean(),
+})
+export type BoardCardSubtask = z.infer<typeof BoardCardSubtaskSchema>
+
+/**
  * Minimal card. Every field here is one the card actually renders — the
  * board is the most latency-sensitive screen in the product, and shipping
  * a full issue per card is how you turn a 200-issue board into a 4MB
  * response. Detail comes from the issue endpoint on click.
+ *
+ * ### Five fields were added for the reference's card, and the budget is why
+ *
+ * `descriptionExcerpt`, `commentCount`, `attachmentCount`, `subtasks` and
+ * `subtaskTotal` all arrived together, and the rule above is what shaped each
+ * one. `UI Images/JIRA 1.webp` and `JIRA 2.webp` draw a description block, a
+ * subtask checklist and two counters on every card, and their absence was not a
+ * missing decoration: the reference's card measures **255px** tall and ours
+ * measured 255 only once those blocks occupied their measured 69px, 62px and
+ * 68px. A card that omits them is not a smaller version of the reference's card,
+ * it is a different card.
+ *
+ * So each field is the *cheapest shape* that renders the block, and each one
+ * names what it refused:
+ *
+ * - an **excerpt**, plain text, truncated server-side — not the description.
+ *   `IssueSchema.description` is a rich-text document; parsing one per card in
+ *   the client is 200 parses on first paint, and sending 200 of them is the 4MB
+ *   response.
+ * - two **counters**, not the comments and not the attachments. Neither is a
+ *   maintained column — `blockedByCount` above is, and this comment claimed
+ *   these two were as well, which was false and is the reason CR-013 exists.
+ *   They are one grouped aggregate over the board's own issue set, joined once
+ *   per board load. That is a scan, not an N+1; the per-card `count(*)` is the
+ *   shape to refuse, and the maintained-column escalation is a decision for
+ *   whoever writes the endpoint, with `comments.is_internal` attached to it.
+ * - **capped** subtasks plus a total, not the child tree. The cap is the
+ *   server's; `subtaskTotal` is what lets the card say how many it is not
+ *   showing rather than silently showing four of nine.
  */
 export const BoardCardSchema = z.object({
   id: IssueIdSchema,
   key: IssueKeySchema,
   summary: z.string(),
+  /**
+   * Plain text, already truncated. `null` when the issue has no description —
+   * distinct from `''`, which would be a description someone emptied.
+   *
+   * 240 characters because the card shows three lines at ~46 characters and the
+   * fourth is clipped by `line-clamp-3`; the margin covers a narrower column
+   * without a second round trip. Longer input is a server-side truncation bug,
+   * not something for the client to hide, so the bound is enforced here.
+   */
+  descriptionExcerpt: z.string().max(240).nullable(),
   issueTypeKey: IssueTypeKeySchema,
   statusId: WorkflowStateIdSchema,
   statusCategory: StatusCategorySchema,
@@ -166,8 +225,33 @@ export const BoardCardSchema = z.object({
   labels: z.array(z.string()),
   parentKey: IssueKeySchema.nullable(),
   parentSummary: z.string().nullable(),
+  /**
+   * Child issues, in rank order, **capped by the server**. Empty for a card
+   * with no children, which is the common case.
+   */
+  subtasks: z.array(BoardCardSubtaskSchema),
+  /**
+   * Every child, including the ones `subtasks` omits. Equal to
+   * `subtasks.length` whenever nothing was capped, which is what lets the card
+   * decide between a plain checklist and one that says how many are hidden.
+   */
+  subtaskTotal: z.number().int().nonnegative(),
   /** From the maintained counter — a blocked badge with no N+1 query. */
   blockedByCount: z.number().int(),
+  /**
+   * Derived, not maintained: one grouped aggregate over the board's issues,
+   * joined once. `blockedByCount` above has a column and a trigger; these two
+   * deliberately do not yet, because the counter a card wants depends on who is
+   * asking — `comments.is_internal` means a guest and a member do not see the
+   * same total, and a single column would either lie to one of them or tell a
+   * service-desk customer how many replies they are not allowed to read.
+   *
+   * Counts what the requester may see, `deleted_at IS NULL`, and for
+   * attachments `upload_status = 'ready'` — a pending upload is not yet a file
+   * on the issue. See CR-013.
+   */
+  commentCount: z.number().int().nonnegative(),
+  attachmentCount: z.number().int().nonnegative(),
   /** Seconds in the current column; drives the ageing indicator. */
   secondsInColumn: z.number().int(),
   slaState: z.enum(['ok', 'at_risk', 'breached']).nullable(),

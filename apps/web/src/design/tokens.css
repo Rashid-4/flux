@@ -49,6 +49,41 @@
 @import 'tailwindcss';
 
 /*
+ * Inter, self-hosted — and this block used to argue the opposite.
+ *
+ * What stood in the Type section of `@theme inline` was "No web font", with a real
+ * argument: the board's budget in §8 is under 500ms, a downloaded face costs a
+ * round trip plus a reflow, and the system UI face is the one the OS has already
+ * hinted. Every word of that is still true. It was answering the wrong question.
+ *
+ * `--font-sans` has always listed `'Inter'` first, and every type size, every
+ * measured ink width and the card's 255px arithmetic were derived from mockups set
+ * in it. On this machine Inter is not installed, so the first family silently fell
+ * through to `-apple-system` and the product rendered in SF Pro — a different face
+ * with different advance widths at every size. That is not a near-match that a
+ * token can absorb: a title measured at 191px of ink in the reference sets at a
+ * different width, so the line either wraps a word early or does not, and the
+ * card's height changes. The stack was expressing an intent the build had no way
+ * to satisfy, which is the same class of defect as a utility that resolves to no
+ * token — it reads as configured and it paints as nothing.
+ *
+ * The cost, measured rather than assumed: `unicode-range` splits the face into
+ * seven subsets and a browser fetches only the ones the text needs, so English
+ * costs exactly `inter-latin-wght-normal.woff2` at **48KB**, once, cached. One
+ * variable file covers 100–900, so the four weights this product uses are not four
+ * requests. `font-display: swap` means it is not render-blocking. That is a
+ * different bill from the one the old comment was refusing to pay.
+ *
+ * It is imported here rather than in the three entry modules because `main.tsx`,
+ * `gallery/main.tsx` and `harness/main.tsx` all import this file and nothing else
+ * of the design system — so the font arrives wherever the tokens do, and the
+ * gallery and the reference harness cannot render in a different face from the app.
+ * `@import` must precede every other rule, which is why it is up here beside
+ * Tailwind's and not beside `--font-sans`.
+ */
+@import '@fontsource-variable/inter';
+
+/*
  * Test files do not generate CSS.
  *
  * Tailwind v4 finds utilities by scanning source text, and with no `@source` at all
@@ -765,13 +800,19 @@
   --color-ring: var(--ring);
 
   /* -- Type ---------------------------------------------------------------- */
-  /* No web font. The board budget in §8 is under 500ms and a downloaded face
-     costs a render-blocking round trip plus a reflow for a difference nobody
-     asked for; the system UI face is also the one the OS has already hinted.
-     "Inter" is listed first so it is used where it is locally installed. */
+  /* Inter, self-hosted — see the `@import` at the top of this file for the cost
+     and for the argument it reverses.
+
+     "Inter Variable" is the family name `@fontsource-variable/inter` declares, and
+     it is not "Inter" — a stack naming only the latter resolves to nothing on a
+     machine without a system copy, which is exactly how this product spent its
+     first weeks rendering in SF Pro while every measurement assumed otherwise.
+     Both names are listed: the variable file first, a locally installed static
+     Inter second, then the system UI face as the fallback that must never be
+     reached but must still be right if it is. */
   --font-sans:
-    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   /* Issue keys, ids and traceIds — where character-by-character comparison
      matters and I/l/1 must differ. */
   --font-mono:
@@ -878,7 +919,12 @@
   --spacing-tree: 16.8125rem; /* 269px — project tree */
   --spacing-tree-inset: 0.8125rem; /* 13px  — its rows' horizontal inset */
   --spacing-detail: 27.5625rem; /* 441px — right detail / chat panel, x 1400..1841 */
-  --spacing-column: 19rem; /* 304px — board column */
+  /* 308, not the 304 this was: the columns' left edges sit at 408, 732, 1055 and
+     1379, so the pitch is 323.67 and the fill runs 1055.0..1363.0 by signed-
+     coverage integration at three separate rows in both themes. 308 + a 16px gap
+     is the only integer pair that reproduces that pitch, and `gap-5` in
+     `routes/board.tsx` was the other half of the same 4px error. */
+  --spacing-column: 19.25rem; /* 308px — board column */
   --spacing-gutter: 2.25rem; /* 36px  — the content column's horizontal padding */
   /* There is no `topbar` token, and there was one — 56px, for the frame-level bar
      that spanned the content column. The references draw no such bar: the top of

@@ -133,12 +133,19 @@ export function BoardSurface() {
          * first column's left edge lines up with the title, the breadcrumb, the first
          * tab and the toolbar's rule. `p-4` put it 20px inside all four.
          *
-         * The vertical padding is **provisional**: `docs/specs/web/shell.md` §3.2 has
-         * the header and the toolbar measured to the pixel and the board's own
-         * landmarks are the next pass, so `py-6` is a considered placeholder rather
-         * than a measurement, and it is the only number in this file that is.
+         * `py-6` was the one provisional number in this file and the measurement
+         * kept it. Rule 2 under the sub-bar is at app y=298 and the column header
+         * row opens at 323, so the top padding is 24px exactly — a placeholder that
+         * turned out to be right, which is worth recording precisely because the
+         * two numbers beside it did not.
+         *
+         * `gap-4`, not the `gap-5` it was. The four columns' left edges sit at 408,
+         * 732, 1055 and 1379 — a 323.67px pitch — and signed-coverage integration
+         * puts a card's fill at 1055.0..1363.0 in both themes. 308 + 16 is the only
+         * integer pair that produces it, so the 4px came off `--spacing-column`
+         * (304 → 308) and this gap gave up the other 4.
          */
-        className="flex min-h-0 flex-1 gap-5 overflow-x-auto px-gutter py-6"
+        className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-gutter py-6"
         /**
          * A labelled region rather than a bare div: it is the main content of the
          * screen and a screen-reader user landing in `<main>` should be told what
