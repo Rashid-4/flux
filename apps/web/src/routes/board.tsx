@@ -1,5 +1,6 @@
 import { useMatch } from 'react-router'
 import { BoardColumn } from '@/components/board/board-column'
+import { ProjectBand } from '@/components/board/project-band'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
 import { useShellContext } from '@/components/shell/context'
@@ -89,18 +90,18 @@ export function BoardSurface() {
 
   return (
     <>
-      <PageHeader
-        title={project.name}
-        description={
-          view.activeSprint === null
-            ? `${board.name} · ${project.key}`
-            : `${view.activeSprint.name} · ${String(view.activeSprint.daysRemaining)} days remaining`
-        }
+      <ProjectBand
+        project={project}
+        {...(view.activeSprint === null
+          ? {}
+          : {
+              sprintLabel: `${view.activeSprint.name} · ${String(view.activeSprint.daysRemaining)} days remaining`,
+            })}
       />
 
       <div
         data-slot="board"
-        className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-4 pb-4"
+        className="flex min-h-0 flex-1 gap-5 overflow-x-auto bg-surface-2 p-4"
         /**
          * A labelled region rather than a bare div: it is the main content of the
          * screen and a screen-reader user landing in `<main>` should be told what
