@@ -1,0 +1,69 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * The project the editor discovers, and the only one that typechecks.
+     * ═══════════════════════════════════════════════════════════════════
+     *
+     * There is no `tsconfig.build.json` here, unlike `packages/contracts`, and
+     * the asymmetry is deliberate. That package is a *library*: something else
+     * imports its `.d.ts`, so it must emit declarations, and emitting them is
+     * the only way to see the TS4023 class of failure ("cannot be named without
+     * a reference to...") that `--noEmit` hides. Nothing imports this service's
+     * types — it is a process, not a dependency — so there is no declaration to
+     * get wrong and no second config to keep in sync.
+     *
+     * `tsup` produces the artifact. `tsc` here is purely the type gate, which is
+     * why `pnpm build` runs both: esbuild strips types without checking them, so
+     * a build that skipped `tsc` would happily emit code that does not compile.
+     *
+     * ### `moduleResolution: nodenext`, overriding the repo base
+     *
+     * The base sets `bundler`, which is right for every other package here
+     * because Vite resolves them. This service is different in one respect that
+     * matters: `pnpm dev` runs `tsx watch src/main.ts`, which resolves every
+     * relative import through **Node's** resolver at runtime, one module at a
+     * time. Node does not guess extensions. Under `bundler` resolution
+     * `import './pool'` typechecks, lints clean (eslint.config.mjs's rule covers
+     * `ImportDeclaration` and `ExportNamedDeclaration`, but not
+     * `ExportAllDeclaration` or dynamic `import()`), and then throws
+     * ERR_MODULE_NOT_FOUND the first time that file is reached in dev.
+     *
+     * `nodenext` makes the compiler enforce what Node requires, so the gap the
+     * lint rule cannot see is closed by the type checker instead. Two checks on
+     * one invariant, and the cheaper one runs in the editor.
+     *
+     * `@flux/contracts` still resolves through `paths` in the repo base, which
+     * is consulted before a package's `exports` map — so it resolves to
+     * `packages/contracts/src/index.ts` as source, exactly as it does for
+     * `apps/web` and `packages/db-tests`.
+     */
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    /** `composite` and `noEmit` are incompatible; this config only checks. */
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+
+    /**
+     * This is a Node process and says so. `packages/contracts` is the package
+     * that must typecheck with `types: []` — it is imported by the browser, and
+     * a stray `process.env` in a schema file compiles right up until it ships.
+     * Nothing about that constraint applies here.
+     */
+    "types": ["node"]
+  },
+  /**
+   * `tsup.config.ts` and both vitest configs are included on purpose. A build
+   * config that compiles to "bundle nothing" and a test config whose `include`
+   * glob matches no files are the two failure modes that pass every other check
+   * in this repository — `scripts/check-integration-suites.mjs` exists because
+   * the second one already happened once, in CI, as a green step that ran
+   * nothing.
+   */
+  "include": ["src/**/*.ts", "tsup.config.ts", "vitest.config.ts", "vitest.integration.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

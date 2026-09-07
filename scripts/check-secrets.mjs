@@ -57,8 +57,21 @@ const HIGH_ENTROPY_PATTERNS = [
   {
     name: 'password in a connection string',
     // Flags postgres://user:secret@host unless the secret is a known
-    // dev value or a placeholder.
-    re: /\b[a-z][a-z0-9+.-]*:\/\/[^:\s/]+:(?!flux_(app|migrator|relay)_dev\b)(?!change|your|example|placeholder|password\b)[^@\s/]{8,}@/i,
+    // dev value, a placeholder, or a `${...}` interpolation.
+    //
+    // The interpolation exemption is not a convenience. `postgres://u:${PW}@h`
+    // contains no credential — the value is in a constant somewhere else — so
+    // flagging it is a false positive on the *correct* way to write a test that
+    // needs a fake password, which is the shape this repository has most of. A
+    // check that fires on the right pattern gets bypassed, and the header above
+    // says why that is the worse outcome.
+    //
+    // What it costs, stated rather than left to be discovered: a fixture
+    // constant holding a *real* credential is invisible here, because this check
+    // reads `KEY=VALUE` only in .env files and never follows an identifier. If a
+    // live value is ever committed to a `const`, this is not the thing that will
+    // find it.
+    re: /\b[a-z][a-z0-9+.-]*:\/\/[^:\s/]+:(?!flux_(app|migrator|relay)_dev\b)(?!\$\{)(?!change|your|example|placeholder|password\b)[^@\s/]{8,}@/i,
   },
 ]
 

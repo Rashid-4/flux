@@ -81,7 +81,7 @@ does not own the tree; see `AGENTS.md` §1 and `apps/web/README.md`.
 | `docs/specs/api/` | **10 of 10 modules written**: issues, workflows, permissions, fields, search, boards-sprints, events, projects, identity, imports |
 | `docs/specs/web/` | `README.md` written — the foundation the surface specs assume. 11 surface specs still to write. `pnpm check:docs` lists the six remaining docs cited by path that do not exist — read that output instead of trusting this table |
 | `.github/workflows/ci.yml` | frozen-paths + format + lint + typecheck + test + **integration** + RLS/append-only audit + enum, field, **field-vocabulary**, error-code, event-type, doc-link, **toolchain-version** and **publicDir-asset** drift audits. The repository is **public**, so CodeQL runs; the probe that made its absence loud while it was private is kept, because visibility is a setting and turning it back would otherwise stop the analysis silently. Its first run found a real one — see the **static-asset** row below |
-| `services/api` | **not created.** The next major piece of build work, now owned here |
+| `services/api` | **exists: the shell, not the endpoints. 613 unit tests in 11 files and 45 integration tests in 3, against a real Postgres.** Nest 12 on Fastify 5, `tsup`/esbuild, so **every** injection carries an explicit `@Inject` — esbuild cannot emit decorator metadata, and the reflection form resolves to `undefined` at boot instead of failing. Config, logging, trace context, error reporting, the `withTenant` primitive and the two probes are done and reviewed; the only routes are `/health` and `/ready`, both unversioned. `main.ts`, `core.module.ts`, `nest-logger.ts` and the three feature modules have no unit test, and nothing binds a socket in any test. `services/api/README.md` §Tests holds the split and §Open the four known gaps — read those rather than this row |
 | `apps/web` | **exists, and is the largest tree in the repo — 677 tests in 50 files.** That is not coverage: `components/ui/` (17 primitives), `components/data/` (10) and 3 of the 4 `lib/` modules are tested *and* reviewed, and **24 shipped modules have no test at all**, including every route, all 6 shell components and the 9 top-level ones. `src/gallery/` is a second Vite entry at `/gallery.html` — 9 dev-only modules, outside `build.rollupOptions.input` and outside `ROUTE_PATTERNS`, so it never ships. `apps/web/README.md` §"State of this tree" holds the split — read it rather than this row before assigning UI work. Three tsconfigs, deliberately: `tsconfig.json` must include every file because it is the only name a language server discovers, `tsconfig.app.json` is the narrow one proving app code cannot import `node`. `e2e/` does not exist while `playwright.config.ts:42` points at it |
 | `apps/marketing` | **not created** |
 
@@ -335,6 +335,39 @@ not grant `flux_app` anything, since without a policy no grant is confined to a
 tenant. Re-adding `event_outbox` there to dodge the migration fails the check on
 the grant instead. Both halves were negative-tested: with the policy dropped
 exactly one test fails, and with the exemption restored `check:rls` exits 1.
+
+Two more, from `services/api`'s integration tier, and both were found by the same
+habit: **break the invariant first, and read what fails.** Neither is visible to
+`tsc`, to lint, or to a green test run.
+
+**A "strict" lookup that does not consult the boundary.** The obvious way to
+assert §2's "there is no exported pool" is
+`app.select(SomeFeatureModule).get(APP_POOL, { strict: true })`, and it throws, and
+it proves nothing: `strict` confines the lookup to the selected module's *own*
+providers and never consults what its imports export. With `APP_POOL` deliberately
+added to `DatabaseModule.exports` — the exact regression the test names — all 14
+tests still passed. The real assertion needs a module that imports
+`DatabaseModule` and injects the token, plus a twin that injects
+`DatabaseService` and boots, so the failure cannot be a typo'd token or an
+incomplete graph.
+
+**A framework whose teardown outranks the test runner.** Nest wraps an
+application in an `ExceptionsZone` whose `DEFAULT_TEARDOWN` calls
+`process.exit(1)`, so dropping an `@Inject` — the one failure the tier exists to
+catch, because esbuild cannot emit decorator metadata — ended the run with
+`Error: Worker exited unexpectedly` and **no test named**. The suite reported
+neither pass nor fail. `createApiApp` now takes `abortOnError`, `true` in
+production, and the same edit reports `Nest can't resolve dependencies of the
+DatabaseService (Symbol(flux.AppPool), ?, Symbol(flux.Logger))`. Its sibling:
+`app.get()` on a token the framework rewrote — an `APP_FILTER` provider is
+registered as `` `APP_FILTER (UUID: <uuid>)` ``, so it is not addressable by the
+name it was declared under, and asking for it exits the process rather than
+throwing. Assert such a provider behaviourally.
+
+The generalisation is the uncomfortable half of this section. A check can be
+vacuous, and a *runner* can be unable to report. Both look identical from the
+outside — green — so the only way to know which you have is to break the property
+on purpose and confirm that exactly the expected test fails, by name.
 
 ## Commit messages
 

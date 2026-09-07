@@ -45,7 +45,7 @@ supposed to prevent is prevented here by module boundaries instead.
 no `query()` convenience function that skips it, and there must never be one.
 
 ```ts
-withTenant(pool, { organizationId, actorUserId }, async (client) => {
+withTenant(pool, { organizationId, actorUserId, actorKind, traceId }, async (client) => {
   // all reads and writes for this request happen here
 })
 ```
@@ -59,10 +59,25 @@ What that helper must do, in this order:
 4. `SELECT set_config('flux.actor_id', $1, true)` — empty string when there is no
    user, because `current_setting` returns `''` for an unset GUC and the audit
    trigger reads `''` as "system".
-5. `SET LOCAL statement_timeout = <ms>` — default 10000, and the write path
-   should pass lower.
-6. Run the callback.
-7. `COMMIT`, or `ROLLBACK` on throw. Release the connection in a `finally`.
+5. `SELECT set_config('flux.actor_kind', $1, true)` — one of `ActorKindSchema`'s
+   values, which is also the CHECK behind `issue_history_events.actor_kind`. Not
+   re-listed here: a second copy of an enum is the drift `check:enums` exists for,
+   and this spec has no way to be checked against the column.
+6. `SELECT set_config('flux.trace_id', $1, true)`.
+7. `SET LOCAL statement_timeout = <ms>` — default 10000, and the write path
+   should pass lower. `lock_timeout` and
+   `idle_in_transaction_session_timeout` are set the same way and are **not**
+   caller-overridable.
+8. Run the callback.
+9. `COMMIT`, or `ROLLBACK` on throw. Release the connection in a `finally`.
+
+Steps 5 and 6 were missing from an earlier revision of this list, which named two
+GUCs where the implementation sets four. That is a completed enumeration, not a
+changed decision — `flux_emit_event` (migration 0009) has read all four since it
+was written, and the two that were unlisted are the two whose absence is
+**silent**: an unset `flux.actor_kind` coalesces to `'user'`, so every automated
+write is attributed to a human, and an unset `flux.trace_id` gives the outbox row
+a null trace. Both still commit and still return 201.
 
 Four details are load-bearing, and each one is a silent failure if you get it
 wrong rather than an error you would notice:

@@ -340,10 +340,20 @@ jobs:
             exit 1
           fi
 
-      # .env.example is documentation and gets copied verbatim, so a
-      # real value in it is a real leak. Placeholders are expected.
-      - name: No plausible secrets in .env.example
-        run: node scripts/check-secrets.mjs
+      # Two rules in one script. .env.example is documentation and gets
+      # copied verbatim, so a real value in it is a real leak and every
+      # KEY=VALUE there must be a placeholder or a `_dev` credential. The
+      # second rule is live-credential *shapes* — AWS keys, tokens, PEM
+      # blocks, a password in a DSN — anywhere in a tracked file, which is
+      # what this step actually spends its time on.
+      #
+      # `pnpm check:secrets`, not `node scripts/check-secrets.mjs`. The script had
+      # no pnpm name for months, so it was the one check nobody could run locally —
+      # and a branch reached this job with eight findings in it, none of which any
+      # local gate could have shown. Every other check in this file is invoked by
+      # the same name a person types.
+      - name: No committed credentials
+        run: pnpm check:secrets
 
       - name: Vulnerable dependencies
         run: pnpm audit --audit-level high --prod
