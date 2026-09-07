@@ -33,6 +33,7 @@
     "check:toolchain": "node scripts/check-toolchain-versions.mjs",
     "check:public": "node scripts/check-public-assets.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "check:text": "node scripts/check-text-files.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:integration": "node scripts/check-integration-suites.mjs",

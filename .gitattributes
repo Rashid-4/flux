@@ -1,0 +1,54 @@
+# ════════════════════════════════════════════════════════════════════
+# Source files diff as text, unconditionally.
+#
+# git decides whether a blob is binary by looking for a NUL byte in its first
+# 8000, and for an image that heuristic is exactly right. For source it is a
+# trap, and a positional one. `apps/web/src/keyboard/registry.ts` joined two
+# Map-key halves with a NUL typed as a raw byte rather than the `\u0000`
+# escape; it landed at offset 6891, inside the window, and a 76-line edit to a
+# reviewed module reported as
+#
+#     apps/web/src/keyboard/registry.ts | Bin 14293 -> 16354 bytes
+#
+# in `git diff`, in `git blame`, in `git log -p`, and in every review view on
+# GitHub. Formatting, lint, typecheck and 1019 tests were green on it — a NUL
+# is valid UTF-8 and valid TypeScript inside a string literal, so nothing in
+# the toolchain had an opinion.
+#
+# Two other files carry the same raw byte past byte 8000 and have diffed
+# normally for months. That is the argument for this file rather than against
+# it: whether the defect hides your work depends on how much text is above it,
+# so a file that is fine today flips the next time someone adds a header.
+#
+# `pnpm check:text` is what stops the byte getting in. This is the other half,
+# and the two must stay a pair for the reason `check:public` gives about
+# `copyPublicDir: false`: a guard that can be bypassed by one careless commit
+# should not be the only thing standing between a change and its reviewer.
+# `diff` forces a textual diff regardless of content, so the worst case for a
+# future NUL is a check failure with the diff still readable, rather than a
+# silent one with it hidden.
+#
+# `text=auto` normalises line endings on the way in, so a checkout on Windows
+# cannot commit CRLF that Prettier then fails on in CI for a reason the author
+# cannot reproduce.
+#
+# Only extensions actually in the tree are listed. There is not one tracked
+# binary in this repository today — no image, font or archive; Inter arrives
+# through `@fontsource-variable/inter` and `UI Images/` is gitignored — so a
+# blanket `* diff` would be true and would also quietly cover the first real
+# image someone adds. Extensions are the narrower claim.
+# ════════════════════════════════════════════════════════════════════
+
+* text=auto
+
+*.ts   diff text
+*.tsx  diff text
+*.mjs  diff text
+*.js   diff text
+*.json diff text
+*.css  diff text
+*.html diff text
+*.md   diff text
+*.sql  diff text
+*.yml  diff text
+*.yaml diff text

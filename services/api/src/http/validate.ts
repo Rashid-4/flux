@@ -290,7 +290,7 @@ function dedupe(
   const seen = new Set<string>()
   const unique: typeof errors = []
   for (const error of errors) {
-    const key = `${error.path} ${error.code} ${error.message}`
+    const key = `${error.path}\u0000${error.code}\u0000${error.message}`
     if (seen.has(key)) continue
     seen.add(key)
     unique.push(error)

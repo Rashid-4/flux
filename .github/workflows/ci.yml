@@ -192,6 +192,23 @@ jobs:
       - name: Audit publicDir assets
         run: pnpm check:public
 
+      # The one kind of drift that hides a change rather than causing one.
+      # `keyboard/registry.ts` joined two Map-key halves with a NUL typed as a
+      # raw byte instead of the `\u0000` escape. git calls a blob binary if it
+      # finds a NUL in the first 8000 bytes; this one was at 6891, so a 76-line
+      # edit to a reviewed module reported as "Bin 14293 -> 16354 bytes" in
+      # `git diff`, in `git blame`, and in every review view on GitHub. format,
+      # lint, typecheck and 1019 tests were all green on exactly that content:
+      # a NUL is valid UTF-8 and valid TypeScript inside a string literal, so
+      # nothing in the toolchain has an opinion. Two other files carry the same
+      # byte past that 8000-byte window and have diffed normally for months —
+      # same defect, opposite outcome, decided only by how much text sits above
+      # it, and one new header away from flipping. Rule C is the adjacent
+      # hazard: bidi overrides reorder how a line displays without changing
+      # what the compiler reads (CVE-2021-42574).
+      - name: Assert every tracked file is reviewable text
+        run: pnpm check:text
+
       # dist/ is gitignored, so a test file leaking into the published
       # build is invisible locally and permanent once shipped.
       - name: Assert no test files in build output

@@ -268,7 +268,7 @@ for (const file of readdirSync(SRC).filter((f) => f.endsWith('.ts') && !f.endsWi
       node.initializer !== undefined
     ) {
       const values = enumValues(node.initializer, source)
-      if (values !== null) declaredEnums.set(node.name.text, [...values].sort().join(' '))
+      if (values !== null) declaredEnums.set(node.name.text, [...values].sort().join('\u0000'))
     }
 
     if (
@@ -305,7 +305,7 @@ const failures = []
 for (const property of properties) {
   const values = enumValues(property.initializer, property.source)
   if (values === null) continue
-  const fingerprint = [...values].sort().join(' ')
+  const fingerprint = [...values].sort().join('\u0000')
   for (const [name, declared] of declaredEnums) {
     if (declared !== fingerprint) continue
     failures.push(

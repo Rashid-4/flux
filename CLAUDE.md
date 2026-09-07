@@ -125,8 +125,8 @@ still describe the schema they claim to, by enum value and by field name.
 
 ## Drift is a family, not a bug
 
-Twelve distinct kinds of drift have now been found here, and each one was
-**invisible to the checks that catch the other eleven**. That is the pattern worth
+Thirteen distinct kinds of drift have now been found here, and each one was
+**invisible to the checks that catch the other twelve**. That is the pattern worth
 internalising: every vocabulary shared between agents needs its own machine check,
 because none of them are visible to `tsc`, to review, or to each other.
 
@@ -144,6 +144,7 @@ because none of them are visible to `tsc`, to review, or to each other.
 | a **token name in two theme namespaces**, so `cn` stops resolving a conflict | 2, on 5 surfaces | `lib/cn.test.ts` |
 | **two majors of one dev dependency**, so an undeclared import picks by hoist | 1 — vitest 2 *and* 4 | `check:toolchain` |
 | a **dev-only static asset** that ships, because tree-shaking cannot see it | 1 — msw's service worker | `check:public` |
+| a **source file git calls binary**, so its diff is hidden rather than wrong | 3 — a raw NUL as a Map-key separator | `check:text` + `.gitattributes` |
 
 The **colour** row is the least expected, because the value and its
 documentation were in the *same line of the same file*. `--primary-soft` and
@@ -183,6 +184,57 @@ a declared dev-only artifact, *and* on any declared artifact found in a build. O
 silent failure was not worth trading for another. The CodeQL exclusion for the
 generated file (`.github/codeql/codeql-config.yml`) is defensible only while that
 guard holds, which is written down in both places.
+
+The **binary-source** row is the only one where nothing was wrong with the code at
+all. `apps/web/src/keyboard/registry.ts` keys a `Map` by two strings joined by a
+separator that cannot occur in either of them, which is correct — `.` is in every
+shortcut id, and `+` and a space are both in bindings like `mod+k` and `g then b`, so
+every printable candidate can collide. The separator was typed as a **raw NUL byte**
+rather than written as `\u0000`.
+
+git decides a blob is binary if it finds a NUL **in the first 8000 bytes**. This one
+landed at offset 6891, so a 76-line edit to a reviewed module — the `Escape`-collision
+fix, the whole reason the file changed — reported as `Bin 14293 -> 16354 bytes` in
+`git diff`, in `git blame`, in `git log -p` and in every review view on GitHub.
+Formatting, lint, typecheck and 1019 tests were green on exactly that content,
+correctly: a NUL is valid UTF-8 and valid TypeScript inside a string literal, so **no
+tool in the repository had an opinion**, and the runtime behaviour was exactly right.
+It was caught before the commit, and only because a diffstat was read rather than
+skimmed.
+
+Three things generalise, and the first is the reason this is a check rather than a
+note. **The defect's visibility is positional.** Two other files carry the same raw
+byte — `scripts/check-field-vocabularies.mjs` at offset 13030 and
+`services/api/src/http/validate.ts` at 12937 — and both have been committed for
+months with their diffs rendering perfectly normally, because their NULs sit past the
+window git looks in. Same defect, same line of code, opposite outcome, decided by
+nothing but how much text happens to sit above it. Neither is safe: 5KB of new header
+above either one flips it to binary with no edit to the line at fault and no warning
+from anything. A property that holds by luck has not been checked, so the rule is the
+byte and not the byte's position.
+
+Second, this is the static-asset shape at its purest: not a check that was wrong, but
+a property no check had been asked about — and the symptom was the *absence* of
+information, which is the one thing a reviewer cannot notice.
+
+Third, it arrived twice more *while being fixed*. Writing the CI comment that
+explains the rule through a JSON tool parameter turned the six characters `\u0000`
+back into one NUL — first in `.github/workflows/ci.yml`, then in this check's own
+header — and both times the only thing that noticed was the check. A hazard whose
+delivery mechanism is string escaping will find every layer that unescapes, which is why the fix is a pair rather than a rule: `check:text` stops the
+byte, and `.gitattributes` sets `diff` on every source extension so that the worst
+case for a future NUL is a loud check failure with the diff still readable, instead
+of a silent commit with it hidden. Same reasoning as `copyPublicDir: false` plus
+`check:public`: one silent failure is not worth trading for another.
+
+`check:text` also fails on invalid UTF-8 and on bidirectional override and isolate
+controls. The second is the same signature one threat model over — U+202E reorders
+how a line *displays* without changing what the compiler reads, so reviewed source
+can execute something other than what it appears to say (CVE-2021-42574, "Trojan
+Source"). There is no right-to-left content here, so there is no legitimate use, and
+the check is narrow on purpose: it does **not** ban ZWJ or ZWNJ, which are how emoji
+sequences and several scripts are properly written. All five rules were
+negative-tested, including both halves of the stale-allowlist rule.
 
 The **two-majors** row is the first where no file in the repository
 was wrong. `apps/web` declared `vitest@^4`, the three `packages/*` declared `^2.1.0`,
