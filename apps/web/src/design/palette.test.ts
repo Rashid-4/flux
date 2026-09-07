@@ -315,9 +315,11 @@ const RADIUS_CORNER = /^(t|r|b|l|s|e|tl|tr|br|bl|ss|se|ee|es)-/
 describe('the other token namespaces', () => {
   /**
    * `rounded-sm` and `rounded-full` are Tailwind's, not ours, and both are
-   * deliberate. `rounded-sm` (4px) is the checkbox, where README §3's smallest rung
-   * — `rounded-control` at 8px — reads as a circle on a 16px box, and a circle
-   * means radio. `rounded-full` is not currently used; `rounded-chip` is the pill.
+   * deliberate. `rounded-sm` (4px) is for the two places 4px is measured rather than
+   * chosen: the checkbox, where README §3's smallest rung — `rounded-control` at 8px —
+   * reads as a circle on a 16px box, and a circle means radio; and the sidebar tree's
+   * connector corner, whose radius came off a pixel scan of `UI Images/JIRA 2.webp`.
+   * `rounded-full` is not currently used; `rounded-chip` is the pill.
    * `rounded-inherit` is the `@utility` in tokens.css for an inner box that must not
    * square off a rounded parent.
    */

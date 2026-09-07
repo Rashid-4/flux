@@ -123,7 +123,7 @@ export function ShortcutSheet({ open, onOpenChange }: ShortcutSheetProps) {
                 <section key={section.group} aria-labelledby={`${filterId}-${section.group}`}>
                   <h3
                     id={`${filterId}-${section.group}`}
-                    className="mb-1 px-1 text-2xs text-fg-subtle uppercase"
+                    className="mb-1 px-1 text-label text-fg-subtle uppercase"
                   >
                     {section.group}
                   </h3>

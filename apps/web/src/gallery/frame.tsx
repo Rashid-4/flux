@@ -58,7 +58,7 @@ export interface PanelProps {
 export function Panel({ label, note, grid = false, className, children }: PanelProps) {
   return (
     <div className="rounded-card border border-border bg-surface p-4">
-      <p className="mb-3 text-2xs text-fg-subtle uppercase">{label}</p>
+      <p className="mb-3 text-label text-fg-subtle uppercase">{label}</p>
       {note !== undefined && <p className="mb-3 max-w-[70ch] text-sm text-fg-muted">{note}</p>}
       <div
         className={cn(
@@ -75,7 +75,7 @@ export function Panel({ label, note, grid = false, className, children }: PanelP
 }
 
 export interface SpecimenProps {
-  /** What this cell is. Kept short — it sets in 10px uppercase. */
+  /** What this cell is. Kept short — it sets uppercase and tracked. */
   label: string
   /** Stretch the cell to the full width of the row. */
   wide?: boolean | undefined
@@ -94,7 +94,7 @@ export function Specimen({ label, wide = false, className, children }: SpecimenP
   return (
     <figure className={cn('flex min-w-0 flex-col gap-2', wide && 'w-full', className)}>
       <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-2">{children}</div>
-      <figcaption className="text-2xs text-fg-subtle uppercase">{label}</figcaption>
+      <figcaption className="text-label text-fg-subtle uppercase">{label}</figcaption>
     </figure>
   )
 }

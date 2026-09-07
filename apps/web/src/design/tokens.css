@@ -162,7 +162,67 @@
   /* Meta and placeholders: counts, timestamps, section labels. */
   --fg-subtle: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface, 5.06:1 on --canvas */
 
+  /* -- Rail ---------------------------------------------------------------- */
+  /* The icon rail's two ink roles, and they exist because the two references
+     disagree about them in a way no shared token can express.
+
+     A resting icon is #2a2a2a in `JIRA 2.webp` and #808080 in `JIRA 1.webp`.
+     Those are not the same role at two lightnesses: in light the rail's icons
+     are as dark as body text, and in dark they are as quiet as meta text. So
+     `--rail-icon` is `--fg` here and `--fg-subtle` there. Reaching for
+     `text-fg-muted dark:text-fg-subtle` at the call site would be the `dark:`
+     variant `README` §5 names as a wrong token — the divergence belongs to the
+     theme, not to the component.
+
+     The selected marker diverges the same way: white in dark, blue in light. It
+     is written as the accent rather than as that blue so the deferred brand-hue
+     pass changes it in one place. `--primary-accent` is violet today and the
+     references' accent is #2c87de; that gap is a colour decision with its own
+     ratios to re-derive, not a geometry one, and mixing the two into one commit
+     is how a measured number ends up justified by a guess. */
+  --rail-icon: var(--fg);
+  --rail-selected: var(--primary-accent);
+  /* -- Chrome fills -------------------------------------------------------- */
+  /* Two fills that sit *on* the chrome: the resting state of a selected row, and
+     the hover state of an unselected one. They are named rather than reached for
+     through the surface ladder because the ladder runs in opposite directions per
+     theme. `--chrome` is #ffffff here, so anything raised on it has to step
+     *darker* to exist at all; `--chrome` is near-black in dark, so the same two
+     roles step *lighter* there. `bg-surface-3 dark:bg-surface` at the call site
+     would be the `dark:` variant `README` §5 names as a wrong token — the
+     inversion belongs to the theme.
+
+     `--chrome-raised` is measured twice over and the two measurements agree,
+     which is the whole argument for it being one token. The brand disc in the rail
+     and the selected project row in the sidebar are #f1f4f5 and #f0f5f5 in
+     `JIRA 2.webp` — the same fill, to within webp's noise, on two surfaces that
+     have no component in common. `--surface-3` is #f1f3f6 and matches both.
+
+     `--chrome-hover` is the quieter step, one rung short of raised, so hovering an
+     unselected row cannot be mistaken for selecting it. In dark it is `--canvas`
+     rather than a surface rung, because the gap between near-black chrome and
+     `--surface` is where the only visible step is. */
+  --chrome-raised: var(--surface-3);
+  --chrome-hover: var(--surface-2);
+
   /* -- Lines --------------------------------------------------------------- */
+  /* The quietest line in the product — the rail/sidebar divider, and nothing
+     else yet. Measured off the references rather than chosen: #f5f5f5 here and
+     the near-black `.dark` quotes beside its own declaration — both pure
+     neutrals, where every other line in this file carries a little blue. (The
+     dark value is named there rather than here, because `contrast.test.ts` holds
+     each theme's comments to the colours *that* theme produces, and a hex from
+     the other block would read as a stale claim.) In light this is 1.04:1
+     against the #ffffff on either side of it, which is not a mistake and is the
+     whole point: the reference's rail is separated from its sidebar by a line you
+     notice only when it is missing. Exempt from SC 1.4.11 for the same reason
+     `--border` is — it edges nothing interactive and communicates no state.
+
+     A separate token rather than `--border`, because the two differ in *opposite
+     directions* per theme: this is lighter than `--border` in light and lighter
+     than both its neighbours in dark, so no single value expresses it. That is
+     the cross-theme role divergence CLAUDE.md's drift table has a row for. */
+  --border-subtle: oklch(0.97 0 89.9); /* #f5f5f5 */
   /* Decorative separators and card edges. Exempt from 1.4.11: a card is not a
      control, and no state is communicated by this line alone. #e2e6eb */
   --border: oklch(0.923 0.008 253.9);
@@ -405,7 +465,30 @@
   --fg-muted: oklch(0.738 0.019 253.4); /* #a2abb6 — 7.20:1 on --surface, 8.08:1 on --canvas */
   --fg-subtle: oklch(0.662 0.018 250.9); /* #8b949e — 5.44:1 on --surface, 6.11:1 on --canvas */
 
+  /* -- Rail ---------------------------------------------------------------- */
+  /* Both roles invert against light — see the light block. A resting icon here is
+     meta-quiet on a #000000 rail, and the selected marker is the brightest ink in
+     the product rather than the accent. */
+  --rail-icon: var(--fg-subtle);
+  --rail-selected: var(--fg);
+
+  /* -- Chrome fills -------------------------------------------------------- */
+  /* Both step *lighter* off a near-black chrome where light steps darker off
+     white — see the light block for the argument. `JIRA 1.webp` draws the selected
+     project row at #1a1c1e, which is `--surface` to within webp's noise.
+
+     Hover is `--canvas` and not `--surface-2`, which is only two hundredths of
+     lightness below raised: on this chrome the eye has almost the whole range
+     between black and `--surface` to spend, so spending it is what makes hover and
+     selected two states rather than one with a rounding error. */
+  --chrome-raised: var(--surface);
+  --chrome-hover: var(--canvas);
+
   /* -- Lines --------------------------------------------------------------- */
+  /* Lighter than the #000000 rail and the #101213 sidebar it sits between, where
+     in light it is darker than the #ffffff on both sides. Same role, opposite
+     direction — see the light comment. */
+  --border-subtle: oklch(0.248 0 89.9); /* #212121 */
   --border: oklch(0.287 0.011 254); /* #272b30 */
   --border-strong: oklch(0.357 0.015 252.3); /* #373d44 */
   /* #707881 — the value the light-mode comment describes, now actually produced.
@@ -547,6 +630,8 @@
   --color-inherit: inherit;
 
   --color-chrome: var(--chrome);
+  --color-chrome-raised: var(--chrome-raised);
+  --color-chrome-hover: var(--chrome-hover);
   --color-panel: var(--panel);
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -559,9 +644,13 @@
   --color-fg-muted: var(--fg-muted);
   --color-fg-subtle: var(--fg-subtle);
 
+  --color-border-subtle: var(--border-subtle);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-border-control: var(--border-control);
+
+  --color-rail-icon: var(--rail-icon);
+  --color-rail-selected: var(--rail-selected);
 
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
@@ -641,34 +730,65 @@
     'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
     monospace;
 
-  /* A deliberately dense scale, matching the references: their card titles are
-     14px and their body 13px, not Tailwind's 16px. So `text-base` here is 13px
-     and `text-sm` is 12px — including inside generated components. In rem, not
-     px, so a reader who has raised their browser's default font size gets a
-     bigger app rather than a horizontal scrollbar.
-     `text-2xs` is the tiny uppercase letterspaced section label (DETAILS,
-     FAVORITES, ALL PROJECTS) that appears in every reference. */
-  --text-2xs: 0.625rem; /* 10 / 14 */
-  --text-2xs--line-height: 0.875rem;
-  --text-2xs--letter-spacing: 0.08em;
-  --text-2xs--font-weight: 600;
-  --text-xs: 0.6875rem; /* 11 / 16 — counts, badges, meta */
-  --text-xs--line-height: 1rem;
-  --text-sm: 0.75rem; /* 12 / 18 — secondary, chip labels */
-  --text-sm--line-height: 1.125rem;
-  --text-base: 0.8125rem; /* 13 / 20 — UI default */
-  --text-base--line-height: 1.25rem;
-  --text-md: 0.875rem; /* 14 / 20 — card and row titles */
-  --text-md--line-height: 1.25rem;
-  --text-lg: 1rem; /* 16 / 24 — panel headings */
-  --text-lg--line-height: 1.5rem;
-  --text-xl: 1.125rem; /* 18 / 26 — page title */
-  --text-xl--line-height: 1.625rem;
+  /* The scale is measured off `UI Images/JIRA 1.webp` and `JIRA 2.webp`, and it
+     is *not* the dense one this block used to describe.
+
+     What it said was that "their card titles are 14px and their body 13px". That
+     was wrong, and wrong in a way worth recording, because it was wrong for a
+     methodological reason rather than a careless one: font size was being derived
+     from measured ink using a cap-height constant, and antialiasing on a lossy
+     webp inflates a 7px cap into 9px of above-threshold pixels. Every size that
+     came out of it was too small, consistently, which is exactly the failure mode
+     that looks like a house style rather than an error.
+
+     The method that works has no constant in it. Render flux's own text at a
+     known size, measure its ink with the *identical* threshold and scale, and
+     scale the size by the ratio of the two ink heights:
+
+       flux "Logistics Platform"  text-base 13px  →  ink 13px
+       reference sidebar row                      →  ink 17px    ⇒ 17px
+       flux "FAVOURITES"          text-2xs  10px  →  ink  7px
+       reference "FAVORITES"                      →  ink 11px    ⇒ ~15px
+
+     Both sides then carry the same antialiasing bias and it cancels. The rest of
+     the scale is pinned the same way: page title ink 28 ⇒ 28px, tab ink 15 ⇒
+     ~20px, sub-bar ink 14 ⇒ ~19px.
+
+     So `text-base` is 16px — which is also Tailwind's default, arrived at from
+     the other direction. In rem, not px, so a reader who has raised their
+     browser's default font size gets a bigger app rather than a horizontal
+     scrollbar.
+
+     `--text-label` is the uppercase letterspaced section label (DETAILS,
+     FAVORITES, ALL PROJECTS) that appears in every reference. It is a *role*, not
+     a size step, which is why it is named rather than numbered: the references
+     draw it at almost the same size as body text, so a monotonic scale has
+     nowhere to put a step that is both smaller than `sm` by name and larger than
+     it in value. `text-2xs` used to carry the weight and tracking for this and no
+     longer does — it is a plain size step now, for a `<kbd>` chord and a count. */
+  --text-2xs: 0.8125rem; /* 13 / 18 — a kbd chord, a badge count */
+  --text-2xs--line-height: 1.125rem;
+  --text-xs: 0.875rem; /* 14 / 20 — counts, badges, meta */
+  --text-xs--line-height: 1.25rem;
+  --text-label: 0.9375rem; /* 15 / 20 — uppercase tracked section label */
+  --text-label--line-height: 1.25rem;
+  --text-label--letter-spacing: 0.08em;
+  --text-label--font-weight: 600;
+  --text-sm: 0.9375rem; /* 15 / 22 — secondary, chip labels */
+  --text-sm--line-height: 1.375rem;
+  --text-base: 1rem; /* 16 / 24 — UI default */
+  --text-base--line-height: 1.5rem;
+  --text-md: 1.0625rem; /* 17 / 24 — card, sidebar and list row titles */
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.1875rem; /* 19 / 26 — tabs, panel headings */
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.3125rem; /* 21 / 28 */
+  --text-xl--line-height: 1.75rem;
   --text-xl--letter-spacing: -0.01em;
-  --text-2xl: 1.375rem; /* 22 / 30 */
-  --text-2xl--line-height: 1.875rem;
+  --text-2xl: 1.5rem; /* 24 / 32 */
+  --text-2xl--line-height: 2rem;
   --text-2xl--letter-spacing: -0.015em;
-  --text-3xl: 1.75rem; /* 28 / 36 */
+  --text-3xl: 1.75rem; /* 28 / 36 — page title */
   --text-3xl--line-height: 2.25rem;
   --text-3xl--letter-spacing: -0.02em;
 
@@ -688,17 +808,26 @@
   --radius-chip: 9999px; /* labels, priority pills, avatars, switches, radio dots */
 
   /* -- Layout sizes -------------------------------------------------------- */
-  /* The measured widths of the reference chrome, as spacing tokens so they are
-     `w-rail` and `h-topbar` rather than six different arbitrary pixel values
-     that drift apart. */
-  --spacing-rail: 4.5rem; /* 72px  — icon rail */
+  /* The measured geometry of the reference chrome, as spacing tokens so they are
+     `w-rail` and `h-topbar` rather than a dozen arbitrary pixel values that drift
+     apart — and so `pnpm ui:diff` reporting a 4px offset has exactly one place to
+     be corrected.
+     Every number below was taken off `UI Images/JIRA 1.webp` and `JIRA 2.webp` at
+     1x, which the 1px rail divider and the ~13px traffic lights both establish.
+     `rail` is the fill plus its divider: 102px of #000000 (dark) then one pixel
+     at x=102, so the sidebar starts at 103 and not at 104. */
+  --spacing-rail: 6.4375rem; /* 103px — icon rail, divider included */
+  --spacing-rail-head: 4.375rem; /* 70px  — clear space above the rail logo */
+  --spacing-rail-step: 1.3125rem; /* 21px  — gap between 48px rail items (69px pitch) */
   --spacing-nav: 15rem; /* 240px — nav sidebar */
-  --spacing-tree: 16.25rem; /* 260px — project tree */
+  --spacing-tree: 16.8125rem; /* 269px — project tree */
+  --spacing-tree-inset: 0.8125rem; /* 13px  — its rows' horizontal inset */
   --spacing-detail: 26.875rem; /* 430px — right detail / chat panel */
   --spacing-column: 19rem; /* 304px — board column */
+  --spacing-gutter: 2.25rem; /* 36px  — the content column's horizontal padding */
   --spacing-topbar: 3.5rem; /* 56px */
   --spacing-subbar: 3rem; /* 48px  — view switcher + filter row */
-  --spacing-row: 2rem; /* 32px  — virtualised list row */
+  --spacing-row: 2.5625rem; /* 41px  — sidebar and virtualised list row */
   --spacing-avatar: 1.5rem; /* 24px  — avatar in a stack */
 
   /* -- Shadows ------------------------------------------------------------- */

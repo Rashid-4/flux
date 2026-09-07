@@ -3,13 +3,23 @@ import { ProjectTree } from '@/components/shell/project-tree'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
- * The 260px project tree, as persistent chrome.
+ * The 269px project tree, as persistent chrome.
  * ══════════════════════════════════════════════════════════════════════
  *
- * Measured off `UI Images/`: 260px (`w-tree`), 32px rows (`h-row`), an uppercase
- * 10px section label (`text-2xs`, which carries its own 600 weight and 0.08em
- * tracking), a filled pill on the current row, and tree lines under an expanded
- * project. On `canvas`, like the rail, so the two read as one piece of chrome.
+ * Measured off `UI Images/JIRA 1.webp` and `JIRA 2.webp` at 1x: 269px (`w-tree`),
+ * 41px rows (`h-row`) inset 13px from each edge, a 15px uppercase tracked section
+ * label (`text-label`), a filled pill on the current row, and tree lines under an
+ * expanded project. On `chrome`, like the rail, so the two read as one piece.
+ *
+ * ### It has no right border, and that is measured
+ *
+ * The sidebar's fill runs straight into the content column's — #ffffff to #f3f5f7 in
+ * light, #101213 to #101213 in dark, with no line between them in either. flux drew a
+ * `border-r border-border` here, which is one of the two column edges `pnpm ui:diff`
+ * flagged as *"flux draws, reference does not"*; that report direction exists because
+ * of this defect. In dark the border was worse than redundant — the sidebar and the
+ * canvas are the same colour there, so the only thing separating them was a line the
+ * reference does not have.
  *
  * The tree itself is `./project-tree.tsx`. This file is now only the landmark and
  * the breakpoint, because `./nav-drawer.tsx` renders the same tree below 768px and
@@ -56,8 +66,8 @@ import { ProjectTree } from '@/components/shell/project-tree'
  * ### Below 768px this is not rendered, and that is no longer a gap
  *
  * The rail's toggle carries the complementary `hidden md:inline-flex` so the two
- * appear and disappear together. The rail is 72px and this is 260px, which is 332px
- * of a 375px phone: three columns of chrome and 43px of content.
+ * appear and disappear together. The rail is 103px and this is 269px, which is 372px
+ * of a 375px phone: two columns of chrome and 3px of content.
  *
  * What used to be here was a note saying an overlay drawer was *"the next increment
  * rather than this one"*, and that the tree was simply unreachable on a phone in the
@@ -80,7 +90,7 @@ export function ProjectSidebar({ bootstrap }: ProjectSidebarProps) {
        */
       aria-label="Projects"
       data-slot="project-sidebar"
-      className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-chrome"
+      className="absolute inset-y-0 right-0 flex w-tree flex-col bg-chrome"
     >
       <ProjectTree bootstrap={bootstrap} />
     </nav>

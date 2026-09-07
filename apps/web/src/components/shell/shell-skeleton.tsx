@@ -14,8 +14,8 @@ import { cn } from '@/lib/cn'
  * content change and nothing else moves.
  *
  * So the widths here are the same tokens the real components use: `w-rail`, `w-tree`,
- * `h-topbar`, `h-row`. Not similar numbers — the same tokens, so a change to one
- * cannot leave the other behind.
+ * `h-topbar`, `h-row`, `pt-rail-head`, `px-tree-inset`. Not similar numbers — the same
+ * tokens, so a change to one cannot leave the other behind.
  *
  * ### Not a spinner
  *
@@ -43,21 +43,31 @@ export interface ShellChromeSkeletonProps {
   sidebarOpen: boolean
 }
 
-/** The rail and sidebar placeholders, in the same 72px + 260px geometry. */
+/**
+ * The rail and sidebar placeholders, in the same 103px + 269px geometry.
+ *
+ * Every class here is the twin of one in `./icon-rail.tsx` or `./project-tree.tsx`,
+ * down to `border-border-subtle` and `pt-rail-head`. That is not tidiness: a
+ * placeholder that gets the divider's *colour* wrong flashes a second line for as
+ * long as bootstrap takes, and one that gets `pt-rail-head` wrong slides seven icons
+ * 40px up at the moment data lands.
+ */
 export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
   return (
     <>
-      <div className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-chrome py-3">
-        <Skeleton className="mb-2 size-8 rounded-card" />
+      <div className="flex w-rail shrink-0 flex-col items-center border-r border-border-subtle bg-chrome pt-rail-head pb-5">
+        <Skeleton className="size-15 rounded-chip" />
         {/**
          * Six, because six is what the rail renders for a user with every permission —
          * and one too many is better than one too few here: the list shrinking as data
          * arrives is a smaller jolt than it growing and pushing the bottom controls
          * down.
          */}
-        {Array.from({ length: 6 }, (_, index) => (
-          <Skeleton key={index} className="size-10 rounded-control" />
-        ))}
+        <div className="mt-8 flex flex-col gap-rail-step">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton key={index} className="size-12 rounded-control" />
+          ))}
+        </div>
       </div>
 
       {/**
@@ -69,12 +79,30 @@ export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
        * child and the reason it can clip without reflowing anything.
        */}
       <SidebarSlot open={sidebarOpen}>
-        <div className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-chrome">
-          <div className="shrink-0 p-3">
-            <Skeleton className="h-8 w-full rounded-control" />
+        <div className="absolute inset-y-0 right-0 flex w-tree flex-col bg-chrome">
+          {/**
+           * The filter row is a row, not a boxed field — see `./project-tree.tsx`. So
+           * the placeholder is the magnifier and the placeholder text at the same two
+           * x positions (28px and 58px from the edge) rather than one wide pill, which
+           * is what a boxed field would have been.
+           */}
+          <div className="shrink-0 px-tree-inset pt-5">
+            <div className="flex h-row items-center gap-3.5 pl-3.75">
+              <Skeleton className="size-5 shrink-0 rounded-control" />
+              <Skeleton className="h-4 w-28 rounded-control" />
+            </div>
           </div>
-          <div className="flex flex-col gap-0.5 px-3">
-            <Skeleton className="mb-1 ml-2 h-3 w-20 rounded-control" />
+          {/**
+           * `pt-5` is the twin of the scroll region's in `./project-tree.tsx` — the
+           * measured 20px between the filter row and the first section label. Without
+           * it the whole list, and every row under it, slid 20px up at the moment
+           * bootstrap resolved.
+           */}
+          <div className="flex flex-col px-tree-inset pt-5">
+            <div className="flex h-row items-center gap-3.5 pl-3.75">
+              <Skeleton className="size-4 shrink-0 rounded-control" />
+              <Skeleton className="h-3 w-20 rounded-control" />
+            </div>
             {/**
              * Varied widths, from a fixed list rather than at random. A column of
              * identically-sized bars reads as a table; project names are not the same
@@ -82,9 +110,9 @@ export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
              * would make every snapshot different.
              */}
             {['w-32', 'w-40', 'w-28', 'w-36', 'w-24'].map((width) => (
-              <div key={width} className="flex h-row items-center gap-2 px-2">
+              <div key={width} className="flex h-row items-center gap-3.5 pl-3.75">
                 <Skeleton className="size-4 shrink-0 rounded-sm" />
-                <Skeleton className={`h-3 rounded-control ${width}`} />
+                <Skeleton className={`h-4 rounded-control ${width}`} />
               </div>
             ))}
           </div>
@@ -150,10 +178,19 @@ export function ShellTopBarSkeleton() {
       className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-panel px-4"
     >
       <div className="flex flex-col gap-1">
-        <Skeleton className="h-2.5 w-16 rounded-control" />
-        <Skeleton className="h-3.5 w-32 rounded-control" />
+        <Skeleton className="h-3 w-16 rounded-control" />
+        <Skeleton className="h-4 w-32 rounded-control" />
       </div>
-      <Skeleton className="ml-auto h-7 w-28 rounded-control" />
+      {/**
+       * Three, matching the cluster `./top-bar.tsx` now renders on the right: the
+       * palette button, the theme control and the account menu. It was one, for as
+       * long as the latter two lived in the rail.
+       */}
+      <div className="ml-auto flex items-center gap-1">
+        <Skeleton className="h-8 w-28 rounded-control" />
+        <Skeleton className="size-9 rounded-control" />
+        <Skeleton className="size-9 rounded-chip" />
+      </div>
     </div>
   )
 }

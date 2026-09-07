@@ -35,8 +35,15 @@ const glyphVariants = cva(
   {
     variants: {
       size: {
-        /** Sidebar row and any 32px-high list row. */
-        sm: 'size-4 rounded-sm text-2xs',
+        /**
+         * Sidebar row and any short list row. 16px is measured off the references,
+         * where the sidebar's project mark is exactly the height of the ink beside
+         * it — so the box stayed put when the type scale moved and the letter inside
+         * it grew to 13px. `leading-none` is what makes that fit: `--text-2xs` is
+         * 13/18, and an 18px line-height in a 16px box overflows and drags the
+         * centred glyph off its own row by a pixel.
+         */
+        sm: 'size-4 rounded-sm text-2xs leading-none',
         /** Project card, breadcrumb, command palette result. */
         md: 'size-6 text-xs',
         /** Beside a page title. */

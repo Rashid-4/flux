@@ -207,7 +207,7 @@ export function ComposedSection() {
         <div className="flex w-[300px] shrink-0 flex-col gap-2 rounded-panel bg-surface-2 p-2">
           <div className="flex items-center justify-between px-1 py-1">
             <div className="flex items-center gap-2">
-              <span className="text-2xs text-fg-muted uppercase">In progress</span>
+              <span className="text-label text-fg-muted uppercase">In progress</span>
               <Badge size="sm" variant="neutral">
                 3
               </Badge>
@@ -255,7 +255,7 @@ export function ComposedSection() {
         <div className="flex w-[300px] shrink-0 flex-col gap-2 rounded-panel bg-surface-2 p-2">
           <div className="flex items-center justify-between px-1 py-1">
             <div className="flex items-center gap-2">
-              <span className="text-2xs text-fg-muted uppercase">Done</span>
+              <span className="text-label text-fg-muted uppercase">Done</span>
               <Badge size="sm" variant="neutral">
                 0
               </Badge>

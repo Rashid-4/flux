@@ -30,7 +30,12 @@ describe('Button', () => {
     expect(button).toHaveAttribute('data-slot', 'button')
     expect(button).toHaveAttribute('data-variant', 'secondary')
     expect(button).toHaveAttribute('data-size', 'md')
-    expect(button).toHaveClass('h-8')
+    /**
+     * 36px, not 32. The whole ladder moved up one rung with the measured type scale
+     * — `button.tsx`'s `size` block has the arithmetic, and `input.test.tsx` and
+     * `select.test.tsx` pin the same rung, which is what "one ladder" means.
+     */
+    expect(button).toHaveClass('h-9')
     await expectNoAxeViolations(container)
   })
 

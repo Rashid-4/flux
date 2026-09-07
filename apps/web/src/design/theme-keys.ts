@@ -37,6 +37,8 @@ export const COLOR_KEYS = [
   'current',
   'inherit',
   'chrome',
+  'chrome-raised',
+  'chrome-hover',
   'panel',
   'canvas',
   'surface',
@@ -47,6 +49,9 @@ export const COLOR_KEYS = [
   'fg',
   'fg-muted',
   'fg-subtle',
+  'rail-icon',
+  'rail-selected',
+  'border-subtle',
   'border',
   'border-strong',
   'border-control',
@@ -105,8 +110,25 @@ export const COLOR_KEYS = [
   'ring',
 ] as const
 
-/** `--text-*` — the dense type scale. `text-base` is 13px here, not 16px. */
-export const TEXT_KEYS = ['2xs', 'xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3xl'] as const
+/**
+ * `--text-*` — the type scale measured off the references.
+ *
+ * `label` is in the middle of the numbered steps on purpose: it is the uppercase
+ * tracked section label, a role rather than a size, and the references draw it at
+ * almost body size. `tokens.css` has the calibration that produced the numbers.
+ */
+export const TEXT_KEYS = [
+  '2xs',
+  'xs',
+  'label',
+  'sm',
+  'base',
+  'md',
+  'lg',
+  'xl',
+  '2xl',
+  '3xl',
+] as const
 
 /** `--radius-*` — named after the thing they round, not after a size. */
 export const RADIUS_KEYS = ['control', 'card', 'panel', 'window', 'chip'] as const
@@ -124,13 +146,17 @@ export const RADIUS_KEYS = ['control', 'card', 'panel', 'window', 'chip'] as con
  */
 export const SHADOW_KEYS = ['xs', 'card', 'raised', 'drag', 'overlay'] as const
 
-/** `--spacing-*` — the measured widths of the reference chrome. */
+/** `--spacing-*` — the measured geometry of the reference chrome. */
 export const SPACING_KEYS = [
   'rail',
+  'rail-head',
+  'rail-step',
   'nav',
   'tree',
+  'tree-inset',
   'detail',
   'column',
+  'gutter',
   'topbar',
   'subbar',
   'row',

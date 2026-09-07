@@ -71,16 +71,29 @@ const buttonVariants = cva(
         /** Inline in prose. Underline on hover only, offset clear of descenders. */
         link: 'text-primary underline-offset-4 hover:underline',
       },
+      /**
+       * The whole ladder moved up one rung — 24/28/32/40 became 28/32/36/44 — when
+       * the type scale was measured off `UI Images/JIRA 1.webp` and `JIRA 2.webp`
+       * rather than derived from a cap-height constant. `tokens.css` has the
+       * calibration; the consequence here is arithmetic. `md` carries `text-base`,
+       * which is 16px on a 24px line-height, and a 24px line in a 32px box leaves
+       * 4px of breathing room top and bottom. At 36px it is 6px, which is the
+       * proportion the references draw.
+       *
+       * It stays in lockstep with `Input` and `SelectTrigger` — README §3: one
+       * ladder, *"so a filter row lines up without per-component nudging"*. Moving
+       * one of the three is how that stops being true.
+       */
       size: {
-        xs: "h-6 gap-1 px-2 text-xs [&_svg:not([class*='size-'])]:size-3.5",
-        sm: "h-7 px-2.5 text-sm [&_svg:not([class*='size-'])]:size-3.5",
-        md: 'h-8 px-3 text-base',
-        lg: "h-10 gap-2 px-4 text-md [&_svg:not([class*='size-'])]:size-4.5",
+        xs: "h-7 gap-1 px-2 text-xs [&_svg:not([class*='size-'])]:size-4",
+        sm: "h-8 px-2.5 text-sm [&_svg:not([class*='size-'])]:size-4",
+        md: 'h-9 px-3 text-base',
+        lg: "h-11 gap-2 px-4 text-md [&_svg:not([class*='size-'])]:size-5",
         /** Square, for a button whose whole content is one icon. */
-        'icon-xs': "size-6 [&_svg:not([class*='size-'])]:size-3.5",
-        'icon-sm': "size-7 [&_svg:not([class*='size-'])]:size-3.5",
-        icon: 'size-8',
-        'icon-lg': "size-10 [&_svg:not([class*='size-'])]:size-4.5",
+        'icon-xs': "size-7 [&_svg:not([class*='size-'])]:size-4",
+        'icon-sm': "size-8 [&_svg:not([class*='size-'])]:size-4",
+        icon: 'size-9',
+        'icon-lg': "size-11 [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

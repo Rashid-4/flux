@@ -1,18 +1,16 @@
 import type { Bootstrap } from '@flux/contracts'
 import {
   ChartNoAxesColumn,
+  ChevronLeft,
+  ChevronRight,
   FolderKanban,
   LayoutDashboard,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Settings,
   Upload,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
-import { AccountPopover } from '@/components/shell/account-popover'
 import { NavDrawer } from '@/components/shell/nav-drawer'
-import { ThemeMenu } from '@/components/shell/theme-menu'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { OrgPermissions } from '@/lib/bootstrap'
@@ -22,12 +20,28 @@ import { useSidebarOpen, useToggleSidebar } from '@/stores/chrome'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
- * The 72px icon rail: the app's top-level navigation.
+ * The 103px icon rail: the app's top-level navigation.
  * ══════════════════════════════════════════════════════════════════════
  *
- * Measured off `UI Images/`: 72px wide (`w-rail`), 40px targets, a 3px accent bar on
- * the left edge of the current section, on `canvas` so it reads as chrome behind the
- * white content panel.
+ * Every number here is measured off `UI Images/JIRA 1.webp` and `JIRA 2.webp` at 1x,
+ * not chosen. 102px of fill plus the 1px `--border-subtle` divider at x=102, so the
+ * sidebar begins at 103; 70px of clear space, then a 60px brand disc; then 48px
+ * targets on a 69px pitch with the first box top at y=162. `pnpm ui:diff` is the
+ * instrument, and the tokens are in `design/tokens.css` so a correction lands once.
+ *
+ * ### What is deliberately *not* copied
+ *
+ * The reference has **seven** items and flux has six, because the seventh would be a
+ * link to a route that does not exist. `docs/product-quality-bar.md` §13: *"a control
+ * that silently does nothing is worse than one that says why it cannot."* An icon
+ * added to match a count is that control with the "why" removed as well.
+ *
+ * The reference's 70px of space above its logo is where its host draws the macOS
+ * traffic lights. flux runs in a browser tab and has none — but the space is kept,
+ * and that is a decision rather than an oversight. Rebasing the rail 40px upward
+ * would make every subsequent offset disagree with the reference by 40px, and the
+ * content column's first ink (the page title, y=44) sits inside that band anyway, so
+ * the rail's clear space is level with the header's and nothing reads as empty.
  *
  * ### Every item is a real link
  *
@@ -126,17 +140,35 @@ export function IconRail({ bootstrap }: IconRailProps) {
   return (
     <div
       data-slot="icon-rail"
-      className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-chrome py-3"
+      /**
+       * `border-subtle`, not `border`. The divider between the rail and the sidebar
+       * is the quietest line in either reference — 1.04:1 in light — and `--border`
+       * would draw it three times as strongly. `w-rail` is 103px and includes this
+       * pixel, because Tailwind's preflight sets `border-box`.
+       *
+       * `pb-5` is the reference's 20px below its bottom control; `pt-rail-head` is
+       * the 70px above the logo. Not `py-`, because they are different numbers
+       * measured from different things.
+       */
+      className="flex w-rail shrink-0 flex-col items-center border-r border-border-subtle bg-chrome pt-rail-head pb-5"
     >
       {/**
        * The brand mark is decorative, and that is a decision rather than an
        * omission. A link here would go to `/`, which is already the first nav item
        * below it — a second tab stop to the same place, announced twice. When there
        * is a second product to switch to it becomes a real control with a real menu.
+       *
+       * `size-15` is 60px and `rounded-chip` makes it a disc, both measured. It is
+       * `bg-chrome-raised` rather than `bg-primary`: the references draw a neutral
+       * disc one rung in from the rail's own fill, and that rung runs in opposite
+       * directions per theme — see the token. A saturated brand tile here was the
+       * loudest thing on the screen and the reference's is the quietest. The
+       * sidebar's selected project row measures to the same fill, which is why the
+       * token is named for the chrome rather than for the rail.
        */}
       <div
         aria-hidden="true"
-        className="mb-2 flex size-8 items-center justify-center rounded-card bg-primary font-semibold text-primary-fg select-none"
+        className="flex size-15 items-center justify-center rounded-chip bg-chrome-raised text-2xl font-semibold text-fg select-none"
       >
         f
       </div>
@@ -145,9 +177,13 @@ export function IconRail({ bootstrap }: IconRailProps) {
        * `aria-label="Primary"` because a page may have more than one `<nav>` — the
        * project sidebar is the second — and two unlabelled navigation landmarks are
        * indistinguishable in a screen reader's landmark list.
+       *
+       * `mt-8`: the reference's logo ends at y=130 and its first item box starts at
+       * y=162. `gap-rail-step` is the 21px between 48px boxes that makes the 69px
+       * pitch — one token rather than the same 21 written at three call sites.
        */}
-      <nav aria-label="Primary" className="flex flex-1 flex-col items-center gap-1">
-        <ul className="flex flex-col items-center gap-1">
+      <nav aria-label="Primary" className="mt-8 flex flex-1 flex-col items-center">
+        <ul className="flex flex-col items-center gap-rail-step">
           {items.map((item) => (
             <li key={item.to}>
               <RailLink item={item} active={isWithin(item.section, pathname)} />
@@ -156,7 +192,7 @@ export function IconRail({ bootstrap }: IconRailProps) {
         </ul>
       </nav>
 
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center gap-rail-step">
         {/**
          * The drawer trigger and the sidebar toggle are complements, not
          * alternatives: `md:hidden` on one and `hidden md:inline-flex` on the other,
@@ -180,7 +216,7 @@ export function IconRail({ bootstrap }: IconRailProps) {
                * — see those files for why — so a toggle for it would be a control with
                * no effect, which §13 rates as worse than no control.
                */
-              className="hidden md:inline-flex"
+              className="hidden size-12 md:inline-flex [&_svg]:size-6"
               /**
                * The label names the *effect*, not the state. "Collapse sidebar" tells
                * the user what pressing it will do; "Sidebar expanded" tells them what
@@ -190,10 +226,16 @@ export function IconRail({ bootstrap }: IconRailProps) {
               aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
               aria-expanded={sidebarOpen}
             >
+              {/**
+               * A chevron, and it points the way the sidebar will move. Both
+               * references end the rail with a single 24px chevron and nothing else,
+               * where `PanelLeftClose`/`PanelLeftOpen` drew a small diagram of a
+               * window — more ink for the same one bit of state.
+               */}
               {sidebarOpen ? (
-                <PanelLeftClose aria-hidden="true" />
+                <ChevronLeft aria-hidden="true" strokeWidth={1.5} />
               ) : (
-                <PanelLeftOpen aria-hidden="true" />
+                <ChevronRight aria-hidden="true" strokeWidth={1.5} />
               )}
             </Button>
           </TooltipTrigger>
@@ -201,9 +243,6 @@ export function IconRail({ bootstrap }: IconRailProps) {
             {sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           </TooltipContent>
         </Tooltip>
-
-        <ThemeMenu />
-        <AccountPopover bootstrap={bootstrap} />
       </div>
     </div>
   )
@@ -226,28 +265,43 @@ function RailLink({ item, active }: { item: RailItem; active: boolean }) {
           aria-current={active ? 'page' : undefined}
           data-active={active ? '' : undefined}
           className={cn(
-            'relative flex size-10 items-center justify-center rounded-control',
-            'text-fg-muted transition-colors duration-90 ease-out',
-            'hover:bg-surface-3 hover:text-fg',
+            'relative flex size-12 items-center justify-center rounded-control',
+            'text-rail-icon transition-colors duration-90 ease-out',
             /**
-             * The accent bar is a `before:` pseudo-element on the link itself rather
-             * than a sibling `<span>`, so it cannot be announced and cannot be
-             * mistaken for content. Tailwind's `before:` variant injects
-             * `content: ""` on its own, which is the part that is easy to forget and
-             * that makes a hand-written pseudo-element invisible.
+             * `bg-chrome-hover`, the same fill a sidebar row hovers to — not
+             * `bg-surface-3`, which is a card's hover step and lands two rungs off a
+             * near-black rail in dark. The rail and the sidebar are one column of
+             * chrome, so a hover in one that is louder than a *selection* in the other
+             * reads as two components rather than one surface.
+             */
+            'hover:bg-chrome-hover hover:text-fg',
+            /**
+             * The marker is a `before:` pseudo-element on the link itself rather than
+             * a sibling `<span>`, so it cannot be announced and cannot be mistaken
+             * for content. Tailwind's `before:` variant injects `content: ""` on its
+             * own, which is the part that is easy to forget and that makes a
+             * hand-written pseudo-element invisible.
              *
-             * `-left-4`: the rail is 72px and the link is 40px, so there is exactly
-             * 16px of gutter on each side and `-left-4` lands the bar on the rail's
-             * own edge. `w-[3px]` is an arbitrary value the lint rule permits —
-             * `w-` is one of the layout escapes — and 3px is what the reference
-             * measures; there is no spacing token for a hairline accent because it is
-             * not spacing.
+             * `-left-[27px]`: the rail's fill is 102px and the link is 48px, so there
+             * is 27px of gutter on each side and this lands the bar on the rail's own
+             * outer edge — which is where both references put it, not floating beside
+             * the item. `h-full` because the bar is the item's full 48px; the earlier
+             * `h-6` plus a `-translate-y-1/2` was a shorter bar centred by hand.
+             * `w-[3px]` and `left-` are outside the arbitrary-value lint rule's
+             * denied prefixes, and 3px is measured — there is no spacing token for a
+             * hairline marker because it is not spacing.
+             *
+             * No background fill, and no accent tint on the icon. The references mark
+             * the current section with the bar and by *brightening the glyph to the
+             * marker's own colour* — `--rail-selected`, which is white in dark and the
+             * accent in light. A `bg-chrome-raised` pill here would be a second, louder
+             * indicator competing with the first.
              */
             active &&
-              'bg-surface-3 text-primary-accent before:absolute before:top-1/2 before:-left-4 before:h-6 before:w-[3px] before:-translate-y-1/2 before:rounded-r-chip before:bg-primary-accent',
+              'text-rail-selected before:absolute before:top-0 before:-left-[27px] before:h-full before:w-[3px] before:bg-rail-selected',
           )}
         >
-          <Icon aria-hidden="true" className="size-5" />
+          <Icon aria-hidden="true" className="size-6" strokeWidth={1.5} />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{item.label}</TooltipContent>

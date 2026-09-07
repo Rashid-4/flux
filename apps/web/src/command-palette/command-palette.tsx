@@ -463,7 +463,7 @@ export function CommandPalette({ bootstrap, providers = DEFAULT_PROVIDERS }: Com
                   >
                     <p
                       id={`${baseId}-group-${section.id}`}
-                      className="px-2 pt-2 pb-1 text-2xs text-fg-subtle uppercase"
+                      className="px-2 pt-2 pb-1 text-label text-fg-subtle uppercase"
                     >
                       {section.title}
                     </p>

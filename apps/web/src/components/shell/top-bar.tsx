@@ -2,6 +2,8 @@ import type { Bootstrap } from '@flux/contracts'
 import { Search } from 'lucide-react'
 import { useMatch } from 'react-router'
 import { openPalette } from '@/command-palette/command-palette'
+import { AccountPopover } from '@/components/shell/account-popover'
+import { ThemeMenu } from '@/components/shell/theme-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AvatarGroup, AvatarGroupCount } from '@/components/ui/avatar'
 import { formatChord } from '@/keyboard/keys'
@@ -28,11 +30,15 @@ import { ROUTE_PATTERNS } from '@/lib/paths'
  * ### Why it arrives with the palette and not before
  *
  * §3 lists its contents as *"org switcher · breadcrumb · ⌘K hint · user menu"*, and
- * until this commit two of those four could not exist honestly. The org switcher is
- * blocked by `docs/change-requests/003-organization-selection-mechanism.md` —
- * `request.ts` sends no organization identifier, so a switcher would be the control
- * that silently does nothing. The user menu is already in the rail, where the
- * reference designs also put it. And the ⌘K hint had nothing behind it.
+ * when this component arrived two of those four could not exist honestly. The org
+ * switcher is blocked by `docs/change-requests/003-organization-selection-mechanism.md`
+ * — `request.ts` sends no organization identifier, so a switcher would be the control
+ * that silently does nothing. And the ⌘K hint had nothing behind it.
+ *
+ * The user menu *was* in the rail, and this docblock said the reference designs put it
+ * there. They do not: measuring them found a single chevron at the bottom of the rail
+ * and nothing else, so the account menu and the theme control moved up here in the
+ * geometry pass. Three of the four now exist.
  *
  * The palette is what makes the bar worth having, so this is the commit it lands
  * in. What it carries is the affordance plus context, not four controls for their
@@ -41,13 +47,12 @@ import { ROUTE_PATTERNS } from '@/lib/paths'
  *
  * ### The context columns are borrowed from `UI Images/JIRA 3.webp`
  *
- * That reference puts a strip under its top bar with three columns, each a 10px
+ * That reference puts a strip under its top bar with three columns, each a small
  * uppercase label *above* its value — "TODAY'S DATE / Mar 21, 2024", "PEOPLE ON
  * PROJECT / ‹avatars›". It reads far better than a breadcrumb: a breadcrumb tells
  * you the path you took, which you already know, where the label/value pair tells
- * you something you did not. The tokens for it already existed (`text-2xs
- * uppercase` carries its own 600 weight and 0.08em tracking), so it cost nothing to
- * adopt.
+ * you something you did not. The token for it already existed (`text-label` carries
+ * its own 600 weight and 0.08em tracking), so it cost nothing to adopt.
  *
  * What is deliberately *not* borrowed from that reference: its global search field
  * spanning the bar. A wide input invites typing into it, and this one opens a modal
@@ -111,9 +116,22 @@ export function TopBar({ bootstrap }: TopBarProps) {
         )}
       </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-3">
+      {/**
+       * The theme control and the account menu are here, and they were in the rail
+       * until the reference match. Both `UI Images/JIRA 1.webp` and `JIRA 2.webp` end
+       * the rail with a single chevron and nothing else — no avatar, no theme control
+       * — and put their per-surface cluster at the top right of the content column,
+       * which is where these two now sit beside the palette.
+       *
+       * One move rather than two: this bar is the component being dismantled into the
+       * reference's three stacked header rows next, so the cluster is assembled in
+       * one place now and travels intact.
+       */}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
         <TeamAvatars bootstrap={bootstrap} />
         <PaletteButton />
+        <ThemeMenu />
+        <AccountPopover bootstrap={bootstrap} />
       </div>
     </header>
   )
@@ -129,7 +147,7 @@ interface ContextColumnProps {
 function ContextColumn({ label, value, mono }: ContextColumnProps) {
   return (
     <div className="flex min-w-0 flex-col">
-      <span className="text-2xs text-fg-subtle uppercase">{label}</span>
+      <span className="text-label text-fg-subtle uppercase">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="truncate text-base font-medium text-fg">{value}</span>
         {mono !== undefined && (
@@ -154,7 +172,7 @@ function TeamAvatars({ bootstrap }: { bootstrap: Bootstrap }) {
 
   return (
     <div className="hidden items-center gap-2 sm:flex">
-      <span className="text-2xs text-fg-subtle uppercase">Teams</span>
+      <span className="text-label text-fg-subtle uppercase">Teams</span>
       <AvatarGroup aria-label={`${String(bootstrap.teams.length)} teams in this organization`}>
         {bootstrap.teams.slice(0, 3).map((team) => (
           <Avatar key={team.id} size="sm">
@@ -193,14 +211,14 @@ function PaletteButton() {
        */
       aria-keyshortcuts="Meta+K Control+K"
       className={cn(
-        'flex h-7 items-center gap-2 rounded-control border border-border-control bg-surface-2 pr-1.5 pl-2.5',
+        'flex h-8 items-center gap-2 rounded-control border border-border-control bg-surface-2 pr-1.5 pl-2.5',
         'text-sm text-fg-subtle transition-colors duration-90 ease-out',
         'hover:bg-surface-3 hover:text-fg-muted',
       )}
     >
-      <Search aria-hidden="true" className="size-3.5" />
+      <Search aria-hidden="true" className="size-4" />
       <span className="hidden sm:inline">Search</span>
-      <kbd className="flex h-4.5 items-center rounded-control border border-border bg-surface px-1 font-sans text-2xs text-fg-subtle">
+      <kbd className="flex h-5.5 items-center rounded-control border border-border bg-surface px-1 font-sans text-2xs text-fg-subtle">
         {formatChord({ key: 'k', mod: true })}
       </kbd>
     </button>

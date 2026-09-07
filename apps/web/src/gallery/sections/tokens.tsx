@@ -98,16 +98,29 @@ const SHADOWS = [
   { className: 'shadow-overlay', name: 'shadow-overlay · dialog, menu' },
 ] as const
 
+/**
+ * The scale, at the sizes `tokens.css` actually declares.
+ *
+ * Every number here was 3–6px smaller until the scale was measured off
+ * `UI Images/JIRA 1.webp` and `JIRA 2.webp` by rendering flux's own text and comparing
+ * ink heights — the calibration is in `tokens.css`. A stale label in this table is
+ * worse than none, because this page is where someone comes to check.
+ *
+ * `text-label` is between `xs` and `sm` by value and outside them by name, which is
+ * deliberate: it is a *role* (uppercase, tracked, 600) and a monotonic numbered scale
+ * has nowhere to put one. It sits here in value order so the ramp still reads as a ramp.
+ */
 const TYPE = [
-  { className: 'text-2xs uppercase', name: 'text-2xs · 10px', sample: 'Column header' },
-  { className: 'text-xs', name: 'text-xs · 11px', sample: 'Badge, metadata' },
-  { className: 'text-sm', name: 'text-sm · 12px', sample: 'Secondary body' },
-  { className: 'text-base', name: 'text-base · 13px', sample: 'Body — the default' },
-  { className: 'text-md', name: 'text-md · 14px', sample: 'Emphasised body' },
-  { className: 'text-lg', name: 'text-lg · 16px', sample: 'Section heading' },
-  { className: 'text-xl', name: 'text-xl · 18px', sample: 'Panel title' },
-  { className: 'text-2xl', name: 'text-2xl · 22px', sample: 'Page title' },
-  { className: 'text-3xl', name: 'text-3xl · 28px', sample: 'Display' },
+  { className: 'text-2xs', name: 'text-2xs · 13px', sample: 'A chord, a count' },
+  { className: 'text-xs', name: 'text-xs · 14px', sample: 'Badge, metadata' },
+  { className: 'text-label uppercase', name: 'text-label · 15px', sample: 'Column header' },
+  { className: 'text-sm', name: 'text-sm · 15px', sample: 'Secondary body' },
+  { className: 'text-base', name: 'text-base · 16px', sample: 'Body — the default' },
+  { className: 'text-md', name: 'text-md · 17px', sample: 'Card and row titles' },
+  { className: 'text-lg', name: 'text-lg · 19px', sample: 'Tabs, panel headings' },
+  { className: 'text-xl', name: 'text-xl · 21px', sample: 'Panel title' },
+  { className: 'text-2xl', name: 'text-2xl · 24px', sample: 'Section display' },
+  { className: 'text-3xl', name: 'text-3xl · 28px', sample: 'Page title' },
 ] as const
 
 const WIDTHS = [

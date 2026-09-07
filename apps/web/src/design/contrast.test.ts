@@ -155,11 +155,34 @@ const ENTITY_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const
  * *produced*, by `--neutral-soft`, which never moved. Adding it would fail this
  * list's own stale-entry rule. An exemption is for a hex that is mentioned *and*
  * unproduced, and "a token stopped using it" is not the same claim.
+ *
+ * ### The case this list cannot hold, and what happens instead
+ *
+ * The rule above is per theme; the stale-entry rule below is across both. So a hex a
+ * light comment quotes and a *dark* token produces fits neither: the light assertion
+ * fails it as unproduced, and an entry here fails as "produced by a token". That is
+ * not a gap to soften — it is the list refusing to launder a claim. The chrome pass
+ * hit it twice, with the light rail block explaining its inversion by naming dark's
+ * own #000000 and #212121, and the fix was to delete the hexes and name the *tokens*
+ * (`--chrome`, "the near-black `.dark` quotes beside its own declaration"). A value
+ * documented in two blocks is a value that drifts in one of them, so the block that
+ * declares it is the block that quotes it.
+ *
+ * A reference *sample* from the other theme is a different thing and does belong
+ * here: #808080 is what `JIRA 1.webp` paints, not what any token of ours declares,
+ * and the light comment quotes it because the comparison is the entire argument for
+ * `--rail-icon` existing.
  */
 const ORPHAN_HEXES: ReadonlyArray<readonly [string, string]> = [
   ['#575f68', 'the rejected 0.483 --border-control, quoted in dark to record why it changed'],
   ['#2f7ff0', "the reference's blue, brighter than sRGB reaches at --info-solid's lightness"],
   ['#16181b', 'the pre-reference dark --surface, quoted in the .dark header to record the retune'],
+  ['#2a2a2a', "the light reference's resting rail icon, which --rail-icon takes --fg for instead"],
+  ['#808080', "the dark reference's resting rail icon, quoted in light to justify the two roles"],
+  ['#2c87de', "the references' selected-rail blue, which --rail-selected defers to the hue pass"],
+  ['#f1f4f5', "the light reference's brand-disc fill, which --surface-3 matches to webp's noise"],
+  ['#f0f5f5', "the light reference's selected project row — the same fill as its brand disc"],
+  ['#1a1c1e', "the dark reference's selected project row, which --surface matches to that noise"],
 ]
 
 describe('the reader sees the same file the other tests see', () => {

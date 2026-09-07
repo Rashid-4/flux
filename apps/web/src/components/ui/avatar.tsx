@@ -11,9 +11,14 @@ import { cn } from '@/lib/cn'
  *
  * | Size | Box | Initials | Where |
  * | --- | --- | --- | --- |
- * | `sm` | `size-avatar` — 24px | `text-xs` 11px | Board card, comment, list row, stacked group |
- * | `md` | `size-8` — 32px | `text-sm` 12px | Topbar account, assignee field, member row |
- * | `lg` | `size-10` — 40px | `text-md` 14px | Profile header, empty-state, mention card |
+ * | `sm` | `size-avatar` — 24px | `text-xs` 14px | Board card, comment, list row, stacked group |
+ * | `md` | `size-8` — 32px | `text-sm` 15px | Topbar account, assignee field, member row |
+ * | `lg` | `size-10` — 40px | `text-md` 17px | Profile header, empty-state, mention card |
+ *
+ * The boxes did not move when the type scale was measured off `UI Images/` and the
+ * initials did — the references draw a 24px avatar, so the box is the measurement and
+ * the type inside it is what has to fit. It does: every step's line-height clears its
+ * box by at least 4px, which is what keeps a two-letter fallback from being clipped.
  *
  * `sm` is `size-avatar` and not `size-6` even though both are 24px, because
  * `--spacing-avatar` is what a row reserving space for one uses (`w-avatar`), and

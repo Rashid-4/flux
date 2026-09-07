@@ -80,13 +80,14 @@ const selectTrigger = cva(
     'disabled:cursor-not-allowed disabled:opacity-50',
     'aria-invalid:border-danger-accent',
     '*:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:truncate',
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ],
   {
     variants: {
+      /** One rung up, in lockstep with `Button` and `Input` — see Button's `size`. */
       size: {
-        sm: 'h-7 px-2.5 text-sm',
-        default: 'h-8 px-3 text-base',
+        sm: 'h-8 px-2.5 text-sm',
+        default: 'h-9 px-3 text-base',
       },
     },
     defaultVariants: { size: 'default' },

@@ -62,7 +62,8 @@ describe('Select', () => {
     const trigger = screen.getByRole('combobox', { name: 'Status' })
     expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
     expect(trigger).toHaveAttribute('data-size', 'default')
-    expect(trigger).toHaveClass('w-full', 'h-8')
+    /** `h-9` is the shared ladder's default rung — see `button.tsx`'s `size`. */
+    expect(trigger).toHaveClass('w-full', 'h-9')
     expect(trigger.className).not.toMatch(/h-\[var\(--radix-select-trigger-height\)\]/)
 
     await user.click(trigger)

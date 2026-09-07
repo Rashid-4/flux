@@ -7,7 +7,7 @@ import { Input } from './input'
 import { Label } from './label'
 
 describe('Input', () => {
-  it('renders a labelled 32px field on the shared control ladder', async () => {
+  it('renders a labelled 36px field on the shared control ladder', async () => {
     const { container } = renderWithProviders(
       <div>
         <Label htmlFor="summary">Summary</Label>
@@ -16,7 +16,7 @@ describe('Input', () => {
     )
     const input = screen.getByLabelText('Summary')
     expect(input).toHaveAttribute('data-slot', 'input')
-    expect(input).toHaveClass('h-8')
+    expect(input).toHaveClass('h-9')
     expect(input).toHaveClass('w-full')
     expect(input).toHaveClass('border-border-control')
     await expectNoAxeViolations(container)
@@ -25,23 +25,28 @@ describe('Input', () => {
   /**
    * The rung that did not exist. README §3 promises button, input and select
    * trigger agree at each size "without per-component nudging", and until this
-   * variant landed the only way to build the reference's 28px filter bar was
-   * `className="h-7 text-sm"` at every call site — a local override of a shared
+   * variant landed the only way to build the reference's short filter bar was
+   * `className="h-8 text-sm"` at every call site — a local override of a shared
    * component, repeated, which is how a design system stops being one.
+   *
+   * The numbers moved once, together: the whole ladder went up a rung when the type
+   * scale was measured off `UI Images/`, so `sm` is 32px where it was 28. `button.tsx`
+   * has the arithmetic. The property this test pins is not the number — it is that
+   * the rung is reachable by name.
    *
    * Asserted through `data-size` as well as the class, because the attribute is
    * what a screenshot diff and a devtools inspection read.
    */
-  it('reaches the 28px rung through a variant rather than a call-site override', () => {
+  it('reaches the short rung through a variant rather than a call-site override', () => {
     renderWithProviders(<Input size="sm" aria-label="Filter" />)
     const input = screen.getByLabelText('Filter')
     expect(input).toHaveAttribute('data-size', 'sm')
-    expect(input).toHaveClass('h-7')
+    expect(input).toHaveClass('h-8')
     expect(input).toHaveClass('text-sm')
-    expect(input).not.toHaveClass('h-8')
+    expect(input).not.toHaveClass('h-9')
   })
 
-  it('defaults to the 32px rung', () => {
+  it('defaults to the taller rung', () => {
     renderWithProviders(<Input aria-label="Summary" />)
     expect(screen.getByLabelText('Summary')).toHaveAttribute('data-size', 'default')
   })
@@ -56,7 +61,7 @@ describe('Input', () => {
     renderWithProviders(<Input size="sm" className="h-10" aria-label="Tall" />)
     const input = screen.getByLabelText('Tall')
     expect(input).toHaveClass('h-10')
-    expect(input).not.toHaveClass('h-7')
+    expect(input).not.toHaveClass('h-8')
   })
 
   it('accepts typing', async () => {

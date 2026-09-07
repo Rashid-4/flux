@@ -27,7 +27,7 @@ const badgeVariants = cva(
     'inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden',
     'rounded-chip border border-transparent whitespace-nowrap',
     'transition-colors duration-90 ease-out',
-    "[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-3",
+    "[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg:not([class*='size-'])]:size-3.5",
   ],
   {
     variants: {
@@ -52,12 +52,19 @@ const badgeVariants = cva(
       },
       size: {
         /**
-         * The uppercase micro-label. `text-2xs` carries 600 weight and 0.08em
-         * tracking in the token itself, which is what stops 10px uppercase from
+         * The uppercase micro-label. `text-label` carries 600 weight and 0.08em
+         * tracking in the token itself, which is what stops uppercase text from
          * setting as a solid block.
          */
-        sm: 'h-4.5 px-1.5 text-2xs uppercase',
-        md: 'h-5 px-2 text-xs font-medium',
+        sm: 'h-6 px-2 text-label uppercase',
+        /**
+         * Both heights moved up with the measured type scale — 18/20 became 24/28.
+         * `text-xs` is 14px on a 20px line-height, and a 20px line in a 20px box has
+         * nowhere for a descender to go, so `h-5` was not a smaller chip: it was a
+         * clipped one. 28px is also `Button`'s `xs` rung, which is what lets a chip
+         * and a row action sit on one line without either being nudged.
+         */
+        md: 'h-7 px-2.5 text-xs font-medium',
       },
     },
     defaultVariants: {
