@@ -457,9 +457,6 @@ Written down here rather than left to be rediscovered.
 - **CR-010, `payload_too_large`.** Until it resolves, a 413 answers 400.
 - **Widening `@flux/contracts`' `exports` map with a `dist` condition** would let
   this service be built with `tsc` alone. Change request, not an edit.
-- **`docs/specs/api/README.md` §2 names two GUCs where `withTenant` sets four.**
-  The spec needs amending to enumerate all four — as an incomplete enumeration
-  being completed, not as a changed decision.
 - **415 and 405 have no integration coverage**, and cannot until a route with a
   request body exists. On an unmatched path Fastify answers 404 for a content type
   it has no parser for — the body is never read, so no 415 is raised — and
