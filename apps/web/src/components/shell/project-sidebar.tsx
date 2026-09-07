@@ -80,7 +80,7 @@ export function ProjectSidebar({ bootstrap }: ProjectSidebarProps) {
        */
       aria-label="Projects"
       data-slot="project-sidebar"
-      className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-canvas"
+      className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-chrome"
     >
       <ProjectTree bootstrap={bootstrap} />
     </nav>

@@ -78,7 +78,21 @@ export function TopBar({ bootstrap }: TopBarProps) {
   return (
     <header
       data-slot="top-bar"
-      className="flex h-topbar shrink-0 items-center gap-4 border-b border-border bg-surface px-4"
+      /**
+       * `bg-chrome` — this bar is window chrome, so it takes the rail's colour and
+       * not a card's. It reads identically in light (both #ffffff) and in dark it
+       * becomes the same near-black as the rail immediately below it, which is what
+       * the reference shows: one unbroken chrome region rather than a #1c1e1f band
+       * across the top of a black rail.
+       *
+       * This is an interim position, and the interim is worth naming. The reference
+       * has **no full-width top bar at all** — the rail and the sidebar run the full
+       * height of the window and this bar's content lives inside the content column,
+       * above the breadcrumb. Until that restructure lands in `ShellFrame`, chrome is
+       * the correct token for a bar that spans the chrome; it is not a stand-in for
+       * the layout change.
+       */
+      className="flex h-topbar shrink-0 items-center gap-4 border-b border-border bg-chrome px-4"
     >
       {/**
        * The context columns. The organization is always there; the project appears

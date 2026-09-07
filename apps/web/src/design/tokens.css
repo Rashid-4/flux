@@ -81,10 +81,52 @@
 /* 2. Semantic pairs                                                          */
 /* -------------------------------------------------------------------------- */
 
+/*
+   THE NEUTRAL LADDER HAS FOUR LEVELS, AND FOUR IS NOT A PREFERENCE
+
+   Measured off the reference screenshots — the modal colour over large flat
+   regions, 88–100% of pixels in every case, so these are fills and not
+   antialiasing:
+
+                                   light     dark
+     chrome   icon rail, sidebar   #ffffff   #000000
+     panel    header, detail panel #ffffff   #101213
+     canvas   board field, sub-bar #f4f6f8   #101213
+     surface  card, add-card row   #ffffff   #1c1e1f
+
+   Read the columns rather than the rows. The *ordering* canvas ≤ panel ≤ surface
+   holds in both themes, but each theme collapses a **different adjacent pair**:
+   light flattens chrome = panel = surface to white and leaves canvas alone, dark
+   flattens panel = canvas and leaves chrome and surface apart. Light shows two
+   distinct levels, dark shows three.
+
+   That is why `--chrome` and `--panel` are tokens. A rail written as `bg-canvas`
+   is correct in dark and *inverted* in light — the sidebar would be greyer than
+   the board it frames, when the reference has it whiter. No existing token fixes
+   it: `--canvas` is wrong in light, `--surface` is wrong in dark, and
+   `bg-chrome`'s job cannot be spelled `bg-surface dark:bg-canvas` at each call
+   site because that is the `dark:` variant README §5 calls a wrong token — the
+   theme's decision leaking into a component. Two names, four values, one class.
+
+   This table is deliberately *outside* both blocks. `contrast.test.ts` requires
+   every hex mentioned in a theme's comments to be produced by a token in that
+   theme, so a two-theme table inside `:root` would name four colours light never
+   paints. Above the blocks it is prose to the reader and invisible to the parser,
+   which is the correct relationship for the one comment that spans both.
+*/
+
 :root {
   /* -- Surfaces ------------------------------------------------------------ */
-  /* The canvas the panels float on. #eef1f4 — sampled from the light board. */
-  --canvas: oklch(0.957 0.005 247.9);
+  /* Window chrome: the icon rail and the project sidebar, both full height.
+     #ffffff — equal to --surface here and near-black in dark. */
+  --chrome: oklch(1 0 89.9);
+  /* The content column's own header block — title, breadcrumb, tabs — and the
+     right-hand issue detail panel. #ffffff. Lighter than --canvas here and equal
+     to it in dark, which is the whole reason it is not --canvas. */
+  --panel: oklch(1 0 89.9);
+  /* The field the cards sit on: the board background and the sub-bar below the
+     header rule. #f4f6f8 — sampled from the light board. */
+  --canvas: oklch(0.972 0.003 247.9);
   /* Cards, panels, menus, the topbar. #ffffff */
   --surface: oklch(1 0 89.9);
   /* Inset areas: search fields, table header rows, empty columns. #f7f8fa */
@@ -111,13 +153,14 @@
   /* The ratios are written beside the token in the form `N:1 on --token` because
      that is the form `contrast.test.ts` parses: it re-measures every claim in this
      file from the value itself, so a number here is checked rather than promised.
-     Each of these three is also asserted against all four surfaces, since text
-     lands on a hover row and a filter bar as often as on a card. */
-  --fg: oklch(0.209 0.009 264.4); /* #16181c — 17.77:1 on --surface, 15.68:1 on --canvas */
+     Each of these three is also asserted against all six surfaces, since text
+     lands on a hover row and a filter bar as often as on a card — and now on the
+     rail and the detail panel too. */
+  --fg: oklch(0.209 0.009 264.4); /* #16181c — 17.77:1 on --surface, 16.41:1 on --canvas */
   /* Secondary text: descriptions, values in a label/value row. */
-  --fg-muted: oklch(0.437 0.027 263); /* #4a5261 — 7.86:1 on --surface */
+  --fg-muted: oklch(0.437 0.027 263); /* #4a5261 — 7.86:1 on --surface, 7.26:1 on --canvas */
   /* Meta and placeholders: counts, timestamps, section labels. */
-  --fg-subtle: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface, 4.83:1 on --canvas */
+  --fg-subtle: oklch(0.522 0.028 270); /* #63697a — 5.48:1 on --surface, 5.06:1 on --canvas */
 
   /* -- Lines --------------------------------------------------------------- */
   /* Decorative separators and card edges. Exempt from 1.4.11: a card is not a
@@ -133,16 +176,20 @@
      "Whatever is behind it" is the part that was wrong here. The value was set
      against `--surface` alone, and a control is just as often on the page
      `--canvas`, inside a `--surface-2` filter bar, or on a `--surface-3` hover
-     row. Measured across all four, in the theme that matters for each:
+     row. Measured across all of them, in the theme that matters for each:
 
-       #777f8c on surface   #ffffff  4.03:1
-                  surface-2 #f7f8fa  3.79:1
-                  surface-3 #f1f3f6  3.62:1
-                  canvas    #eef1f4  3.55:1
+       #777f8c on surface   #ffffff  4.04:1
+                  chrome    #ffffff  4.04:1
+                  panel     #ffffff  4.04:1
+                  surface-2 #f7f8fa  3.80:1
+                  canvas    #f4f6f8  3.73:1
+                  surface-3 #f1f3f6  3.63:1
 
      The old 0.635 gave 3.02:1 on canvas — passing by 0.02, which is not a
      margin, it is a rounding accident. 0.595 gives every light surface real
-     headroom while still reading as a line rather than a stroke. */
+     headroom while still reading as a line rather than a stroke. The canvas row
+     moved up when `--canvas` was retuned to the reference's #f4f6f8; the binding
+     surface is now `--surface-3`, and it still clears by 0.63. */
   --border-control: oklch(0.595 0.021 258.3);
 
   /* -- Brand --------------------------------------------------------------- */
@@ -154,7 +201,7 @@
   --primary-hover: oklch(0.535 0.265 280.6);
   --primary-fg: oklch(1 0 89.9);
   /* Violet as a *foreground*: links, active tab text, the focus ring. #5f3dff
-     — 5.8:1 on surface, 5.2:1 on canvas. */
+     — 5.84:1 on surface, 5.39:1 on the retuned canvas. */
   --primary-accent: oklch(0.535 0.265 280.6);
   /* Selected row / active nav tint. #f0ecff
      0.025 rather than 0.026: at this lightness sRGB runs out of blue, and 0.026
@@ -271,7 +318,8 @@
      --border makes above. A visibility floor is enforced regardless, because a
      disc nobody can see is a design failure wherever it is not a conformance
      failure. Worst fill against each surface a disc can sit on: 1.51:1 on
-     --surface, 1.42:1 on --surface-2, 1.36:1 on --surface-3, 1.34:1 on --canvas.
+     --surface, 1.51:1 on --chrome, 1.51:1 on --panel, 1.42:1 on --surface-2,
+     1.40:1 on --canvas, 1.36:1 on --surface-3.
      Two discs never meet hue-to-hue — `AvatarGroup` cuts each one out of its
      neighbour with `ring-2 ring-surface`. */
   --entity-0: oklch(0.855 0.06 20); /* #f4c0bf */
@@ -316,25 +364,46 @@
 }
 
 .dark {
-  /* Neutral dark, from the first reference (#000 rail, #101213 field, #1c1e1f
-     card) rather than the navy of the third. Violet reads on both; near-black
-     keeps the accent as the only saturated thing on screen. */
+  /* Neutral dark, from the first reference rather than the navy of the third.
+     Violet reads on both; near-black keeps the accent as the only saturated
+     thing on screen.
+
+     Three of these four are now the reference's own sampled values rather than
+     an approach to them — the table above the `:root` block has the measurement
+     and the argument. `--canvas` moved up from #0b0c0e and `--surface` up from
+     #16181b, which is what makes a card read as lifted *off* the field at the
+     reference's own separation instead of a wider one of our own invention. */
 
   /* -- Surfaces ------------------------------------------------------------ */
-  --canvas: oklch(0.154 0.005 264.4); /* #0b0c0e */
-  --surface: oklch(0.208 0.007 258.4); /* #16181b */
+  /* The rail and the sidebar: true black, and the only true black in the file. */
+  --chrome: oklch(0 0 0); /* #000000 */
+  /* The header block and the issue detail panel. Equal to --canvas here — the
+     reference draws no boundary between them in dark, only the 1px rule. */
+  --panel: oklch(0.18 0.004 229); /* #101213 */
+  --canvas: oklch(0.18 0.004 229); /* #101213 */
+  --surface: oklch(0.233 0.004 229); /* #1c1e1f */
   --surface-2: oklch(0.246 0.009 255.6); /* #1e2125 */
   --surface-3: oklch(0.287 0.011 254); /* #272b30 */
   /* One step further up rather than back down to --surface: elevation in a dark
      theme is lightness, so a raised segment must be lighter than the trough it
-     sits in, and --surface (#16181b) is darker than --surface-2. #272b30 */
+     sits in, and --surface (#1c1e1f) is darker than --surface-2. #272b30
+
+     That relationship survived the retune by 0.013 of lightness, which is worth
+     stating: --surface climbed from 0.208 to 0.233 and --surface-2 is 0.246, so
+     the ladder is still monotonic and this token still has a job. Had --surface
+     passed it, every `bg-raised` chip in the product would have started reading
+     as pressed in, and nothing but this comment would have said why. */
   --raised: oklch(0.287 0.011 254);
   --overlay: oklch(0 0 0 / 0.62);
 
   /* -- Text ---------------------------------------------------------------- */
-  --fg: oklch(0.966 0.003 247.9); /* #f2f4f6 — 16.1:1 on surface */
-  --fg-muted: oklch(0.738 0.019 253.4); /* #a2abb6 — 7.7:1 */
-  --fg-subtle: oklch(0.662 0.018 250.9); /* #8b949e — 5.8:1 */
+  /* Every ratio here now names its background. They previously read `7.7:1` with
+     no `on --token`, which `contrast.test.ts` cannot parse — so they were prose
+     that looked like claims, and three of them were stale by the time anyone
+     looked. A number in this file is either checked or it is not written. */
+  --fg: oklch(0.966 0.003 247.9); /* #f2f4f6 — 15.18:1 on --surface, 17.04:1 on --canvas */
+  --fg-muted: oklch(0.738 0.019 253.4); /* #a2abb6 — 7.20:1 on --surface, 8.08:1 on --canvas */
+  --fg-subtle: oklch(0.662 0.018 250.9); /* #8b949e — 5.44:1 on --surface, 6.11:1 on --canvas */
 
   /* -- Lines --------------------------------------------------------------- */
   --border: oklch(0.287 0.011 254); /* #272b30 */
@@ -342,8 +411,13 @@
   /* #707881 — the value the light-mode comment describes, now actually produced.
      0.483 resolved to #575f68: 2.73:1 on surface and 2.48:1 on a surface-2 bar,
      both under SC 1.4.11, so a text input inside a dialog had no compliant
-     boundary in dark mode. 3.99:1 on surface, 3.63:1 on surface-2, 3.20:1 on
-     surface-3, 4.39:1 on canvas. */
+     boundary in dark mode. 3.74:1 on --surface, 3.61:1 on --surface-2, 3.18:1 on
+     --surface-3, 4.20:1 on --canvas, 4.69:1 on --chrome.
+
+     Every number moved when the surfaces did, and --surface-3 is the binding one
+     at 3.18:1 — 0.18 of headroom over SC 1.4.11. Tight, and correct to leave: the
+     alternative is lightening a line that already reads as a stroke against a
+     hover row, and --surface-3 did not move. */
   --border-control: oklch(0.57 0.017 250);
 
   /* -- Brand --------------------------------------------------------------- */
@@ -351,9 +425,9 @@
   --primary: oklch(0.562 0.251 283.7);
   --primary-hover: oklch(0.535 0.265 280.6);
   --primary-fg: oklch(1 0 89.9);
-  --primary-accent: oklch(0.693 0.174 290.1); /* #9d85ff — 6.1:1 on surface */
+  --primary-accent: oklch(0.693 0.174 290.1); /* #9d85ff — 5.76:1 on --surface */
   --primary-soft: oklch(0.259 0.064 290.4); /* #241d40 */
-  --primary-soft-fg: oklch(0.787 0.12 294.8); /* #bfaaff — 7.9:1 */
+  --primary-soft-fg: oklch(0.787 0.12 294.8); /* #bfaaff — 7.86:1 on --primary-soft */
 
   /* -- Contrast ------------------------------------------------------------ */
   /* Inverts: the loudest surface in a dark theme is a light one. */
@@ -362,25 +436,25 @@
   --contrast-fg: oklch(0.209 0.009 264.4);
 
   /* -- Status -------------------------------------------------------------- */
-  --success-accent: oklch(0.687 0.138 159.9); /* #35b47c — 6.75:1 on --surface */
+  --success-accent: oklch(0.687 0.138 159.9); /* #35b47c — 6.35:1 on --surface */
   --success-solid: oklch(0.687 0.138 159.9);
   --success-fg: oklch(0.154 0.005 264.4);
   --success-soft: oklch(0.245 0.031 162.5); /* #12251c */
-  --success-soft-fg: oklch(0.81 0.115 160.5); /* #78d8a8 — 9.3:1 */
+  --success-soft-fg: oklch(0.81 0.115 160.5); /* #78d8a8 — 9.32:1 on --success-soft */
 
-  --warning-accent: oklch(0.797 0.154 78.4); /* #f2af2d — 9.3:1 */
+  --warning-accent: oklch(0.797 0.154 78.4); /* #f2af2d — 8.72:1 on --surface */
   --warning-solid: oklch(0.797 0.154 78.4);
   --warning-fg: oklch(0.209 0.009 264.4);
   --warning-soft: oklch(0.251 0.027 73.4); /* #2a2013 */
-  --warning-soft-fg: oklch(0.857 0.112 83.8); /* #f3ca77 — 10.3:1 */
+  --warning-soft-fg: oklch(0.857 0.112 83.8); /* #f3ca77 — 10.29:1 on --warning-soft */
 
-  --info-accent: oklch(0.704 0.146 254.1); /* #5aa2f8 — 6.7:1 */
+  --info-accent: oklch(0.704 0.146 254.1); /* #5aa2f8 — 6.34:1 on --surface */
   --info-solid: oklch(0.704 0.146 254.1);
   --info-fg: oklch(0.154 0.005 264.4);
   --info-soft: oklch(0.232 0.038 255.5); /* #111e2f */
-  --info-soft-fg: oklch(0.82 0.086 252.5); /* #9cc8fb — 9.7:1 */
+  --info-soft-fg: oklch(0.82 0.086 252.5); /* #9cc8fb — 9.65:1 on --info-soft */
 
-  --danger-accent: oklch(0.737 0.161 20); /* #ff7b7f — 7.1:1 */
+  --danger-accent: oklch(0.737 0.161 20); /* #ff7b7f — 6.69:1 on --surface */
   --danger-solid: oklch(0.578 0.207 25.2);
   --danger-hover: oklch(0.626 0.193 23);
   --danger-fg: oklch(1 0 89.9);
@@ -405,8 +479,12 @@
      attempt at 0.305 measured 1.04:1 against --surface-3, which is a hover row.
      A dark fill has to sit *above* the tallest surface, for the reason --raised
      gives above: elevation in a dark theme is lightness. Worst fill against each
-     surface: 1.87:1 on --surface, 1.70:1 on --surface-2, 1.50:1 on --surface-3,
-     2.06:1 on --canvas.
+     surface: 2.21:1 on --chrome, 1.98:1 on --canvas, 1.98:1 on --panel, 1.76:1 on
+     --surface, 1.70:1 on --surface-2, 1.50:1 on --surface-3.
+
+     The band the surfaces occupy is now L 0.180–0.287 rather than 0.154–0.287, so
+     0.4 still clears it — by 0.113, which is what keeps --surface-3 the binding
+     case at 1.50:1 rather than one of the retuned tokens.
 
      The foreground chroma drops to 0.048 because the gamut ceiling falls with
      lightness in the other direction too: at L 0.9 the widest constant chroma
@@ -468,6 +546,8 @@
   --color-current: currentColor;
   --color-inherit: inherit;
 
+  --color-chrome: var(--chrome);
+  --color-panel: var(--panel);
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);

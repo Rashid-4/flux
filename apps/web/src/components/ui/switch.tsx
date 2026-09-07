@@ -23,16 +23,21 @@ import { cn } from '@/lib/cn'
  * Colours are measured, and per state rather than per theme — there is no `dark:`
  * variant here, unlike the five the generator emitted:
  *
- * - Off track `bg-neutral-solid` — #63697a light, #8b949e dark, **5.47:1** and
- *   **5.77:1** against `surface`. Comfortably past the 3:1 that WCAG 2.2 SC
+ * - Off track `bg-neutral-solid` — #63697a light, #8b949e dark, **5.48:1** and
+ *   **5.44:1** against `surface`. Comfortably past the 3:1 that WCAG 2.2 SC
  *   1.4.11 asks of a control whose boundary carries meaning, so the track needs
  *   no border of its own to be identifiable.
  * - On track `bg-primary`.
  * - Off thumb `bg-surface`, on thumb `bg-primary-fg`. Two tokens rather than one
- *   white, because in dark mode `surface` is #16181b: **5.77:1** on the off track
- *   and, if it were reused for the on state, only **3.45:1** on violet. White
+ *   white, because in dark mode `surface` is #1c1e1f: **5.44:1** on the off track
+ *   and, if it were reused for the on state, only **3.25:1** on violet. White
  *   (`primary-fg`) is **5.15:1** on violet in both themes. So each state uses the
  *   token that measures well against the fill it actually sits on.
+ *
+ *   The dark pair moved when `--surface` was retuned to the reference's #1c1e1f
+ *   (5.77:1 and 3.45:1 before), and the conclusion moved *further* in its favour:
+ *   a lighter thumb on violet is worse, not better, so the gap between reusing
+ *   `surface` and using white widened from 1.70 to 1.91.
  *
  * State is never carried by colour alone — the thumb's position is the primary
  * signal, and `role="switch"` plus `aria-checked` is what assistive technology

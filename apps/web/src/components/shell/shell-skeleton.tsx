@@ -47,7 +47,7 @@ export interface ShellChromeSkeletonProps {
 export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
   return (
     <>
-      <div className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-canvas py-3">
+      <div className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-chrome py-3">
         <Skeleton className="mb-2 size-8 rounded-card" />
         {/**
          * Six, because six is what the rail renders for a user with every permission —
@@ -69,7 +69,7 @@ export function ShellChromeSkeleton({ sidebarOpen }: ShellChromeSkeletonProps) {
        * child and the reason it can clip without reflowing anything.
        */}
       <SidebarSlot open={sidebarOpen}>
-        <div className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-canvas">
+        <div className="absolute inset-y-0 right-0 flex w-tree flex-col border-r border-border bg-chrome">
           <div className="shrink-0 p-3">
             <Skeleton className="h-8 w-full rounded-control" />
           </div>
@@ -140,7 +140,7 @@ export function ShellTopBarSkeleton() {
   return (
     <div
       data-slot="top-bar-skeleton"
-      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-surface px-4"
+      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-chrome px-4"
     >
       <div className="flex flex-col gap-1">
         <Skeleton className="h-2.5 w-16 rounded-control" />

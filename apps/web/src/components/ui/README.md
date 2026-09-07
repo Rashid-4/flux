@@ -58,10 +58,12 @@ sRGB WCAG values, light / dark, against the surface each pair actually sits on.
 
 | shadcn | flux | Why this one |
 | --- | --- | --- |
-| `background` | `canvas` or `surface` | shadcn has one page colour. flux has two: `canvas` is the page behind everything, `surface` is any panel raised off it. Chrome is `surface` on `canvas`; a dialog is `surface`. |
-| `foreground` | `fg` | 17.8:1 / 16.1:1 |
-| `muted-foreground` | `fg-muted` | 7.9:1 / 7.7:1 — body-adjacent text, comfortably AA at 13px |
-| — | `fg-subtle` | Added. 5.5:1 / 5.8:1. Metadata, timestamps, placeholder — still AA, visibly quieter than `fg-muted` |
+| `background` | one of **four** | shadcn has one page colour. flux has four, because the reference needs four — `chrome` (rail, sidebar), `panel` (header block, detail panel), `canvas` (the board field), `surface` (a card). Light collapses chrome = panel = surface to white; dark collapses panel = canvas. Each theme flattens a *different* adjacent pair, which is why no three of them can do the job. The table above `:root` in `tokens.css` has the measurements. |
+| — | `chrome` | Added. `#ffffff` / `#000000`. Window chrome only: the icon rail and the project sidebar, both full height. Written as `bg-canvas` before this existed, which was correct in dark and **inverted** in light — grey chrome framing a white page, where the reference has white chrome framing a grey one. |
+| — | `panel` | Added. `#ffffff` / `#101213`. The content column's header block and the issue detail panel. The one token whose two themes disagree about whether it differs from `canvas` at all: lighter in light, identical in dark. |
+| `foreground` | `fg` | 17.8:1 / 15.2:1 |
+| `muted-foreground` | `fg-muted` | 7.9:1 / 7.2:1 — body-adjacent text, comfortably AA at 13px |
+| — | `fg-subtle` | Added. 5.5:1 / 5.4:1. Metadata, timestamps, placeholder — still AA, visibly quieter than `fg-muted` |
 | `muted` | `surface-2` | The one-step-in fill: tab strip trough, avatar fallback |
 | `accent` (hover fill) | `surface-3` | The two-step-in fill: menu item hover, skeleton |
 | `accent-foreground` | `fg` | A hover fill should not also shift the text colour |
@@ -74,13 +76,13 @@ sRGB WCAG values, light / dark, against the surface each pair actually sits on.
 | `destructive` | `danger-solid` (fill) or `danger-accent` (text) | Two tokens because the requirements differ: a solid fill needs 3:1 against its neighbours, text on a surface needs 4.5:1. `danger-solid` `#d92d33` carries white at 4.9:1; `danger-accent` `#c4262c` is 5.9:1 on white |
 | `destructive/90` | `danger-hover` | Same reasoning as `primary-hover` |
 | `destructive/10`, `/20` | `danger-soft` | A measured tint, `#fdeced` / `#2d1618`, rather than an alpha blend |
-| `input` (border) | `border-control` | `#777f8c` / `#707881`. Exists for WCAG 2.2 SC 1.4.11 — a control's boundary must clear 3:1 against whatever is behind it, which `border` (`#e2e6eb`, decorative) does not. Measured on all four backgrounds a control actually sits on: `surface` 4.03 / 3.99, `surface-2` 3.79 / 3.63, `surface-3` 3.62 / 3.20, `canvas` 3.55 / 4.39. Both values were retuned; read the token's own comment for what they were and why that was a bug |
-| — | `raised` | Added. `#ffffff` / `#272b30`. The segment lifted *out of* a trough: the active chip in the Kanban / Table / List switcher. It cannot just be `surface`, and that is the whole reason it exists — in dark mode `surface` (`#16181b`) is **darker** than the `surface-2` trough (`#1e2125`), so a `bg-surface` chip reads as pressed *in* rather than raised *out*, inverting the one thing the control communicates. `fg` on it: 17.76:1 / 12.92:1 |
+| `input` (border) | `border-control` | `#777f8c` / `#707881`. Exists for WCAG 2.2 SC 1.4.11 — a control's boundary must clear 3:1 against whatever is behind it, which `border` (`#e2e6eb`, decorative) does not. Measured on all six backgrounds a control actually sits on: `surface` 4.04 / 3.74, `surface-2` 3.80 / 3.61, `surface-3` 3.63 / 3.18, `canvas` 3.73 / 4.20, `chrome` 4.04 / 4.69, `panel` 4.04 / 4.20. Both values were retuned; read the token's own comment for what they were and why that was a bug |
+| — | `raised` | Added. `#ffffff` / `#272b30`. The segment lifted *out of* a trough: the active chip in the Kanban / Table / List switcher. It cannot just be `surface`, and that is the whole reason it exists — in dark mode `surface` (`#1c1e1f`) is **darker** than the `surface-2` trough (`#1e2125`), so a `bg-surface` chip reads as pressed *in* rather than raised *out*, inverting the one thing the control communicates. `fg` on it: 17.76:1 / 12.92:1 |
 | `border` | `border` | Unchanged. Decorative edges — card outlines, separators — are exempt from 1.4.11 |
 | `ring` | `ring` | Unchanged name, see §4 |
 | `black/50` (scrim) | `overlay` | `oklch(0.209 0.009 264.4 / 0.42)` light, `oklch(0 0 0 / 0.62)` dark. A 50%-black scrim over a dark app is nearly invisible; the token is theme-aware |
 | `white` (on `destructive`) | `danger-fg` | Semantically "text on the danger fill", so it can change without a find-and-replace |
-| — | `contrast` / `contrast-fg` | Added. The inverted surface: near-black in light, near-white in dark, 17.8:1 / 16.1:1. Tooltips and the primary CTA in the reference video |
+| — | `contrast` / `contrast-fg` | Added. The inverted surface: near-black in light, near-white in dark, 17.8:1 / 15.2:1. Tooltips and the primary CTA in the reference video |
 
 `success`, `warning` and `info` follow the `danger` shape — `-accent` for text,
 `-solid` for fills, `-soft`/`-soft-fg` for tinted chips. They have no shadcn

@@ -36,6 +36,8 @@ export const COLOR_KEYS = [
   'transparent',
   'current',
   'inherit',
+  'chrome',
+  'panel',
   'canvas',
   'surface',
   'surface-2',

@@ -45,8 +45,15 @@ export function PageHeader({ title, description, lead, actions, className }: Pag
   return (
     <header
       data-slot="page-header"
+      /**
+       * `bg-panel` — the header block over the field, which is white in light and
+       * the same near-black as the field in dark. That asymmetry is the whole reason
+       * `--panel` exists rather than this being `bg-surface` or `bg-canvas`: the
+       * reference collapses it into the field in dark and separates it in light, so
+       * either single token is right in one theme and wrong in the other.
+       */
       className={cn(
-        'flex min-h-topbar shrink-0 items-start gap-3 border-b border-border bg-surface px-4 py-3',
+        'flex min-h-topbar shrink-0 items-start gap-3 border-b border-border bg-panel px-4 py-3',
         className,
       )}
     >

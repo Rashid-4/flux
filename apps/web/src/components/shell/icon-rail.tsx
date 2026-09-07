@@ -126,7 +126,7 @@ export function IconRail({ bootstrap }: IconRailProps) {
   return (
     <div
       data-slot="icon-rail"
-      className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-canvas py-3"
+      className="flex w-rail shrink-0 flex-col items-center gap-1 border-r border-border bg-chrome py-3"
     >
       {/**
        * The brand mark is decorative, and that is a decision rather than an

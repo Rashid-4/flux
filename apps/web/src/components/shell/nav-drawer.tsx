@@ -318,7 +318,7 @@ export function NavDrawer({ bootstrap }: NavDrawerProps) {
            * back-navigation. The axis lock in JS and this declaration are the same
            * decision expressed to the two parties that have to agree on it.
            */
-          className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] touch-pan-y flex-col bg-canvas shadow-overlay data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in"
+          className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,85vw)] touch-pan-y flex-col bg-chrome shadow-overlay data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in"
         >
           {/**
            * A dialog must have an accessible name, and Radix warns in development

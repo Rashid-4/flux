@@ -113,8 +113,18 @@ function measure(theme: Theme, fg: string, bg: string): number {
   return contrastOf(color(theme, fg), color(theme, bg))
 }
 
-/** The four backgrounds any foreground in this product can end up on. */
-const SURFACES = ['surface', 'surface-2', 'surface-3', 'canvas'] as const
+/**
+ * Every background a foreground in this product can end up on.
+ *
+ * Six, not four. `chrome` and `panel` were added when the neutral ladder went from
+ * three levels to four, and adding them *here* is the half that is easy to forget:
+ * two new surfaces that text, a control boundary and an avatar all land on would
+ * otherwise be the only backgrounds in the product with no measurement behind
+ * them, and every loop below would keep passing while covering less of the
+ * product than it did before. A token added to the palette is a token added to
+ * this list.
+ */
+const SURFACES = ['surface', 'surface-2', 'surface-3', 'canvas', 'chrome', 'panel'] as const
 
 const ENTITY_HUES = [20, 58, 96, 145, 190, 235, 278, 322] as const
 const ENTITY_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const
@@ -122,19 +132,34 @@ const ENTITY_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const
 /**
  * A hex quoted in a comment that no token in either theme produces.
  *
- * Four entries, and they are the point of writing the rule this way rather than
- * weakening it. Two kinds: a value a token *used* to have, kept so the next reader
- * knows why it moved, and a colour sampled out of the reference screenshots that
- * the palette approaches but does not reach. A rule saying "every hex must be a
- * real colour" would have to be softened to accept either. It is not softened —
- * the exceptions are named with their reasons, and a stale entry here fails the
- * same way a stale claim does.
+ * Two kinds of entry: a value a token *used* to have, kept so the next reader knows
+ * why it moved, and a colour sampled out of the reference screenshots that the
+ * palette approaches but does not reach. A rule saying "every hex must be a real
+ * colour" would have to be softened to accept either. It is not softened — the
+ * exceptions are named with their reasons, and a stale entry here fails the same way
+ * a stale claim does.
+ *
+ * The reference retune moved this list in both directions at once, which is the
+ * clearest demonstration of the rule it will ever get. Two entries **left**: they read
+ * *"a field colour sampled from the dark reference, not a token of ours"* (#101213)
+ * and *"a card colour sampled from the dark reference"* (#1c1e1f), and both are now
+ * `--canvas` and `--surface` in dark, so `produced.has(hex)` went true and the
+ * stale-entry rule refused to pass until they went — turning "we approach the
+ * reference" into "we are the reference" in the one place nobody could skip. One
+ * entry **arrived**: #16181b, the value dark `--surface` was retuned away *from*,
+ * which the `.dark` header quotes so the next reader knows the card used to be
+ * darker than the reference draws it.
+ *
+ * #eef1f4 is the instructive near-miss and is deliberately absent. Light `--canvas`
+ * left it behind too, so it looks like the same case as #16181b — but it is still
+ * *produced*, by `--neutral-soft`, which never moved. Adding it would fail this
+ * list's own stale-entry rule. An exemption is for a hex that is mentioned *and*
+ * unproduced, and "a token stopped using it" is not the same claim.
  */
 const ORPHAN_HEXES: ReadonlyArray<readonly [string, string]> = [
   ['#575f68', 'the rejected 0.483 --border-control, quoted in dark to record why it changed'],
   ['#2f7ff0', "the reference's blue, brighter than sRGB reaches at --info-solid's lightness"],
-  ['#101213', 'a field colour sampled from the dark reference, not a token of ours'],
-  ['#1c1e1f', 'a card colour sampled from the dark reference, not a token of ours'],
+  ['#16181b', 'the pre-reference dark --surface, quoted in the .dark header to record the retune'],
 ]
 
 describe('the reader sees the same file the other tests see', () => {
@@ -472,9 +497,29 @@ describe('the entity palette', () => {
     // are also the measurement that rejected the palette CR-004 proposed, whose
     // fills came in at 1.00:1 and 1.01:1 against `--surface-3` and `--canvas` —
     // three of eight discs invisible on a hover row or on the page.
+    //
+    // Three of these moved with the reference retune and none of them is a
+    // regression: light `--canvas` 1.34 → 1.40 and dark `--canvas` 2.06 → 1.98 as
+    // the field lightened, dark `--surface` 1.87 → 1.76 as the card did. An exact
+    // assertion is what turned that into six edits instead of a silent drift, and
+    // it is the reason a palette change cannot be made without reading this file.
     const CLAIMED = {
-      light: { surface: '1.51', 'surface-2': '1.42', 'surface-3': '1.36', canvas: '1.34' },
-      dark: { surface: '1.87', 'surface-2': '1.70', 'surface-3': '1.50', canvas: '2.06' },
+      light: {
+        surface: '1.51',
+        'surface-2': '1.42',
+        'surface-3': '1.36',
+        canvas: '1.40',
+        chrome: '1.51',
+        panel: '1.51',
+      },
+      dark: {
+        surface: '1.76',
+        'surface-2': '1.70',
+        'surface-3': '1.50',
+        canvas: '1.98',
+        chrome: '2.21',
+        panel: '1.98',
+      },
     } as const
 
     for (const theme of THEMES) {

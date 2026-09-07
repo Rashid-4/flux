@@ -105,7 +105,21 @@ export function ShellFrame({
           id="main"
           tabIndex={-1}
           aria-busy={busy || undefined}
-          className="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface"
+          /**
+           * `bg-canvas`, not `bg-surface`. The content column is the *field* that
+           * cards, panels and headers sit on — it is not itself one of them, and it
+           * was painting the card colour across all 1108px of itself.
+           *
+           * In light that read as merely flat. In dark it was a defect with a
+           * measurable size: `--surface` is #1c1e1f and a board card is also
+           * `--surface`, so every card on this column would have been 1.00:1 against
+           * its own background — invisible, and invisible in the exact way
+           * `contrast.test.ts`'s entity floor exists to catch for avatars but cannot
+           * catch for a card, because nothing declares that a card and the thing
+           * behind it are supposed to differ. The reference draws three levels here
+           * (field, header block, card) and this is the bottom one.
+           */
+          className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas"
         >
           {children}
         </main>
