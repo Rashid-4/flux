@@ -2,10 +2,10 @@ import { createBrowserRouter, type RouteObject } from 'react-router'
 import { ROUTE_PATTERNS } from '@/lib/paths'
 import { HomeSurface } from '@/routes/home'
 import { NotFoundSurface } from '@/routes/not-found'
+import { BoardSurface } from '@/routes/board'
 import {
   AdminSurface,
   BacklogSurface,
-  BoardSurface,
   ImportsSurface,
   IssueSurface,
   ProjectSettingsSurface,

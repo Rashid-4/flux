@@ -226,15 +226,6 @@ export function ProjectPlannedSurface({ surface, description }: ProjectPlannedSu
   )
 }
 
-export function BoardSurface() {
-  return (
-    <ProjectPlannedSurface
-      surface="Board"
-      description="Columns per workflow status, drag to transition, swimlanes by assignee or epic, and a sprint you can start and complete."
-    />
-  )
-}
-
 export function BacklogSurface() {
   return (
     <ProjectPlannedSurface
