@@ -1,4 +1,4 @@
-# CR-010 — The issue view has no read shape for comments, attachments, worklogs, history pages or the field layout
+# CR-011 — The issue view has no read shape for comments, attachments, worklogs, history pages or the field layout
 
 | | |
 | --- | --- |

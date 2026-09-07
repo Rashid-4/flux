@@ -99,7 +99,7 @@ issuing a second request for it.
 
 Then there are five things this surface visibly needs and the contract has no shape
 for. They are filed as
-[010-issue-view-read-model-gaps.md](../../change-requests/010-issue-view-read-model-gaps.md);
+[011-issue-view-read-model-gaps.md](../../change-requests/011-issue-view-read-model-gaps.md);
 what matters here is that the spec does not pretend otherwise, because a spec that
 names a schema the contract lacks describes code that cannot be written, and the
 agent then invents the schema.

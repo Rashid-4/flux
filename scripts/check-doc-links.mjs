@@ -27,11 +27,16 @@
 //   1. Every relative markdown link resolves to a file that exists.
 //   2. Every `§N` next to a link resolves to a `## N.` heading in that file.
 //   3. Every bare `§N` resolves to a `## N.` heading in the SAME file.
+//   4. (Note, not a failure.) Every backticked `docs/**.md` path that does not
+//      exist yet — see below.
+//   5. No two change requests claim one number, and each one's `# CR-NNN`
+//      heading agrees with its filename. See that rule for why it lives here
+//      rather than in a script of its own.
 //
 // Rule 3 is what catches the `see §8` case, and it is the one that would have
 // caught it on the commit that broke it.
 //
-// It also reports, as a note rather than a failure, every backticked path to a
+// Rule 4 reports, as a note rather than a failure, every backticked path to a
 // doc that does not exist yet — `docs/adr/0005-lexorank-ordering.md` and friends,
 // cited from contracts and scripts by path rather than by link. Those are real
 // obligations and there are currently several, but they are unwritten work rather
@@ -178,7 +183,69 @@ for (const file of [...files, ...CITING_DIRS.flatMap(sourcesIn)]) {
   }
 }
 
+// ── 5. Change-request numbers are unique, and match their own heading ─
+//
+// A different failure mode from the four above, and the one that produced this
+// rule: two branches each added `docs/change-requests/010-*.md` with different
+// slugs. Git merged both without a conflict, because the filenames differ — so
+// `main` ended up with two CR-010s, and every later reference to "CR-010" was
+// ambiguous with nothing anywhere reporting it. Renumbering after the fact means
+// editing whatever already cites the loser.
+//
+// This cannot be caught on the branch that causes it: each branch is internally
+// consistent, and the collision only exists once both have landed. So the check
+// is deliberately positioned to fail on `main` immediately after the second
+// merge, which blocks the next PR rather than the one that introduced it. Late,
+// and still far earlier than a human noticing two files with the same prefix.
+//
+// The second half — the `# CR-NNN` heading agreeing with the filename prefix —
+// is the one that pays on every rename. Renumbering a CR is two edits (the file
+// name and the H1) plus every citation, and the H1 is the one that gets
+// forgotten, because nothing reads it except a person who already knows which
+// file they opened.
+const crNumbers = new Map()
+const crProblems = []
+
+for (const file of files.filter((f) => f.startsWith('docs/change-requests/'))) {
+  const name = file.slice('docs/change-requests/'.length)
+  if (name === 'TEMPLATE.md') continue
+  const prefix = /^(\d+)-/.exec(name)
+  if (!prefix) {
+    crProblems.push(
+      `${file} — filename does not start with a number. Convention is NNN-short-title.md`,
+    )
+    continue
+  }
+  const n = prefix[1]
+  if (!crNumbers.has(n)) crNumbers.set(n, [])
+  crNumbers.get(n).push(file)
+
+  const heading = /^#\s+CR-(\d+)\b/m.exec(readFileSync(file, 'utf8'))
+  if (!heading) {
+    crProblems.push(
+      `${file} — no \`# CR-${n} — …\` heading. The number must be readable from the file itself`,
+    )
+  } else if (heading[1] !== n) {
+    crProblems.push(`${file} — heading says CR-${heading[1]}, filename says ${n}`)
+  }
+}
+
+for (const [n, group] of [...crNumbers].sort()) {
+  if (group.length > 1)
+    crProblems.push(`CR-${n} is claimed by ${group.length} files: ${group.join(', ')}`)
+}
+
 console.log(`Checked ${files.length} markdown file(s).`)
+
+if (crProblems.length) {
+  console.error('\n✗ Change-request numbering:')
+  for (const u of crProblems.sort()) console.error(`  • ${u}`)
+  console.error(
+    '\nA CR number is how the contracts, the specs and the commit messages refer\n' +
+      'to a decision. Two files answering to one number makes every one of those\n' +
+      'references ambiguous, and git will never report it — the filenames differ.',
+  )
+}
 
 if (missingFile.length) {
   console.error('\n✗ Links to files that do not exist:')
@@ -207,5 +274,8 @@ if (promised.size) {
   )
 }
 
-if (missingFile.length || missingSection.length) process.exitCode = 1
-else console.log('\n✓ Every relative doc link and every §N reference resolves.')
+if (missingFile.length || missingSection.length || crProblems.length) process.exitCode = 1
+else {
+  console.log('\n✓ Every relative doc link and every §N reference resolves.')
+  console.log(`✓ ${crNumbers.size} change-request number(s), each unique and matching its heading.`)
+}
