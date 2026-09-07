@@ -11,6 +11,14 @@ pnpm --filter @flux/web typecheck    # all three tsconfigs
 pnpm --filter @flux/web lint
 ```
 
+Three URLs in dev, and the last two never ship:
+
+| URL | What it is |
+| --- | --- |
+| `/` | the application, mocked by a service worker |
+| `/gallery.html` | the components, one specimen per state |
+| `/harness.html` | the **application** with the query cache pre-seeded and no network |
+
 ---
 
 ## Stack
@@ -67,6 +75,9 @@ src/
     …          flux-level components composed from ui/.
   design/      tokens.css (the single source of colour, type, spacing, motion),
                theme-keys.ts, motion.ts. Checked by theme-keys.test.ts.
+  harness/     Dev-only. Mounts the real route table with the cache seeded from
+               @flux/mocks, so the shell can be seen without a service worker.
+               Never a build input — see below.
   keyboard/    EMPTY — not written yet. The plan is a shortcut registry from
                which the `?` sheet is generated, so a shortcut cannot exist
                undocumented. Named here because the directory exists and the
@@ -201,6 +212,32 @@ gallery contradicting rules the product already follows — `page-header.tsx`
 writes down `min-h-topbar` over `h-topbar` for exactly the first one. An
 instrument that lies at 375px makes every "checked at three widths" claim made
 through it worth less, so it is held to the same bar as the code it displays.
+
+`harness/` is the second instrument, and it exists because the gallery cannot show
+the one thing the reference images are judged against: the assembled product.
+`/harness.html` mounts `routes` — the real table, not a copy — under a
+`createMemoryRouter`, with `keys.bootstrap()`, `keys.board(…)`, `keys.backlog(…)`
+and every `keys.issue(…)` pre-seeded from `@flux/mocks`'s `scenario()`. Nothing is
+requested, so the shell renders with no API and, more to the point, **with no
+service worker**.
+
+That last part is not hypothetical. Development mocking is MSW, which is a service
+worker, and a browser that has them disabled — a locked-down profile, an embedded
+webview, an automation pane — gets `main.tsx`'s honest "the development mock server
+failed to register" screen and no application at all. That message is correct and
+stays. What was missing was a second way in. Measured rather than assumed: in the
+pane this was written in, `navigator.serviceWorker.register()` rejects with *"An
+unknown error occurred when fetching the script"* for a **nonexistent** path just as
+readily as for `/mockServiceWorker.js`, while `curl` returns the worker with
+`200 text/javascript` — so the failure is the environment and not the file, and
+`VITE_USE_MOCKS=0` is not a workaround because there is no API behind it.
+
+One thing it cannot tell you, and it is the same limitation as the gallery's: a
+theme swapped by toggling `.dark` at runtime is not the theme a user loads into.
+Doing that mid-session produced a screenshot with grey cards on a grey page — a
+transitional state of the registered `@property` custom properties, not a defect.
+Reload with `flux.theme` already set, which is what the pre-paint script in each
+HTML entry exists for.
 
 Also absent: **`e2e/` does not exist**, while `playwright.config.ts:42` sets
 `testDir: './e2e'`. Playwright currently has nothing to run, and the `lint`

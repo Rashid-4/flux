@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+
+    <title>flux — shell harness</title>
+
+    <!--
+      A third Vite entry, and the instrument the reference-match work is done with.
+
+      `gallery.html` shows the components; this shows the *product* — the real
+      route table, the real `Shell`, the real rail and sidebar — with the query
+      cache pre-seeded from `@flux/mocks` so nothing is ever requested. That
+      distinction is the whole reason it is a separate entry rather than a
+      gallery section: `src/gallery/main.tsx` deliberately mounts a
+      `BrowserRouter` instead of the data router, because mounting the data
+      router would replace the specimens with the shell. Here the shell *is* the
+      specimen.
+
+      WHY THIS EXISTS AT ALL
+
+      The shell cannot be seen in `pnpm dev` in every environment. Development
+      mocking is a service worker (MSW), and a browser with service workers
+      disabled — a locked-down profile, an embedded webview, an automation pane —
+      gets `main.tsx`'s honest "the development mock server failed to register"
+      screen and no application. That message is correct and stays; what was
+      missing was any other way to look at the product. Measured, not assumed:
+      in the pane this was written in, `navigator.serviceWorker.register()`
+      rejects with "An unknown error occurred when fetching the script" for a
+      *nonexistent* path as readily as for `/mockServiceWorker.js`, and
+      `getRegistrations()` returns an empty list — so the failure is the
+      environment, not the worker file.
+
+      Pixel work needs a rendered frame. Asserting class names is not looking at
+      the result, and `docs/product-quality-bar.md` is explicit that a surface is
+      unfinished until it has been seen in every state.
+
+      It never ships, by the same two mechanisms the gallery relies on:
+      `build.rollupOptions.input` is unset, so `vite build` takes index.html
+      alone, and no route in `ROUTE_PATTERNS` points here.
+
+      THE PATH COMES FROM THE HASH
+
+      `/harness.html#/projects/FLUX/board` mounts a memory router at that entry.
+      A memory router rather than the browser router, because the document's own
+      path is `/harness.html`, which matches no route and would land every load
+      on the 404 surface. The hash keeps the surface selectable without adding a
+      picker bar to the page — chrome in the instrument is chrome in the
+      screenshot.
+    -->
+
+    <!--
+      The same pre-paint theme resolution as index.html and gallery.html, for the
+      same reason: without it a dark-theme user gets a light flash on every load,
+      and a screenshot taken during it is a screenshot of the wrong theme.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('flux.theme')
+          var dark =
+            stored === 'dark' ||
+            ((stored === null || stored === 'system') &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (_) {
+          /* Private mode can throw on localStorage access. Light is the default. */
+        }
+      })()
+    </script>
+  </head>
+  <body class="h-full">
+    <div id="harness-root" class="h-full"></div>
+    <script type="module" src="/src/harness/main.tsx"></script>
+  </body>
+</html>
