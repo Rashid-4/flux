@@ -64,7 +64,13 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
       data-slot="board-card"
       data-dragging={dragging ? 'true' : undefined}
       className={cn(
-        'group/card flex flex-col gap-2 rounded-card border border-border bg-surface p-3',
+        /**
+         * `p-4` and no border. The reference's cards are seated by a shadow alone
+         * with roughly 16px of padding; a 1px border plus 12px read as cramped and
+         * boxy next to them, which is most of what made the first pass look unlike
+         * the mockups at a glance.
+         */
+        'group/card flex flex-col gap-2.5 rounded-card bg-surface p-4',
         'transition-shadow duration-90 ease-out',
         dragging ? 'shadow-drag' : 'shadow-card hover:shadow-raised',
         className,
@@ -91,7 +97,8 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
         </div>
       )}
 
-      <p className="text-base font-medium text-fg">{card.summary}</p>
+      {/** `text-md` (17px) medium — the reference's card title, measured. */}
+      <p className="text-md font-medium text-fg">{card.summary}</p>
 
       <div className="flex min-w-0 items-center gap-1.5">
         <TypeIcon issueTypeKey={card.issueTypeKey} />

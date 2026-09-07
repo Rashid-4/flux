@@ -13,17 +13,30 @@ describe('LabelChip', () => {
    * recognisable. The competition worry is answered by the board card putting
    * status on a different row instead.
    */
-  it('renders a filled chip in one of the measured entity hues', async () => {
+  it('renders a filled chip in one of the saturated fills', async () => {
     const { container } = renderWithProviders(<LabelChip label="warehouse" />)
     const chip = screen.getByText('warehouse').closest('[data-slot="label-chip"]')
 
-    const tone = chip?.getAttribute('data-tone')
-    expect(tone).not.toBeNull()
-    expect(Number(tone)).toBeGreaterThanOrEqual(0)
-    expect(Number(tone)).toBeLessThan(8)
-    /** The fill and its measured foreground travel together, or the text is unreadable. */
-    expect(chip).toHaveClass(`bg-entity-${String(tone)}`)
-    expect(chip).toHaveClass(`text-entity-${String(tone)}-fg`)
+    const tone = Number(chip?.getAttribute('data-tone'))
+    expect(tone).toBeGreaterThanOrEqual(0)
+    expect(tone).toBeLessThan(6)
+
+    /**
+     * A saturated fill, and its measured foreground travelling with it. The first
+     * attempt used the `--entity-*` avatar hues and read as pastel beside the
+     * reference — those are deliberately muted for a face-sized disc. Asserted as
+     * "a fill and a matching fg are both present" rather than pinning which one,
+     * so the hash can be retuned without rewriting the test.
+     */
+    const classes = chip?.className ?? ''
+    const fill =
+      /bg-(info-solid|success-solid|warning-solid|primary|danger-solid|neutral-solid)\b/.exec(
+        classes,
+      )
+    expect(fill, `no saturated fill in "${classes}"`).not.toBeNull()
+    expect(
+      /text-(info-fg|success-fg|warning-fg|primary-fg|danger-fg|surface)\b/.test(classes),
+    ).toBe(true)
 
     await expectNoAxeViolations(container)
   })

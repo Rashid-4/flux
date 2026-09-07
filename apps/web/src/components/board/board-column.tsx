@@ -63,14 +63,14 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
     <section
       data-slot="board-column"
       aria-label={`${column.name}, ${String(totalCount)} issues`}
-      className={cn('flex w-column shrink-0 flex-col gap-2', className)}
+      className={cn('flex w-column shrink-0 flex-col gap-3', className)}
     >
       <header className="flex h-8 shrink-0 items-center gap-2 px-1">
         <span
           aria-hidden="true"
           className={cn('size-2 shrink-0 rounded-chip', DOT_TONE[category] ?? 'bg-neutral-solid')}
         />
-        <h2 className="min-w-0 truncate text-base font-medium text-fg">{column.name}</h2>
+        <h2 className="min-w-0 truncate text-md font-medium text-fg">{column.name}</h2>
         <span
           className={cn(
             'shrink-0 text-base',
@@ -104,8 +104,8 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
         aria-label={`Add an issue to ${column.name} — not available yet`}
         title="Creating an issue arrives with the issue surface"
         className={cn(
-          'flex h-10 shrink-0 items-center justify-center rounded-card',
-          'border border-border bg-surface text-fg-subtle',
+          'flex h-12 shrink-0 items-center justify-center rounded-card',
+          'bg-surface text-fg-subtle shadow-card',
           'transition-colors duration-90 ease-out aria-disabled:opacity-60',
         )}
       >

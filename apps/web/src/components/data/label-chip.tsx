@@ -27,23 +27,30 @@ import { cn } from '@/lib/cn'
  * same reason: the same label is always the same colour, on every board, on every
  * machine, with nothing to store.
  *
- * `tokens.css` already has eight measured `--entity-*` pairs for precisely this
- * kind of identity colouring — every one contrast-checked in both themes by
- * `design/contrast.test.ts` — so this reuses them rather than adding a palette.
- * They are written out as a literal table because `bg-entity-${n}` generates no CSS
- * at all: Tailwind finds utilities by scanning source text.
+ * The hues are the **solid** status fills, not the `--entity-*` pairs. That was the
+ * first attempt and it looked washed out beside the reference: the entity palette
+ * was designed for avatar discs, deliberately muted so a face-sized circle is not
+ * garish, and at chip size on white it reads as pastel. The reference's pills are
+ * saturated — a real blue, a real green — which is what `*-solid` is for, and every
+ * one already carries a measured `*-fg` checked in both themes by
+ * `design/contrast.test.ts`.
+ *
+ * Six rather than eight, because that is how many saturated fills the palette has.
+ * Collisions are acceptable: the colour is a recognition aid, and the label's own
+ * text is always in the chip.
+ *
+ * Written out as a literal table because `bg-${name}` generates no CSS at all —
+ * Tailwind finds utilities by scanning source text.
  *
  * A hue is never the only signal. The label's own text is in the chip.
  */
 const TONE_CLASSES = [
-  'bg-entity-0 text-entity-0-fg',
-  'bg-entity-1 text-entity-1-fg',
-  'bg-entity-2 text-entity-2-fg',
-  'bg-entity-3 text-entity-3-fg',
-  'bg-entity-4 text-entity-4-fg',
-  'bg-entity-5 text-entity-5-fg',
-  'bg-entity-6 text-entity-6-fg',
-  'bg-entity-7 text-entity-7-fg',
+  'bg-info-solid text-info-fg',
+  'bg-success-solid text-success-fg',
+  'bg-warning-solid text-warning-fg',
+  'bg-primary text-primary-fg',
+  'bg-danger-solid text-danger-fg',
+  'bg-neutral-solid text-surface',
 ] as const
 
 const TONE_COUNT = TONE_CLASSES.length
@@ -87,7 +94,7 @@ export function LabelChip({ label, className }: LabelChipProps) {
        * entirely, and passing one would put two `bg-*` in the same string for
        * `cn` to resolve. The border stays transparent from the badge's base.
        */
-      className={cn('max-w-40', TONE_CLASSES[tone], className)}
+      className={cn('max-w-40 border-transparent', TONE_CLASSES[tone], className)}
     >
       <span className="truncate">{label}</span>
     </Badge>
