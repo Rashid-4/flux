@@ -234,14 +234,40 @@ export function IssuePeekPanel({ issueKey, currentUserId }: IssuePeekPanelProps)
       aria-label={`${issueKey} details`}
       aria-busy={issue.isPending || undefined}
       className={cn(
-        'flex h-full w-detail shrink-0 flex-col overflow-hidden',
+        'relative flex h-full w-detail shrink-0 flex-col overflow-hidden',
         /**
-         * A 1px rule and not a shadow. The reference's light panel separates from the
-         * canvas with a single hairline at x 1400 in (250,250,250); the dark one draws a
-         * 4px near-black band there instead, which is recorded for the colour pass
-         * rather than approximated with an opacity here.
+         * A rule and not a shadow, and its *width* is per theme because the references'
+         * is. Light separates the panel from the canvas with one hairline: x 1399 and
+         * 1400 read (247,247,247) and (250,250,250), which is `--border-subtle`. Dark
+         * cannot use a hairline, because there its `--panel` and its `--canvas` are the
+         * same #101213 — the boundary between the board and the panel is carried by the
+         * rule alone. So the reference draws a groove: against a panel and a canvas that
+         * both read 16, x 1400..1403 read 7, 3, 0, 1.
+         *
+         * Four columns of ink, and soft ones: 1399 reads 11 where the canvas reads 16,
+         * and 1404 reads 12 where the panel does. So the reference's is a blurred ~2px
+         * rule and ours is a hard 4px one over the same four columns — a stated residual
+         * rather than an approximation, because the whole visible difference is one
+         * column of canvas at Δ5 and an edge that is soft over ±1px.
+         *
+         * Four columns of near-black, and `dark:border-l-4` is the wrong way to get
+         * them. `box-sizing: border-box` means a wider border eats the panel's content
+         * width, and the reference's does not: its composer's left edge sits at x 1425
+         * in **both** themes, so the dark band is painted over the panel rather than
+         * inset into it. An absolutely-positioned `::before` is exactly that — ink with
+         * no columns of layout — and `dark:border-l-chrome` recolours the 1px border
+         * underneath it so the pair reads as one groove rather than as a black band with
+         * a grey line down its outside edge.
+         *
+         * `w-0.75` and not `w-1`, because the border is the first of the four columns.
+         * `left-0` is the *padding* box, so the band starts at x 1401 and 3px of it plus
+         * the border at 1400 is the reference's 1400..1403 exactly — measured back out
+         * of the screenshot rather than reasoned about, since `w-1` shipped one column
+         * of black too many and the arithmetic above is precisely the kind that reads
+         * correct either way.
          */
         'border-l border-border-subtle bg-panel',
+        'dark:border-l-chrome dark:before:absolute dark:before:inset-y-0 dark:before:left-0 dark:before:w-0.75 dark:before:bg-chrome',
       )}
     >
       <PanelHeader
@@ -538,6 +564,22 @@ function AssigneeChip({ assignee }: { assignee: IssueDetail['assignee'] }) {
  * without needing `relative` or a `z-index` — descendant backgrounds are painted after
  * an ancestor's border, which is the one place in CSS where document order alone is
  * enough.
+ *
+ * ### Why the label is `--fg` and not the accent
+ *
+ * This shipped as `text-primary-accent` and was measured wrong in both themes. The
+ * reference draws this label in its brightest ink: `(255,255,255)` in dark and near-black
+ * in light, semibold, with no colour at all. That is not a stylistic preference — the
+ * dark reference's whole panel is achromatic (zero pixels above chroma 40 across an
+ * 431×690 band of it), and flux's blue here was the *only* saturated ink in ours, 199
+ * pixels of #66a6fb in a region where the reference has none.
+ *
+ * The affordance does not depend on the colour, which is why removing it costs nothing:
+ * the label is a standalone control centred in a gap punched out of a full-bleed rule,
+ * so 1.4.1's use-of-colour concern (F73 — a link *inside* a block of text distinguished
+ * by hue alone) does not apply to it, and it keeps an underline on hover plus the global
+ * `:focus-visible` outline. Colour now marks the hover *transition* rather than the
+ * resting state, which is the same trade `--contrast` makes in `tokens.css`.
  */
 function FullDetailsLink({ issueKey }: { issueKey: string }) {
   return (
@@ -547,8 +589,8 @@ function FullDetailsLink({ issueKey }: { issueKey: string }) {
           to={paths.issue(issueKey)}
           data-slot="full-details-link"
           className={cn(
-            'bg-panel px-4.5 text-md font-medium text-primary-accent',
-            'transition-colors duration-90 ease-out hover:text-fg hover:underline',
+            'bg-panel px-4.5 text-md font-semibold text-fg',
+            'transition-colors duration-90 ease-out hover:text-primary-accent hover:underline',
           )}
         >
           See full details

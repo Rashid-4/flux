@@ -164,15 +164,22 @@ function measure(theme: Theme, fg: string, bg: string): number {
 /**
  * Every background a foreground in this product can end up on.
  *
- * Seven, not four. `chrome` and `panel` were added when the neutral ladder went
- * from three levels to four, and `canvas-raised` when the board's view switcher
- * needed a selected fill the canvas could not supply. Adding them *here* is the
- * half that is easy to forget:
- * two new surfaces that text, a control boundary and an avatar all land on would
- * otherwise be the only backgrounds in the product with no measurement behind
- * them, and every loop below would keep passing while covering less of the
+ * Eight, not four. `chrome` and `panel` were added when the neutral ladder went
+ * from three levels to four, `canvas-raised` when the board's view switcher
+ * needed a selected fill the canvas could not supply, and `bubble-other` when the
+ * comment thread's incoming bubble turned out to be a measured value rather than a
+ * rung on the ladder. Adding them *here* is the half that is easy to forget:
+ * a new surface that text, a control boundary and an avatar all land on would
+ * otherwise be the only background in the product with no measurement behind
+ * it, and every loop below would keep passing while covering less of the
  * product than it did before. A token added to the palette is a token added to
  * this list.
+ *
+ * `bubble-mine` is deliberately *not* here. Only its own foreground lands on it —
+ * the attribution row sits outside the bubble on `--panel` — so it is a fill and
+ * belongs in ON_SOLID. Putting it here as well would assert `--fg-subtle` against a
+ * background no `--fg-subtle` ever prints on, which is how a suite grows numbers
+ * nobody can act on.
  */
 const SURFACES = [
   'surface',
@@ -182,6 +189,7 @@ const SURFACES = [
   'canvas-raised',
   'chrome',
   'panel',
+  'bubble-other',
 ] as const
 
 const ENTITY_HUES = [20, 58, 96, 145, 190, 235, 278, 322] as const
@@ -230,6 +238,23 @@ const ENTITY_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const
  * here: #808080 is what `JIRA 1.webp` paints, not what any token of ours declares,
  * and the light comment quotes it because the comparison is the entire argument for
  * `--rail-icon` existing.
+ *
+ * ### The brand-hue pass
+ *
+ * It moved the list further than any change before it: seven entries in, one out.
+ * The seven are the price of writing the measurement down. #2882ee is the blue the
+ * palette is now derived from and cannot reach, because white on it is 3.81:1;
+ * #4096ff, #4085d4 and #409aff are that same blue read off a chip, a 3px underline
+ * and a rail marker, which is the evidence that the three disagreeing samples are
+ * one colour and two compression artefacts; #53c538 and #eafe90 are the samples
+ * behind the AA argument and the dark theme's achromatic finding; #2a3035 and
+ * #2e3238 are a contaminated reading and a rejected solve, kept so the next reader
+ * does not redo either. An entry here is a claim nobody can quietly delete.
+ *
+ * The one out is #2c87de, whose reason read *"which --rail-selected defers to the
+ * hue pass"*. The pass has happened, the rail comment now quotes the sample it
+ * actually measured, and a deferral that has been resolved is the definition of a
+ * stale entry — so it went, by the rule below rather than by anyone noticing.
  */
 const ORPHAN_HEXES: ReadonlyArray<readonly [string, string]> = [
   ['#575f68', 'the rejected 0.483 --border-control, quoted in dark to record why it changed'],
@@ -237,7 +262,14 @@ const ORPHAN_HEXES: ReadonlyArray<readonly [string, string]> = [
   ['#16181b', 'the pre-reference dark --surface, quoted in the .dark header to record the retune'],
   ['#2a2a2a', "the light reference's resting rail icon, which --rail-icon takes --fg for instead"],
   ['#808080', "the dark reference's resting rail icon, quoted in light to justify the two roles"],
-  ['#2c87de', "the references' selected-rail blue, which --rail-selected defers to the hue pass"],
+  ['#2882ee', "the light reference's brand blue, which --primary matches in hue and chroma"],
+  ['#4096ff', 'the same blue read off a 73x26 chip on white, brightened by the compression'],
+  ['#4085d4', 'the same blue read off a 3px tab underline, desaturated by chroma subsampling'],
+  ['#409aff', "the light reference's selected rail marker, the brightest read of that blue"],
+  ['#53c538', 'the reference green whose white chip text is 2.23:1, quoted as the AA argument'],
+  ['#eafe90', "the dark reference's one saturated colour, a label chip at n=1537 pixels"],
+  ['#2a3035', 'the dark outgoing bubble sampled over text, 3 units off the composer reading'],
+  ['#2e3238', 'the dark bubble solved at the brand hue instead of its own, rejected for that'],
   ['#f1f4f5', "the light reference's brand-disc fill, which --surface-3 matches to webp's noise"],
   ['#f0f5f5', "the light reference's selected project row — the same fill as its brand disc"],
   ['#1a1c1e', "the dark reference's selected project row, which --surface matches to that noise"],
@@ -474,6 +506,12 @@ describe('text on a solid fill', () => {
       why: 'the primary button, the active nav pill and the avatar fallback print on it',
     },
     {
+      fg: 'bubble-mine-fg',
+      bg: 'bubble-mine',
+      min: { light: 4.5, dark: 4.5 },
+      why: "your own comment's text prints on it, and in light it is --primary carrying 17px copy",
+    },
+    {
       fg: 'contrast-fg',
       bg: 'contrast',
       min: { light: 4.5, dark: 4.5 },
@@ -585,6 +623,10 @@ describe('the entity palette', () => {
     // the field lightened, dark `--surface` 1.87 → 1.76 as the card did. An exact
     // assertion is what turned that into six edits instead of a silent drift, and
     // it is the reason a palette change cannot be made without reading this file.
+    //
+    // `bubble-other` arrived with the brand-hue pass and lands where its value does:
+    // 1.39 in light, between `surface-2` and `surface-3`, and dark's 1.76 is
+    // `surface`'s number because dark's bubble *is* `--surface`.
     const CLAIMED = {
       light: {
         surface: '1.51',
@@ -594,6 +636,7 @@ describe('the entity palette', () => {
         'canvas-raised': '1.29',
         chrome: '1.51',
         panel: '1.51',
+        'bubble-other': '1.39',
       },
       dark: {
         surface: '1.76',
@@ -603,6 +646,7 @@ describe('the entity palette', () => {
         'canvas-raised': '1.76',
         chrome: '2.21',
         panel: '1.98',
+        'bubble-other': '1.76',
       },
     } as const
 

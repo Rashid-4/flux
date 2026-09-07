@@ -41,9 +41,11 @@
  * beside it. Do not adjust one half of a pair without re-measuring.
  *
  * Derived from the reference designs in `UI Images/`: the neutral-dark board,
- * the light board, the violet-accent detail panel and the drag-and-drop
- * capture. The accent is violet; status meaning is always carried by an icon or
- * text as well as a hue, because colour alone fails 1.4.1.
+ * the light board, the detail panel and the drag-and-drop capture. The accent is
+ * the references' own blue, measured — see the Brand block for the value and for
+ * the one number in this file that does not clear AA and says so. Status meaning
+ * is always carried by an icon or text as well as a hue, because colour alone
+ * fails 1.4.1.
  */
 
 @import 'tailwindcss';
@@ -209,14 +211,16 @@
      variant `README` §5 names as a wrong token — the divergence belongs to the
      theme, not to the component.
 
-     The selected marker diverges the same way: white in dark, blue in light. It
-     is written as the accent rather than as that blue so the deferred brand-hue
-     pass changes it in one place. `--primary-accent` is violet today and the
-     references' accent is #2c87de; that gap is a colour decision with its own
-     ratios to re-derive, not a geometry one, and mixing the two into one commit
-     is how a measured number ends up justified by a guess. */
+     The selected marker diverges the same way: white in dark, blue in light. The
+     brand-hue pass this token used to defer has now happened, so it points at
+     `--primary` rather than at `--primary-accent`: the marker and the active tab's
+     3px underline are both graphics, not text, so 1.4.11's 3:1 is the bar they
+     answer to and the brighter of the two blues is the one the references draw.
+     The light reference's marker samples #409aff and its tab underline #4085d4 —
+     the same hue at two compression artefacts, a small saturated region on white
+     brightening and a thin line desaturating. `--primary` is that hue. */
   --rail-icon: var(--fg);
-  --rail-selected: var(--primary-accent);
+  --rail-selected: var(--primary);
   /* -- Chrome fills -------------------------------------------------------- */
   /* Two fills that sit *on* the chrome: the resting state of a selected row, and
      the hover state of an unselected one. They are named rather than reached for
@@ -322,34 +326,113 @@
   --border-control: oklch(0.595 0.021 258.3);
 
   /* -- Brand --------------------------------------------------------------- */
-  /* Solid fills: primary button, active nav pill, progress bar. #6d4aff, white
-     on it is 5.2:1. */
-  --primary: oklch(0.562 0.251 283.7);
-  /* #5f3dff — white 5.8:1. Darker on hover in both themes: brightening the
-     violet in dark mode drops white to 4.35:1, which is not AA. */
-  --primary-hover: oklch(0.535 0.265 280.6);
-  --primary-fg: oklch(1 0 89.9);
-  /* Violet as a *foreground*: links, active tab text, the focus ring. #5f3dff
-     — 5.84:1 on surface, 5.39:1 on the retuned canvas. */
-  --primary-accent: oklch(0.535 0.265 280.6);
-  /* Selected row / active nav tint. #f0ecff
-     0.025 rather than 0.026: at this lightness sRGB runs out of blue, and 0.026
-     sat 0.0024 outside the gamut in linear-light terms. The browser gamut-maps
-     an out-of-range oklch() by reducing chroma, so the *painted* colour was
-     already this one — 0.025 says so instead of relying on the round trip
-     through a clip. Measured by `contrast.test.ts`, which asserts every colour
-     in this file is displayable. */
-  --primary-soft: oklch(0.952 0.025 295.6);
-  /* #4c2fd4 — 6.8:1 on primary-soft. */
-  --primary-soft-fg: oklch(0.462 0.233 280.2);
+  /* THE ONE MEASUREMENT THIS WHOLE BLOCK TURNS ON, and the one number in this
+     file that does not clear AA and says so out loud.
+
+     `JIRA 2.webp` has exactly one large flat saturated area: the 320×90 outgoing
+     comment bubble at image x 1491..1812, y 800..892. A row-by-row scan of it reads
+     the same value from top to bottom inside ±2 of webp noise, so it is a flat fill
+     and not a gradient, and a hue census of the whole light window puts 210–239°
+     ahead of every other band at n=10870 sampled pixels. That is the brand blue:
+
+       #2882ee = oklch(0.612 0.182 255.8)
+
+     Two other blues in the same image are the *same* hue through opposite
+     compression artefacts, which is why neither was used as the source: the six
+     73×26 card label chips read #4096ff, because a small saturated region on
+     white brightens and the blue channel saturates; the 3px active-tab underline
+     reads #4085d4, because chroma subsampling desaturates a thin line. Both land
+     on hue 212–213 HSV, the same place #2882ee does.
+
+     Blue also appears in exactly five roles there — the two outgoing-bubble
+     groups, the card chips, the rail's selected marker, the breadcrumb project
+     glyph and the tab underline — and on **no button**. The reference's
+     one-action button is the near-black already tokenised as `--contrast` below.
+     So `--primary` is not the reference's button colour; it is the reference's
+     brand colour, used here for the roles the reference uses it for plus the
+     button role the reference does not have.
+
+     WHERE FLUX DIVERGES, DELIBERATELY. White on #2882ee is 3.81:1, which is not
+     AA for the ~15–17px text the reference prints on it. The reference is
+     systematically below the bar on its own saturated palette — its "Website"
+     chip is white on #4096ff at 2.99:1 and its "Design" chip white on #53c538 at
+     2.23:1 — so this is not a hue that can be fixed by picking a different one.
+     Four call sites print real text on `--primary` (`bootstrap-error.tsx` twice,
+     `avatar.tsx`'s overflow count, `label-chip.tsx`, `comment-bubble.tsx`), so
+     the resolution is to keep the reference's hue and chroma to three decimals
+     and take the lightness down 0.052:
+
+       reference  oklch(0.612 0.182 255.8)  #2882ee  white 3.81:1
+       flux       oklch(0.560 0.182 255.8)  #1071dc  white 4.75:1
+
+     One number, one axis, and the axis that does not carry the identity. Raising
+     it back to 0.612 is a one-character change and drops the primary button, the
+     label chip, the avatar overflow count and the outgoing comment bubble to
+     3.81:1 together; `contrast.test.ts`'s ON_SOLID table is what would fail. */
+  --primary: oklch(0.56 0.182 255.8); /* #1071dc */
+  /* Darker on hover in both themes rather than brighter: brightening this blue in
+     dark mode drops white below AA exactly as brightening the violet did. */
+  --primary-hover: oklch(0.535 0.18 255.8); /* #036ad2 */
+  /* Both fills' ratios are claimed here rather than beside each fill. Contrast is
+     symmetric, and `fg on bg` is the direction `contrast.test.ts` parses — so
+     writing them on the foreground is what makes the two numbers the block above
+     turns on checked numbers instead of prose. */
+  --primary-fg: oklch(1 0 89.9); /* #ffffff — 4.75:1 on --primary, 5.26:1 on --primary-hover */
+  /* The blue as a *foreground*: links, hover states, the focus ring. Not the panel's
+     "See full details" — the reference draws that label in its brightest ink in both
+     themes, so it rests on `--fg` and reaches for this only on hover; `issue-peek-panel
+     .tsx`'s `FullDetailsLink` has the measurement. Chroma
+     is 0.18 and not `--primary`'s 0.182 because sRGB's blue runs out on the way
+     down — the ceiling at this hue is 0.1815 at L 0.535 against 0.2075 at the
+     reference's L 0.612, so a text-weight blue is chroma-limited where the fill is
+     not. Bisected, not chosen. The binding surface is `--canvas-raised`; the other
+     six run 4.73:1 to 5.26:1, and `--bubble-other` sits at 4.81:1. */
+  --primary-accent: oklch(
+    0.535 0.18 255.8
+  ); /* #036ad2 — 5.26:1 on --surface, 4.49:1 on --canvas-raised */
+  /* Selected row / active nav tint: the same hue at the top of the scale, where
+     the ceiling is 0.0217 and 0.019 leaves room. */
+  --primary-soft: oklch(0.955 0.019 255.8); /* #e8f1fd */
+  --primary-soft-fg: oklch(0.47 0.155 255.8); /* #0758af — 6.10:1 on --primary-soft */
 
   /* -- Contrast ------------------------------------------------------------ */
   /* The near-black primary action from the light reference ("Create task"), and
-     the tooltip/toast surface. Distinct from --primary on purpose: the violet
+     the tooltip/toast surface. Distinct from --primary on purpose: the blue
      marks *state*, this marks the one action a screen is for. #16181c */
   --contrast: oklch(0.209 0.009 264.4);
   --contrast-hover: oklch(0.292 0.014 261.7);
   --contrast-fg: oklch(1 0 89.9);
+
+  /* -- Thread -------------------------------------------------------------- */
+  /* The comment thread's two bubble fills, and they are tokens for exactly the
+     reason `--rail-icon` and `--chrome-raised` are: the two references disagree
+     about them in a way no shared value can express.
+
+     Own bubble — the brand here, a neutral grey there. Not one colour at two
+     lightnesses: the dark reference has no accent at all, so its outgoing bubble is
+     a grey step above the panel while this one is the blue the Brand block above
+     measures. `bg-primary dark:bg-surface-2` at the call site would be the `dark:`
+     variant README §5 names as a wrong token, and it would also be wrong on the
+     value — the dark bubble is not `--surface-2` either; `.dark` declares what it
+     is and quotes the measurement.
+
+     Other bubble — measured, not stepped down the ladder. Here it is #f3f5f9, the
+     modal value of a text-free band over the reference's MEETING card at 69.9% of
+     that band's pixels. `--surface-2` is #f7f8fa, four units lighter, and retuning
+     a global fill to match one panel would over-generalise a single measurement —
+     so the bubble gets a token and `--surface-2` keeps its value. In dark the same
+     measurement lands on `--surface` exactly, so that theme aliases. Incoming
+     comments, link previews and the audio bubble all share this fill in both
+     references.
+
+     `--bubble-mine` is in `contrast.test.ts`'s ON_SOLID and not in its SURFACES
+     because only `--bubble-mine-fg` lands on it: the attribution row and the
+     timestamp sit *outside* the bubble on `--panel`, and the label inside it uses
+     `text-current`. `--bubble-other` is the reverse — ordinary body text lands on
+     it, so it is a surface and every text token is asserted against it. */
+  --bubble-mine: var(--primary);
+  --bubble-mine-fg: var(--primary-fg);
+  --bubble-other: oklch(0.97 0.006 264.5); /* #f3f5f9 — 5.02:1 on --fg-subtle */
 
   /* -- Status ------------------------------------------------------------- */
   /* Four tokens per hue, each with one job:
@@ -469,7 +552,11 @@
   --entity-7-fg: oklch(0.39 0.062 322); /* #553a59 — 6.19:1 on --entity-7 */
 
   /* -- Focus --------------------------------------------------------------- */
-  --ring: oklch(0.535 0.265 280.6);
+  /* The accent value, repeated rather than aliased: a focus ring is measured
+     against SC 1.4.11's 3:1 on every surface it can land on, not against the text
+     bar the accent answers to, and the two happening to agree today is not a
+     reason to couple them. */
+  --ring: oklch(0.535 0.18 255.8);
 
   /* -- Elevation ----------------------------------------------------------- */
   /* Soft and tight, as in the references — a large blur with a low alpha reads
@@ -585,19 +672,53 @@
   --border-control: oklch(0.57 0.017 250);
 
   /* -- Brand --------------------------------------------------------------- */
-  /* Unchanged: a fill's contrast is against the text on it, not the page. */
-  --primary: oklch(0.562 0.251 283.7);
-  --primary-hover: oklch(0.535 0.265 280.6);
-  --primary-fg: oklch(1 0 89.9);
-  --primary-accent: oklch(0.693 0.174 290.1); /* #9d85ff — 5.76:1 on --surface */
-  --primary-soft: oklch(0.259 0.064 290.4); /* #241d40 */
-  --primary-soft-fg: oklch(0.787 0.12 294.8); /* #bfaaff — 7.86:1 on --primary-soft */
+  /* THE DARK REFERENCE HAS NO ACCENT AT ALL. A chroma census of `JIRA 1.webp`'s
+     lower detail panel finds **zero** pixels above chroma 40: its outgoing comment
+     bubbles are neutral grey, its rail marker is white, and the only saturated ink
+     anywhere in the window is one label chip's yellow-green #eafe90 (n=1537) and
+     two pastel avatar tints an order of magnitude rarer. Where the light reference
+     is blue, the dark one is achromatic on purpose.
+
+     So flux's dark primary *button* is an invention, not a match — there is
+     nothing in the reference to match it to. It stays the light value, because a
+     fill's contrast is against the text on it and not against the page, and
+     because a brand that changes hue between themes is not a brand. What the
+     reference's neutrality does change is the comment bubble, which is the one
+     place the divergence is visible and load-bearing enough to have earned its own
+     token: see `--bubble-mine` in the Thread block. */
+  --primary: oklch(0.56 0.182 255.8);
+  --primary-hover: oklch(0.535 0.18 255.8);
+  --primary-fg: oklch(1 0 89.9); /* #ffffff — 4.75:1 on --primary, 5.26:1 on --primary-hover */
+  /* Brightened, because a text-weight blue at the light theme's lightness is a hole
+     in a dark panel. Every surface clears AA on it: --surface-3 is the binding one
+     at 5.71:1 and --chrome the loosest at 8.41:1, and it still reads at 5.12:1 on
+     the --bubble-mine grey, which is the one fill below that is not in SURFACES. */
+  --primary-accent: oklch(
+    0.72 0.14 255.8
+  ); /* #66a6fb — 6.70:1 on --surface, 5.71:1 on --surface-3 */
+  --primary-soft: oklch(0.26 0.075 255.8); /* #072347 */
+  /* 0.09, not 0.105: at this lightness the chroma ceiling for this hue is 0.1022,
+     and 0.105 sits 0.0156 of a linear-light channel outside the gamut. Same
+     ceiling `--danger-soft-fg` documents further down this block, in red. */
+  --primary-soft-fg: oklch(0.8 0.09 255.8); /* #97c1f7 — 8.42:1 on --primary-soft */
 
   /* -- Contrast ------------------------------------------------------------ */
   /* Inverts: the loudest surface in a dark theme is a light one. */
   --contrast: oklch(0.966 0.003 247.9);
   --contrast-hover: oklch(0.921 0.006 255.5);
   --contrast-fg: oklch(0.209 0.009 264.4);
+
+  /* -- Thread -------------------------------------------------------------- */
+  /* Measured off the composer, which reads #2d3338 at 76.8% of a clean sample. The
+     bubble's own modal is #2a3035 at 19.8% of a sample that is mostly text — Δ3
+     apart, with one sample four times cleaner, so this is one fill and not two.
+     Hue 243.2 is the measurement's own rather than the brand's: solving the same
+     lightness and chroma at 255.8 lands on #2e3238, a unit off for no reason. */
+  --bubble-mine: oklch(0.317 0.012 243.2); /* #2d3338 — 11.60:1 on --fg */
+  --bubble-mine-fg: var(--fg);
+  /* #1c1e1f, which is `--surface` to the byte. Aliased rather than repeated so the
+     two cannot drift apart silently. */
+  --bubble-other: var(--surface);
 
   /* -- Status -------------------------------------------------------------- */
   --success-accent: oklch(0.687 0.138 159.9); /* #35b47c — 6.35:1 on --surface */
@@ -672,7 +793,8 @@
   --entity-7-fg: oklch(0.9 0.048 322); /* #eed4f1 — 6.89:1 on --entity-7 */
 
   /* -- Focus --------------------------------------------------------------- */
-  --ring: oklch(0.693 0.174 290.1);
+  /* The accent value, repeated for the reason the light block gives. */
+  --ring: oklch(0.72 0.14 255.8);
 
   /* -- Elevation ----------------------------------------------------------- */
   /* Same geometry, higher alpha. Elevation in a dark theme comes mostly from
@@ -745,6 +867,10 @@
   --color-contrast: var(--contrast);
   --color-contrast-hover: var(--contrast-hover);
   --color-contrast-fg: var(--contrast-fg);
+
+  --color-bubble-mine: var(--bubble-mine);
+  --color-bubble-mine-fg: var(--bubble-mine-fg);
+  --color-bubble-other: var(--bubble-other);
 
   --color-success-accent: var(--success-accent);
   --color-success-solid: var(--success-solid);

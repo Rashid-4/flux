@@ -21,13 +21,23 @@ import { cn } from '@/lib/cn'
  *   theirs, left edge          x = 23      ┐ the panel's px-6 (24) within
  *   mine,   right edge         x = 414     ┘ its 441px width, ±1 of antialias
  *   corner radius              12          all four corners, no tail
- *   fill, theirs               (247,246,249)   ≈ --surface-2  #f7f8fa
- *   fill, mine                 #4998f3         the reference's brand blue
+ *   fill, theirs               (247,246,249)   → --bubble-other; see below
+ *   fill, mine                 #4998f3         → --bubble-mine;  see below
  *   padding                    px-4 py-2
  *   body                       17/23       = text-md at leading-5.75; see below
  *   timestamp                  13/18       = text-2xs, inline after the text
  *   widths                     358 371 235 260 326   → content-driven, capped
  * ```
+ *
+ * **The two fills are tokens, and the two hexes above are superseded.** Both numbers
+ * in that table are point samples off `JIRA 4`, which is an angled 3D render — good
+ * enough to say "grey" and "blue" and not good enough to derive a palette from. The
+ * values that ship come from a region-modal histogram over a text-free band of the
+ * flat-on references: #f3f5f9 at 69.9% of that band in light, and a fill that is
+ * **not blue at all** in dark, where the reference's whole panel is achromatic. That
+ * per-theme divergence is why `--bubble-mine` and `--bubble-other` exist rather than
+ * `bg-primary dark:bg-surface-2` here; `tokens.css`'s Thread block has the full
+ * derivation and the ratios.
  *
  * **No tail.** Every corner is the same 12px, which is `--radius-card`, and the
  * reference draws no pointer on either side. That is worth stating because a tail is
@@ -147,7 +157,7 @@ export function CommentBubble({ comment, mine, startsRun, parent, className }: C
       <div
         className={cn(
           'max-w-[94%] rounded-card px-4 py-2 text-md',
-          mine ? 'bg-primary text-primary-fg' : 'bg-surface-2 text-fg',
+          mine ? 'bg-bubble-mine text-bubble-mine-fg' : 'bg-bubble-other text-fg',
         )}
       >
         {!showsName && (
@@ -161,7 +171,7 @@ export function CommentBubble({ comment, mine, startsRun, parent, className }: C
           /**
            * `text-current` and `uppercase text-2xs`, so it works on both fills without
            * a per-side colour. `--warning-soft` would have been the obvious choice and
-           * it is unreadable on `--primary`, which is where the fixture's internal
+           * it is unreadable on `--bubble-mine`, which is where the fixture's internal
            * comment actually lands.
            */
           <span className="mb-0.5 flex items-center gap-1 text-2xs font-semibold uppercase">
@@ -215,7 +225,7 @@ export function CommentBubble({ comment, mine, startsRun, parent, className }: C
  * would put a lone "edited" under an otherwise full bubble.
  *
  * `text-current` overrides `RelativeTime`'s built-in `text-fg-subtle`, which is right
- * on a white surface and invisible on `--primary`. `opacity-70` is what restores the
+ * on a white surface and invisible on `--bubble-mine`. `opacity-70` is what restores the
  * subordination that colour was carrying — and it is applied to a whole inline group
  * rather than to a text colour, so it holds on both fills without a second token.
  */
@@ -254,8 +264,8 @@ function BubbleMeta({ comment, mine }: { comment: Comment; mine: boolean }) {
  * is a length that wastes the wider one. The clamp is the browser's job.
  *
  * The rule down the left is `border-current` with an opacity, for the same reason the
- * internal marker is `text-current`: this renders on `--surface-2` and on `--primary`,
- * and a border token tuned for one of them disappears on the other.
+ * internal marker is `text-current`: this renders on both bubble fills, and a border
+ * token tuned for one of them disappears on the other.
  */
 function ReplyQuote({ parent, mine }: { parent: Comment; mine: boolean }) {
   return (
