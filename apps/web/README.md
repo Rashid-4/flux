@@ -123,9 +123,9 @@ not know `lh` is not a slightly-wrong height, it is a skeleton 0px tall.
 
 ## State of this tree
 
-**677 tests in 50 files.** That number is not the same as "this tree is
+**804 tests in 60 files.** That number is not the same as "this tree is
 verified", and the difference is the most useful thing this section can tell you.
-Two directories have been reviewed line by line; the rest has been written and
+Four directories have been reviewed line by line; the rest has been written and
 never read back.
 
 | Area | Tests | Reviewed |
@@ -136,17 +136,30 @@ never read back.
 | `queries/` — 3, `design/` — 6, `test/` — 2, `stores/theme` | all | yes |
 | `lib/` — 4 modules | `paths`, `bootstrap`, `cn` | **yes** — two cited a test that did not exist, and `cn` merged two elevations wrongly |
 | `gallery/` — 9 modules | `fixtures` | **yes** — dev-only, and two specimens overflowed their own panels at 375px |
-| `components/shell/` — 6 components | **none** | no |
+| `keyboard/` — 5 modules | `registry`, `shortcut-sheet`, `pending-sequence` | **yes** — §6's partial-sequence state had zero consumers, so every rule about it was correct and none of it reached the screen |
+| `command-palette/` — 4 modules | `command-palette`, `match` | **yes** — focus restore was read from a module singleton and a torn-down palette consumed the next one's opener |
+| `routes/` — 7 modules | `router`, `shell` | **yes** for `shell` — it tore the whole surface down when a *background refetch* failed, which is the worst defect found in this tree so far |
+| `components/shell/` — 15 modules | `connection-status`, `icon-rail`, `nav-drawer` | **yes** — a dead effect, a duplicated warning strip, and a drawer whose docblock promised a gesture it did not have |
 | `components/` top level — 9 components | **none** | no |
-| `routes/` — 7 modules | **none** | no |
-| `stores/chrome` | **none** | no |
+| `stores/chrome`, `lib/document-title`, `main.tsx` | **none** | no |
 
-So **24 shipped modules have no test at all**, including every route and the whole
-application shell. (Eight of `gallery/`'s nine are untested too, and are counted
-separately because they never reach a build.) Treat anything in the lower half of
-that table as unverified:
-it compiles, it renders, and nobody has checked what it does on an empty list, a
-slow network, a 403, or a keyboard.
+So **33 shipped modules have no test at all** — more than the 24 this section
+recorded before the shell landed, because the shell added modules faster than it
+added coverage. The number going *up* while four directories were reviewed is the
+honest shape of the tree: review found real defects in what it looked at, and what
+it did not look at grew. (Eight of `gallery/`'s nine are untested too, and are
+counted separately because they never reach a build.) Treat anything marked "no" as
+unverified: it compiles, it renders, and nobody has checked what it does on an empty
+list, a slow network, a 403, or a keyboard.
+
+The four reviewed rows added on this branch are worth reading as a set, because
+every defect in them was a *seam* rather than a mistake inside a function — state
+whose producer and consumer were both correct and were not connected (the pending
+sequence), a gate that asked the right question of the wrong value
+(`isError` where `isLoadingError` was meant), module-level state consumed by a
+callback that outlived its component (the palette's opener), and a promise made in
+prose with no code behind it (the drawer's swipe). None of the four is visible to
+`tsc`, and none would appear in a diff as anything but reasonable.
 
 `gallery/` is in the upper half with a caveat worth reading, because it is the
 instrument the rest of the review is conducted with. `src/gallery/` is a second
@@ -164,9 +177,19 @@ Also absent: **`e2e/` does not exist**, while `playwright.config.ts:42` sets
 `testDir: './e2e'`. Playwright currently has nothing to run, and the `lint`
 script does not cover the directory either.
 
-Below 768px the sidebar **and its toggle** are both hidden, so there is no way to
-reach navigation on a phone. The overlay drawer that fixes it — focus trap,
-scroll lock, backdrop, swipe — is deferred, not done.
+Below 768px the sidebar **and its toggle** used to be both hidden, so there was no
+way to reach navigation on a phone. `components/shell/nav-drawer.tsx` closes it:
+Radix `Dialog` for the trap, the scroll lock and the backdrop, plus the two things
+the primitive has no opinion about — close-on-navigate and swipe-to-dismiss.
+
+One part of it is deliberately unverified here rather than quietly assumed. jsdom
+reports `animation-name: none` for every element, so Radix's `Presence` unmounts the
+drawer on close instead of holding it for the fade — which means the one case where
+the same DOM node is handed back to a cancelled exit (drag-dismiss, then reopen
+inside 90ms) cannot be reproduced in this suite at all. The guard for it is a
+`useLayoutEffect`, its reasoning is in the file, and a jsdom test asserting it would
+pass with the effect deleted. It is an `e2e/` item, which is a second reason that
+directory's absence matters.
 
 ## Things that look like bugs and are not
 
