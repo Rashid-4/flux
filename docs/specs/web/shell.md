@@ -61,16 +61,16 @@ and are the shell's error and empty surfaces. Use them.
 ## 3. The frame
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│ connection / refresh notice — full width, present in all three states     │
-├──────┬───────────┬────────────────────────────────────────────────────────┤
-│      │           │ top bar   org switcher · breadcrumb · ⌘K hint · user   │
-│      │           │           menu                              <header>   │
-│ rail │ sidebar   ├────────────────────────────────────────────────────────┤
-│      │ <nav>     │ content                                                │
-│      │           │ <main id="main">                                       │
-│      │           │   <Outlet />                                           │
-└──────┴───────────┴────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ connection / refresh notice — full width, present in all three states        │
+├──────┬───────────┬───────────────────────────────────────────────────────────┤
+│      │           │ top bar   org switcher · breadcrumb · ⌘K hint · user menu │
+│      │           │           <header>                                        │
+│ rail │ sidebar   ├───────────────────────────────────────────────────────────┤
+│      │ <nav>     │ content                                                   │
+│      │           │ <main id="main">                                          │
+│      │           │   <Outlet />                                              │
+└──────┴───────────┴───────────────────────────────────────────────────────────┘
 ```
 
 **The chrome runs floor to ceiling; the header does not span it.** This diagram
@@ -104,6 +104,91 @@ The rest of the frame:
   it produces two scrollbars and a sticky header that isn't.
 - No layout shift when the sidebar animates: reserve the width, animate the
   transform. Respect `prefers-reduced-motion` — instant, not faster (§9).
+
+### 3.1 Measured geometry
+
+Every number below was read off `UI Images/JIRA 1.webp` (dark) and `JIRA 2.webp`
+(light) rather than chosen, and every one of them is a **CSS pixel**: the mockups
+are 1× — 2048 × 1537 for a 1841 × 1327 window — so a measurement is not divided by
+two on the way in. The window's content box begins at image (105, 103), so
+app-relative coordinates are the image's minus that offset. `pnpm ui:diff` is the
+instrument; `scripts/reference-diff.mjs` renders flux at the reference's viewport,
+finds the same edges in both, and prints the disagreement.
+
+Two things about that instrument are worth knowing before trusting its output.
+`reference-<theme>.png` is **not** window-cropped — it keeps the desktop margin —
+while `flux-<theme>.png` is, so any side-by-side must crop the reference at
+(105, 103) first. And it writes one theme per run, so a scan of the theme you did
+not just render is reading a stale file; a `(0,0,0)` where a border belongs has
+been that, twice, rather than a rendering bug.
+
+**Columns.** The rail is 103px total: 102px of fill and the 1px `--border-subtle`
+divider at x=102, inside the width because preflight sets `border-box`. The
+sidebar is 269px, x 103…371, and has **no right border** — the content column's
+first pixel is x=372 and the reference draws no line there. The content column's
+own padding is 36px (`px-gutter`).
+
+**The rail.** 70px of clear space (`pt-rail-head`), where the reference's host
+draws the macOS traffic lights — kept rather than reclaimed, because rebasing
+upward would put every subsequent offset 40px out of agreement with the reference,
+and the content column's first ink sits inside that band anyway. Then a 60px brand
+disc centred at (49.5, 99.5); then 48px targets on a 69px pitch, first centre at
+y=187 (`gap-rail-step` is the 21px that makes the pitch). The selected item is a
+3px bar on the rail's outer edge, x 0…2, the item's full 48px tall, with **no**
+background fill and the glyph brightened to the bar's own colour. The rail ends
+with a single 24px chevron centred at (51.5, 1283.5) and 20px below it.
+
+The reference has **seven** items; flux has six. The seventh would link to a route
+that does not exist, and `docs/product-quality-bar.md` §13 rates a control that
+silently does nothing as worse than one that says why it cannot.
+
+**The sidebar.** 13px inset (`px-tree-inset`), 41px row pitch (`h-row`), glyph
+centre 28px and text 58px from the sidebar's left edge. The filter row is a row
+and not a boxed field: a 20px magnifier and a placeholder, ink centre y≈40.5, no
+border. "+ New Project" sits with its ink at y 1262…1303, 24px above the bottom.
+
+The vertical rhythm is the part that looks like arbitrary padding and is not. The
+reference's ink centres are 39.5 (filter), 102 (FAVOURITES), 142 / 183 / 224 / 265
+(project rows), 337 (ALL PROJECTS), 377 (its first row). All of those fall out of
+contiguous 41px rows plus **20px above the first section label** and **30px above
+every subsequent one** — so a section label is a row on the same rhythm, not a
+heading with padding. In flux that is `pt-5` on the scroll region and
+`pt-7.5 first:pt-0` on `Section`, and `shell-skeleton.tsx` carries the first of
+those too: without it the whole list slid 20px up at the moment bootstrap
+resolved.
+
+**Two fills that live on the chrome.** A selected project row and the rail's brand
+disc measure the same value — #f1f4f5 and #f0f5f5 light, #1a1c1e dark — on two
+surfaces with no component in common, which is why one token (`--chrome-raised`)
+serves both and why it is named for the chrome rather than for either component.
+`--chrome-hover` is one rung quieter, so hovering an unselected row cannot be
+mistaken for selecting one. Both invert per theme inside the token rather than
+through a `dark:` variant at the call site, because `--chrome` is white in light
+and near-black in dark, so "raised" steps in opposite directions. The selected
+fill is **neutral, not accent**, in both references.
+
+**The tree connector** is a rounded ~4px corner, not a square elbow: the
+reference's last child holds ink at x36-38 through y744, then steps right across
+y745 → y747 to x=49. Its colour is `--border-strong`, established by ink rather
+than by sampling one pixel — the reference's stroke straddles two columns and lays
+down 75/255 of ink across them, where `--border` at one crisp pixel lays down 29.
+The indent belongs on the `<li>`, not the `<ul>`: padding on a list moves its
+*items'* boxes, which put the pseudo-element at 58px, behind the active child's own
+fill — invisible, and reading as absent rather than as misplaced.
+
+**Type**, calibrated by rendering flux's own text at a known size and scaling by
+the ink ratio so the measurement threshold's bias cancels instead of accumulating:
+sidebar rows 17px, section labels 15px, page title 28px, tabs 20px, sub-bar 19px.
+The control height ladder is 28 / 32 / 36 / 44.
+
+**Known divergences, deferred by decision rather than missed.** The reference's
+accent is blue (#2c87de) where flux's is violet, and its greys are neutral where
+flux's carry a blue tint — both belong to one colour pass that has to update
+`design/contrast.test.ts`'s claimed ratios in the same commit. The reference's dark
+sidebar is a gradient (#000000 → #101213) where flux's is a solid `--chrome`. And
+its per-project outline glyphs (star, circle, triangle, square, in per-project
+hues) and red count badges need contract fields that `BootstrapSchema.projects`
+does not carry — a change request, not a hand-written interface.
 
 ## 4. The bootstrap gate
 
