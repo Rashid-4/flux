@@ -67,6 +67,22 @@ import { newTraceContext } from './trace.js'
  * for a route-handler throw, an unknown path and a malformed body, because which
  * framework catches which failure is a property of Nest and Fastify rather than of
  * this file — and it is exactly the property that just changed under it.
+ *
+ * ### WHAT THIS DOES NOT CHECK
+ *
+ *   • **A hijacked reply that then fails.** `reply.hijack()` tells Fastify the handler
+ *     owns the socket, and a throw afterwards does not invoke the error handler at all
+ *     — measured: the request never settles and this filter never runs. There is
+ *     nothing to catch it with, so a handler that hijacks owns its own failure path.
+ *     Nothing in this service hijacks today, and a streaming export is the shape that
+ *     would.
+ *   • **A custom per-reply serialiser that throws.** `reply.serializer(fn)` stays
+ *     attached across the error path, so the same `fn` throws again on our error body
+ *     and Fastify answers in its own shape — `{"statusCode":500,"error":"Internal
+ *     Server Error"}`, no `traceId`, which is the §13 violation this file exists to
+ *     prevent. Also measured. Nothing calls `reply.serializer` here; the body
+ *     `reportError` builds is a plain object that has re-parsed under `ApiErrorSchema`,
+ *     so the default `JSON.stringify` path cannot fail on it.
  */
 
 /**
@@ -100,14 +116,56 @@ function writeErrorResponse(reply: FastifyReply, err: unknown, logger: Logger): 
   )
 
   /**
-   * Fastify sets `reply.sent` once the response has been handed to the socket. This
-   * happens for real: a serialiser that throws mid-stream, or a second error raised
-   * after a handler already replied. Writing again throws
-   * `FST_ERR_REP_ALREADY_SENT`, from inside the error handler, which Fastify then
-   * has nowhere to report — the request hangs and the process logs nothing.
+   * Two different things can already have been written, and `reply.sent` only sees one.
+   *
+   * This guard used to be `reply.sent` alone, on the stated grounds that writing again
+   * throws `FST_ERR_REP_ALREADY_SENT`. Both halves of that are wrong, and reading
+   * fastify 5.12.1 rather than reasoning about it is what settled it:
+   *
+   *   • `reply.js:107` — `sent` is `(hijacked || raw.writableEnded) === true`. Not
+   *     "send() was called": **the socket must have ended.** So a handler that wrote
+   *     `reply.raw` directly and then threw arrives here with `sent === false` and
+   *     `raw.headersSent === true`, and the guard let it straight through.
+   *   • `reply.js:161` — a `send()` when `sent` is true is a `log.warn` and a no-op.
+   *     `FST_ERR_REP_ALREADY_SENT` is constructed only as that warning's `err` field.
+   *     It is never thrown.
+   *
+   * The measured cost of the version that read `sent` alone is worse than the hang its
+   * comment predicted. `reply.send` reaches `safeWriteHead`, which rethrows Node's
+   * `ERR_HTTP_HEADERS_SENT` (`reply.js:583`); `handleError`'s `catch` turns that into
+   * `reply.send(err)`, which walks the handler chain to `fallbackErrorHandler`; and its
+   * callback at `error-handler.js:35-42` calls `raw.writeHead` in a `try`, logs the
+   * failure, and then **calls `raw.writeHead` again outside it**. That second one is
+   * uncaught. The worker process exits, taking every other in-flight request with it —
+   * from inside the function whose docblock is "never throws".
+   *
+   * So both disjuncts earn their place, and they are different incidents:
+   *
+   *   • `raw.headersSent` — somebody owns the socket and failed partway. We cannot
+   *     answer; the client keeps the truncated body it was already reading.
+   *   • `sent` — the response is finished or hijacked. Writing is a silent no-op, so
+   *     this log line is the only trace that an error body was produced and dropped.
    */
-  if (reply.sent) {
-    logger.error({ traceId, status: report.status }, 'error raised after the response was sent')
+  if (reply.sent || reply.raw.headersSent) {
+    logger.error(
+      {
+        traceId,
+        status: report.status,
+        // Which of the two, because the remedies are not the same.
+        replySent: reply.sent,
+        headersSent: reply.raw.headersSent,
+      },
+      'error raised after the response was sent',
+    )
+    /**
+     * Returning is not enough on its own. Nothing else will close a socket a handler
+     * opened and abandoned — Fastify's `handleError` does nothing further when the
+     * error handler returns `undefined` (`error-handler.js:60-72`) — so the connection
+     * stays open until the client or a proxy times it out, which under load is a
+     * connection leak rather than one bad response. Ending it turns a hang into a
+     * truncated body, which the client can at least fail on immediately.
+     */
+    if (!reply.raw.writableEnded) reply.raw.end()
     return
   }
 
