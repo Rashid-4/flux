@@ -50,9 +50,36 @@ import { NestPinoLogger } from './nest-logger.js'
  * `main.ts`'s job, and a test never needs to — `app.inject()` dispatches through the
  * full Fastify pipeline, hooks and error handler included, without binding a port.
  */
+export interface CreateApiAppOptions {
+  /**
+   * What a failed boot does: exit the process, or reject.
+   *
+   * `true` in production, which is Nest's default and the right behaviour for a
+   * service — a process that cannot resolve its dependency graph has not started, and
+   * `process.exit(1)` after Nest has printed the "can't resolve dependencies of X (?,
+   * Config, Logger)" line is a clearer outcome than an unhandled rejection.
+   *
+   * `false` exists for one reason, and it is not general testability. Nest's
+   * `ExceptionsZone` calls `process.exit(1)` through `DEFAULT_TEARDOWN`, so under a
+   * test runner a DI failure **takes the worker down instead of failing a test** —
+   * `Error: Worker exited unexpectedly`, no test named, no message about the missing
+   * `@Inject`. That is the exact shape `database.service.ts` says this suite exists to
+   * prevent, and measured rather than assumed: dropping `@Inject(CONFIG)` from
+   * `DatabaseService` produced precisely that, with all 14 tests reported as neither
+   * passed nor failed.
+   *
+   * The seam is one boolean whose only effect is exit-versus-throw *on a boot that has
+   * already failed*. Nothing about a successful boot differs, so it does not make the
+   * tested configuration diverge from the deployed one in any way a request can
+   * observe — which is the trade this file's header otherwise refuses.
+   */
+  abortOnError?: boolean
+}
+
 export async function createApiApp(
   config: Config,
   logger: Logger,
+  options: CreateApiAppOptions = {},
 ): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(config, logger),
@@ -108,6 +135,7 @@ export async function createApiApp(
        * buffering is unnecessary.
        */
       logger: new NestPinoLogger(logger),
+      abortOnError: options.abortOnError ?? true,
     },
   )
 

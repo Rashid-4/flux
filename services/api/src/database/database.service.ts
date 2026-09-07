@@ -39,7 +39,14 @@ import { isInTenantTransaction, withTenant, type TenantClient, type TenantScope 
 export interface ReadinessReport {
   /** A connection was obtained and answered. */
   database: boolean
-  /** The highest applied migration version, e.g. `0017`. Null if none. */
+  /**
+   * The highest applied migration version, e.g. `0017_outbox_tenant_isolation`. Null
+   * if none.
+   *
+   * The whole filename stem, not the number: `scripts/migrate.mjs` records
+   * `file.replace(/\.sql$/, '')`, so this is the value an operator can grep for in
+   * `db/migrations/` without translating it first.
+   */
   migrationHead: string | null
   /** How many migrations are recorded as applied. */
   migrationsApplied: number
@@ -196,8 +203,14 @@ export class DatabaseService implements OnApplicationShutdown {
 
     return {
       database: true,
-      // `max(version)` over zero-padded text (`0001` … `0017`) orders the same
-      // way numerically, which is the whole reason the filenames are padded.
+      /**
+       * `max(version)` is a text comparison over `0001_foundation` …
+       * `0017_outbox_tenant_isolation`, and it agrees with numeric order because the
+       * numeric prefix is **zero-padded to a fixed width** — which is the whole
+       * reason the filenames are padded. Unpadded, `10_x` would sort below `9_x` and
+       * a readiness probe would report the wrong head for the rest of the project's
+       * life.
+       */
       migrationHead: row?.head ?? null,
       migrationsApplied: row === undefined ? 0 : Number(row.applied),
       /**
