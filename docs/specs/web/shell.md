@@ -153,7 +153,7 @@ Requirements, not an implementation:
   diagnose — one of them silently never runs. Throw in dev.
 - **Every entry carries its own help text and grouping**, because that is what
   `?` renders. A shortcut with no description cannot be registered.
-- **Sequences, not just chords.** `g` then `b` for board, `g` then `i` for
+- **Sequences, not just chords.** `g` then `b` for board, `g` then `l` for
   backlog — the Jira/GitHub idiom power users already have in their fingers. A
   sequence has a timeout, and a partial sequence is visible (a subtle indicator),
   because an invisible modal state is how a keyboard user ends up typing `b` into
