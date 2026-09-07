@@ -274,6 +274,138 @@ describe('the bootstrap gate', () => {
 
 /**
  * ────────────────────────────────────────────────────────────────────────
+ * The frame's shape — §3, and the assertion the landmark count cannot make
+ * ────────────────────────────────────────────────────────────────────────
+ *
+ * §3: *"The chrome runs floor to ceiling; the header does not span it."* The rail and
+ * the sidebar are one unbroken column from the logo to the bottom bezel, and the
+ * header is the top row of the content column beside them.
+ *
+ * This block exists because the change that established that shape **broke nothing**.
+ * All 812 tests passed before it and after it, including the one above that checks
+ * *"exactly one header, one main"* — a count is invariant under moving the element,
+ * so the entire structural claim was resting on nobody editing the file. That is the
+ * blind-spot shape `CLAUDE.md` describes: a green check licensing a belief it never
+ * tested.
+ *
+ * jsdom has no layout, so none of this can be asserted in pixels. It does not need to
+ * be. The geometry follows from the DOM relationships, and the relationships are what
+ * a future edit would get wrong.
+ */
+describe('the frame', () => {
+  function frame(container: HTMLElement) {
+    const column = container.querySelector('[data-slot="shell-content"]')
+    expect(column).not.toBeNull()
+    return {
+      column: column as HTMLElement,
+      header: screen.getByRole('banner'),
+      main: screen.getByRole('main'),
+      rail: screen.getByRole('navigation', { name: 'Primary' }),
+      sidebar: screen.getByRole('navigation', { name: 'Projects' }),
+    }
+  }
+
+  it('puts the header beside the chrome, not above it', async () => {
+    const { container } = renderShell()
+    await screen.findByRole('banner')
+    const { column, header, rail, sidebar } = frame(container)
+
+    /**
+     * The header lives in the content column, and the chrome does not. If the header
+     * moved back above the `chrome | content` row it would no longer be a descendant
+     * of the column — which is the single assertion that fails on that regression.
+     */
+    expect(column.contains(header)).toBe(true)
+    expect(column.contains(rail)).toBe(false)
+    expect(column.contains(sidebar)).toBe(false)
+
+    /**
+     * And they are siblings, so the row's height is the window's and the rail's height
+     * is the row's. A rail nested *inside* the column would still render, still be
+     * `navigation`, and be the wrong height by exactly the header — which is the
+     * failure this pins, because it is invisible to every other check here.
+     *
+     * `[data-slot="icon-rail"]` and not the `nav` itself: the rail's outer element is
+     * the 72px column and the `<nav>` is one level inside it, so comparing the nav's
+     * parent would compare the wrong two nodes and pass or fail for a reason that has
+     * nothing to do with the frame.
+     */
+    const railColumn = rail.closest('[data-slot="icon-rail"]')
+    expect(railColumn).not.toBeNull()
+    expect(column.parentElement).toBe(railColumn?.parentElement)
+  })
+
+  /**
+   * §3: the header *"is a **sibling** of `<main>`, never a child"*, because `<header>`
+   * keeps its implicit `banner` role only while it is outside `main`, `article`,
+   * `aside`, `nav` and `section`. Nesting it demotes it to a generic group for every
+   * assistive technology that navigates by landmark, and nothing looks wrong.
+   *
+   * The second assertion is the one with teeth. `getByRole('banner')` resolving is not
+   * evidence on its own — a nested `<header>` would still be found by `querySelector`,
+   * and jsdom's role mapping is not the browser's — so the containment is checked
+   * directly rather than inferred from the query succeeding.
+   */
+  it('keeps the header out of main, so it stays a banner landmark', async () => {
+    const { container } = renderShell()
+    await screen.findByRole('banner')
+    const { header, main } = frame(container)
+
+    expect(header.tagName).toBe('HEADER')
+    expect(main.contains(header)).toBe(false)
+    expect(header.closest('main, article, aside, nav, section')).toBeNull()
+  })
+
+  /**
+   * §3: *"The connection banner and the refresh notice stay **full width**, above the
+   * row."* A dropped connection is a fact about the application rather than about the
+   * surface being viewed — it makes the rail's navigation as unreliable as the board —
+   * so a strip confined to the content column would understate it.
+   *
+   * Asserted on the refresh failure because it is the one that can be provoked: the
+   * offline strip needs `navigator.onLine` to be false, which is `connection-status`'s
+   * own test's business.
+   */
+  it('keeps the global strips outside the content column', async () => {
+    const { queryClient, container } = renderShell()
+    await screen.findByRole('banner')
+
+    server.use(fails('GET', '/bootstrap', 'internal_error'))
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: keys.bootstrap() })
+    })
+
+    let strip: Element | null = null
+    await waitFor(() => {
+      strip = container.querySelector('[data-slot="refresh-failure"]')
+      expect(strip).not.toBeNull()
+    })
+
+    const { column, main } = frame(container)
+    expect(column.contains(strip)).toBe(false)
+    expect(main.contains(strip)).toBe(false)
+  })
+
+  /**
+   * The failed state has no chrome at all (§4), and it still has to be the same frame
+   * — the column and `<main id="main">` present, so the skip link resolves. Without
+   * this, the restructure could have put the column inside the loaded branch only, and
+   * the two error screens would have drifted into a different shape than the app.
+   */
+  it('keeps the content column in the state with no chrome', async () => {
+    server.use(fails('GET', '/bootstrap', 'internal_error'))
+    const { container } = renderShell()
+    await screen.findByRole('heading', { level: 1 })
+
+    const column = container.querySelector('[data-slot="shell-content"]')
+    expect(column).not.toBeNull()
+    expect(column?.contains(screen.getByRole('main'))).toBe(true)
+    expect(screen.queryByRole('navigation')).toBeNull()
+  })
+})
+
+/**
+ * ────────────────────────────────────────────────────────────────────────
  * The sidebar toggle — §3 and §12
  * ────────────────────────────────────────────────────────────────────────
  *

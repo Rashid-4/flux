@@ -13,10 +13,17 @@ import { ROUTE_PATTERNS } from '@/lib/paths'
  * The top bar — the `<header>` §3 diagrams, and the palette's front door.
  * ══════════════════════════════════════════════════════════════════════
  *
- * `docs/specs/web/shell.md` §3 puts a `<header>` across the top of the frame and
- * requires *"exactly one `<header>`, one `<nav>`, one `<main>`"*. Until now there
- * was none: the only `<header>` in the app was `components/page-header.tsx`, which
- * lives *inside* `<main>` and belongs to the page rather than the frame.
+ * `docs/specs/web/shell.md` §3 puts a `<header>` at the top of the content column and
+ * requires *"exactly one `<header>`, one `<nav>`, one `<main>`"*. Until this component
+ * existed there was none: the only `<header>` in the app was
+ * `components/page-header.tsx`, which lives *inside* `<main>` and belongs to the page
+ * rather than the frame.
+ *
+ * It spanned the whole window when it was written, because §3 diagrammed it that way.
+ * The carbon-copy pass moved both — the reference runs the rail and the sidebar floor
+ * to ceiling — so this bar is now the top row of the content column, rendered by
+ * `ShellFrame` as a sibling of `<main>` rather than a child of it. Nothing about its
+ * *contents* changed with that move, which is why the reasoning below still stands.
  *
  * ### Why it arrives with the palette and not before
  *
@@ -79,20 +86,19 @@ export function TopBar({ bootstrap }: TopBarProps) {
     <header
       data-slot="top-bar"
       /**
-       * `bg-chrome` — this bar is window chrome, so it takes the rail's colour and
-       * not a card's. It reads identically in light (both #ffffff) and in dark it
-       * becomes the same near-black as the rail immediately below it, which is what
-       * the reference shows: one unbroken chrome region rather than a #1c1e1f band
-       * across the top of a black rail.
+       * `bg-panel` — the top row of the content column's header block, which is white
+       * in light and the same near-black as the field in dark. The same token
+       * `page-header.tsx` takes, and for the same reason: these two are stacked rows
+       * of one block in `UI Images/JIRA 1.webp`, not a bar and a header.
        *
-       * This is an interim position, and the interim is worth naming. The reference
-       * has **no full-width top bar at all** — the rail and the sidebar run the full
-       * height of the window and this bar's content lives inside the content column,
-       * above the breadcrumb. Until that restructure lands in `ShellFrame`, chrome is
-       * the correct token for a bar that spans the chrome; it is not a stand-in for
-       * the layout change.
+       * This was `bg-chrome` for exactly as long as the bar spanned the window. That
+       * was the honest token then and is the wrong one now — `--chrome` is #000000 in
+       * dark, so a bar that no longer touches the window edge would paint a black band
+       * across the middle of the content column. `ShellFrame` moved the header inside
+       * the column so the rail and sidebar run floor to ceiling as the reference draws
+       * them, and this is the token that move requires.
        */
-      className="flex h-topbar shrink-0 items-center gap-4 border-b border-border bg-chrome px-4"
+      className="flex h-topbar shrink-0 items-center gap-4 border-b border-border bg-panel px-4"
     >
       {/**
        * The context columns. The organization is always there; the project appears

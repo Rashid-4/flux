@@ -135,12 +135,19 @@ export function ShellMainSkeleton() {
  * data lands"*. The bar is `h-topbar` in both states and the two context columns
  * are drawn at the same two type steps the real ones use, so the swap changes
  * pixels rather than geometry.
+ *
+ * `bg-panel`, tracking `./top-bar.tsx` — this is the top row of the content column's
+ * header block now that §3's chrome runs floor to ceiling, and `--chrome` is #000000
+ * in dark, so the old token would flash a black band across the column for exactly as
+ * long as bootstrap takes. A skeleton that changes *colour* when data lands is the
+ * same defect as one that changes geometry, and harder to notice in review because
+ * both values are real.
  */
 export function ShellTopBarSkeleton() {
   return (
     <div
       data-slot="top-bar-skeleton"
-      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-chrome px-4"
+      className="flex h-topbar shrink-0 items-center gap-6 border-b border-border bg-panel px-4"
     >
       <div className="flex flex-col gap-1">
         <Skeleton className="h-2.5 w-16 rounded-control" />

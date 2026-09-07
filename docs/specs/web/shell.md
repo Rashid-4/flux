@@ -61,18 +61,42 @@ and are the shell's error and empty surfaces. Use them.
 ## 3. The frame
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│ top bar   org switcher · breadcrumb · ⌘K hint · user menu    │  <header>
-├────────────┬─────────────────────────────────────────────────┤
-│ sidebar    │ content                                          │
-│ <nav>      │ <main id="main-content">                          │
-│            │   <Outlet />                                      │
-└────────────┴─────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│ connection / refresh notice — full width, present in all three states     │
+├──────┬───────────┬────────────────────────────────────────────────────────┤
+│      │           │ top bar   org switcher · breadcrumb · ⌘K hint · user   │
+│      │           │           menu                              <header>   │
+│ rail │ sidebar   ├────────────────────────────────────────────────────────┤
+│      │ <nav>     │ content                                                │
+│      │           │ <main id="main">                                       │
+│      │           │   <Outlet />                                           │
+└──────┴───────────┴────────────────────────────────────────────────────────┘
 ```
 
+**The chrome runs floor to ceiling; the header does not span it.** This diagram
+replaced one that put a full-width `<header>` across the top with the
+`sidebar | content` row beneath it. `UI Images/JIRA 1.webp` and `JIRA 2.webp` — the
+reference this product is a carbon copy of — draw the window's left edge as one
+unbroken column of chrome from the logo to the bottom bezel, and put the bar's
+content inside the content column above the breadcrumb. A header that spans the
+sidebar cuts that column in two.
+
+Two things follow, and both are structural rather than matters of review:
+
+- The `<header>` is a **sibling** of `<main>`, never a child. `<header>` keeps its
+  implicit `banner` role only while it is outside `main`, `article`, `aside`, `nav`
+  and `section`; nesting it demotes it to a generic group for every assistive
+  technology that navigates by landmark, with nothing visibly wrong.
+- The connection banner and the refresh notice stay **full width**, above the row.
+  A dropped connection is a fact about the application rather than about the surface
+  being viewed — it makes the rail's navigation as unreliable as the board — so a
+  banner confined to the content column would understate it.
+
+The rest of the frame:
+
 - Exactly one `<header>`, one `<nav>`, one `<main>`, one `<footer>` if any. The
-  skip link in `index.html` targets `#main-content`; that id lives on `<main>`
-  and nowhere else.
+  skip link in `index.html` targets `#main`; that id lives on `<main>` and nowhere
+  else.
 - The sidebar is `expanded` or `collapsed` (`stores/chrome.ts`), persisted, and
   the collapsed state shows icons with accessible names — not icons alone.
 - **The content region scrolls, not the page.** The board is a fixed-height
