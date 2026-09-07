@@ -209,6 +209,61 @@ export const ProjectFieldConfigSchema = z.object({
 export type ProjectFieldConfig = z.infer<typeof ProjectFieldConfigSchema>
 
 /**
+ * ══════════════════════════════════════════════════════════════════════
+ * What `GET /projects/:key/field-layout` returns. CR-011.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * `ProjectFieldConfigSchema` above was well designed and **unreachable**: no
+ * specified endpoint returned it, `ProjectDetailSchema` did not carry it, and
+ * `IssueDetailSchema` carried the *values* (`customFields: Record<string,
+ * unknown>`) without the definitions needed to render any of them. So
+ * `valueSchemaFor` below was exported for a client to validate with, and took a
+ * `FieldConfig` no client could obtain.
+ *
+ * That was the severe half of CR-011, and it is a correctness gap rather than a
+ * missing feature: without this, not one custom field can be drawn, the create
+ * form cannot know what is required — so it submits and collects a `422` the
+ * server could have told it about, which is the exact one-error-per-submit
+ * behaviour `docs/specs/api/fields.md` §2 exists to prevent — and the
+ * `visibilityRule`/`requirementRule` design is defeated, because a declarative AST
+ * whose whole argument is *"one definition drives both sides"* has only one side
+ * if the client cannot fetch it.
+ *
+ * ### Why both halves, and why not on the issue
+ *
+ * `definitions` alongside `configs` because a config holds `fieldDefinitionId` and
+ * `fieldKey` and **not** the `FieldConfig` — which is what carries a select's
+ * options, a number's precision and a text field's pattern, and what
+ * `valueSchemaFor` needs. Two arrays rather than one denormalised list because one
+ * definition is shared by every issue type that shows the field, and inlining it
+ * per config would repeat a 40-option select's options once per type.
+ *
+ * Its own endpoint rather than a key on `IssueDetail`, for three reasons that all
+ * point the same way: it belongs to `(project, issueType)` and not to an issue, so
+ * inlining repeats project-level data on every issue in the project; it is the
+ * *same answer* for every issue the user opens, so it caches for the session and
+ * the second issue view is faster than an inlined version would be; and the create
+ * form needs it before any issue exists.
+ */
+export const ProjectFieldLayoutSchema = z.object({
+  projectId: ProjectIdSchema,
+  /**
+   * In `position` order, and including configs for every issue type in the
+   * project. The client filters by `issueTypeId` — null means every type — rather
+   * than re-fetching per type, because switching the type in a create form must
+   * not be a network round trip.
+   */
+  configs: z.array(ProjectFieldConfigSchema),
+  /**
+   * Every definition referenced by `configs`, exactly once. A config whose
+   * definition is absent is a server bug, not a case for the client to degrade
+   * around: it would render a labelled input that cannot be validated.
+   */
+  definitions: z.array(FieldDefinitionSchema),
+})
+export type ProjectFieldLayout = z.infer<typeof ProjectFieldLayoutSchema>
+
+/**
  * Runtime validator for a stored custom-field value.
  *
  * Called on every write. Returns a zod schema rather than validating

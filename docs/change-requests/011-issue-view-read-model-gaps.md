@@ -233,12 +233,126 @@ shapes land.
 
 ## Resolution
 
-<!-- Architecture agent only. -->
-
-**Decision:** <accepted / accepted-with-changes / rejected>
+**Decision:** `accepted-with-changes`
 
 **Reasoning:**
 
+Accepted in full, in one pass, for the reason the CR itself gives: four of the five
+are "add a read schema next to a write schema that already exists", and deciding
+them one at a time is how they end up with four different pagination conventions.
+All four now go through `pageSchema` — which had been declared in `common.ts` and
+called by nothing since it was written, and now has five callers.
+
+The field layout was the severe one and the CR is right that it is a correctness
+problem rather than a missing feature. `valueSchemaFor` was exported for a client to
+validate with and took a `FieldConfig` no client could obtain; a declarative
+visibility AST whose stated value is *"one definition drives both sides"* had one
+side. `ProjectFieldLayoutSchema` closes it as a separate endpoint, with the
+recommended `{ configs, definitions }` shape and not as a key on `ProjectDetail`,
+because the create form needs it before any issue exists and it caches for the
+session.
+
+Three departures from the proposal, each recorded in the contract next to the field
+rather than only here:
+
+- **`description`, not `comment`, on a worklog.** `comments` is a table and a thread
+  on the same screen; a worklog field called `comment` would be the word's third
+  meaning in one view, and the two are not the same thing — one is a note about the
+  time, the other is a conversation.
+- **`mimeType`, not `contentType`, on an attachment.** It matches the column and the
+  `attachment` field config's `allowedMimeTypes`, and `check:vocab` now has one name
+  for it instead of two.
+- **`uploadStatus` omitted rather than included.** The list returns ready
+  attachments only, so the field would always read `'ready'` — a field the UI must
+  branch on and never can, which is worse than not having it. In-flight state belongs
+  to the upload flow and stays client-side until confirmation.
+
+Two further findings came out of writing it, and both were false claims rather than
+gaps — the more dangerous shape, because prose asserting a mechanism reads as
+verification:
+
+- **`check-column-drift.mjs` exempted `comments`, `attachments` and `worklogs` on a
+  reason that was not true.** Its `UNPAIRED_TABLES` entries said they *"reach clients
+  inside `IssueDetailSchema`"*; `IssueDetailSchema` carried `commentCount` and
+  `attachmentCount` and nothing else. So three tables were exempt from the field-name
+  check on the strength of a sentence about a payload that was never built. All three
+  are now in `PAIRS`, and the three entries are gone.
+- **[issues.md](../specs/api/issues.md) §6 promised a payload the contract could not
+  produce.** It listed *"comment page 1, history page 1, attachment metadata"* and
+  custom field *"definitions"* — four things `IssueDetailSchema` did not carry. The CR
+  found this and called it a divergence "in the direction the API spec promises more".
+  The resolution keeps the payload and fixes the prose: the detail read is the *frame*
+  of the screen, fixed-size, which is what makes its 120ms budget defensible, and that
+  section now says why each of the four is deliberately elsewhere.
+
+The counts stay, as the CR asks. They label a section before its contents load, and
+removing them would reintroduce a layout shift on the most-visited page in the
+product.
+
+One [product-quality-bar.md](../product-quality-bar.md) §31 duplication was found
+and deliberately **not** fixed here.
+`UserRefSchema` (`tenancy.ts:163`) already existed — *"a user as the product renders
+them"* — and four read models hand-inline the same three fields:
+`project.ts:98` (lead), `issue.ts:113` (reporter), `issue.ts:117` (assignee),
+`board.ts:223` (card assignee). None of them carry `isInactive`, so none can grey a
+departed member. The four new schemas all use `UserRefSchema`. Converting the
+existing four changes four public read-model types and ripples into `apps/web`, so it
+is its own change request rather than a widening slipped into this diff.
+
 **Changes made:**
 
+- `packages/contracts/src/ids.ts` — added `WorklogId` / `WorklogIdSchema`.
+  `CommentIdSchema` and `AttachmentIdSchema` already existed.
+- `packages/contracts/src/issue.ts` — added `UpdateCommentSchema` (`body` required,
+  because there is no partial edit of a rich-text document; `version` because
+  `comments` carries a version trigger; no `parentId`, because a reply cannot be
+  re-parented out from under the people who replied to it), and a new section
+  carrying `CommentSchema`, `CommentPageSchema`, `AttachmentSchema`,
+  `AttachmentPageSchema`, `WorklogSchema`, `WorklogPageSchema` and
+  `IssueHistoryPageSchema`. `author` / `uploadedBy` are `UserRefSchema`, which carries
+  `isInactive`, so a departed author renders greyed instead of blank.
+- `packages/contracts/src/field.ts` — added `ProjectFieldLayoutSchema`.
+- `scripts/check-column-drift.mjs` — `comments`, `attachments` and `worklogs` moved
+  from `UNPAIRED_TABLES` into `PAIRS`, with `columnFor` for the four names that
+  differ (`author → author_id`, `uploadedBy → uploaded_by`, `author → user_id`,
+  `timeSpentSeconds → seconds`), `downloadUrl` declared `derived`, and
+  `storage_key` / `checksum_sha256` / `upload_status` declared `internal` with the
+  reason each is not serialised. Verified against a real Postgres:
+  `Compared 30 contract schema(s) against their tables.` /
+  `✓ Every contract field has a column, and every column has a purpose.` — 27 before.
+- [issues.md](../specs/api/issues.md) §6 rewritten (the four deliberate absences and
+  why); a new subsection under the comments/links/worklogs section specifying all four
+  list endpoints with one pagination convention, and the per-list rules extended
+  beneath it; four budgets added; and 11 DoD lines, including the one that catches the
+  defect this CR is about: *a page of comments has the same length for a member and for
+  a guest*, because filtering internal comments after the `LIMIT` makes the caller's
+  permissions visible in the page size.
+- [fields.md](../specs/api/fields.md) §2 gained a subsection for
+  `GET /projects/:projectKey/field-layout`, plus four DoD lines. Its two helpers both
+  take a `layout` that, until now, nothing returned.
+- `packages/mocks/src/thread.ts` — new: `aComment`, `commentsFor`, `aCommentPage`,
+  `anAttachment`, `attachmentsFor`, `aWorklog`, `worklogsFor`. The thread is
+  **generated per issue and is exactly as long as that issue's `commentCount`**,
+  because a card that says 18 opening a panel that shows 5 is a world no real API
+  could produce, and every off-by-one at a "load more" boundary hides behind the
+  discrepancy.
+- `packages/mocks/src/scenario.ts` — `commentsByIssueKey` and
+  `attachmentsByIssueKey` added, and the card→detail derivation fixed to carry
+  `commentCount` / `attachmentCount`. It did not, so `aBoardCard()`'s 18 opened a
+  detail record holding the builder's default of 7 — invisible until something was
+  generated from the count.
+- `packages/mocks/src/mocks.test.ts` — 26 tests: the length equality against both the
+  detail record and the card, thread ordering, id uniqueness across the world, the
+  seven designed cases, and the worklog sum. Negative-tested twice — deriving the
+  thread from a constant fails exactly three named tests, and moving the deactivated
+  author out of the first six entries fails exactly one. 102 passing.
+
 **Anyone who must pull before continuing:**
+
+Everyone. `@flux/contracts` gained nine exports and `@flux/mocks` gained seven
+builders. The UI agent needs both before building the comment thread, the attachment
+list, the activity feed or any custom field. Nothing existing changed shape, so
+nothing breaks on the way in.
+
+The 120ms detail budget is now a claim about a fixed-size payload rather than about
+one containing a thread. Do not inline any of the four lists to save a request.

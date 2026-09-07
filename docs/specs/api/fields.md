@@ -43,6 +43,51 @@ See `docs/adr/0006-custom-fields-jsonb-not-eav.md`.
 
 ## 2. Reads and writes of values
 
+### 2.1 Where the layout comes from — `GET /projects/:projectKey/field-layout`
+
+Response `ProjectFieldLayout`: `{ projectId, configs, definitions }`.
+
+Both helpers below take a `layout`, and until this endpoint was specified nothing
+returned one. That was the severe half of
+`docs/change-requests/011-issue-view-read-model-gaps.md`, and it is a correctness
+gap rather than a missing feature. `ProjectFieldConfigSchema` was well designed and
+**unreachable**: no endpoint returned it, `ProjectDetailSchema` did not carry it, and
+`IssueDetailSchema` carried the *values* without the definitions needed to render
+any of them. So `valueSchemaFor` — exported specifically for a client to validate
+with, and the mechanism §2 relies on to "show the same error before submitting" —
+took a `FieldConfig` no client could obtain, and §4's declarative visibility AST,
+whose whole argument is *one definition drives both sides*, had one side.
+
+- **`configs`** in `position` order, for **every** issue type in the project.
+  `issueTypeId: null` means every type. The client filters locally, because changing
+  the issue type in a create form must not be a network round trip.
+- **`definitions`**, every one referenced by `configs`, exactly once. Two arrays
+  rather than one denormalised list: a definition is shared by every issue type that
+  shows the field, and inlining it per config repeats a 40-option select's options
+  once per type.
+- A config whose definition is missing from `definitions` is a **server bug**, not a
+  case for the client to degrade around — it would render a labelled input that
+  cannot be validated. Assert it in a test.
+
+Its own endpoint rather than a key on `IssueDetail`, for three reasons that point
+the same way: it belongs to `(project, issueType)` and not to an issue, so inlining
+repeats project-level data on every issue in the project; it is the *same answer*
+for every issue the user opens, so it caches for the session and the second issue
+view is faster than an inlined version; and the create form needs it before any
+issue exists.
+
+Cache it hard — `ETag` plus a long `max-age` on a `private` response — and bust it
+on `field_layout.updated` (§8). It changes when an administrator edits a project's
+layout, which is orders of magnitude rarer than reading it.
+
+`defaultValue` is `unknown` in the contract because its type is whatever the field's
+own type says. Validate it with `valueSchemaFor` before returning it: a stored
+default that no longer satisfies its field's config — because someone tightened a
+`max` or archived the option it names — must be reported as a configuration problem
+in §5's audit, not silently shipped to a create form that will then fail to submit.
+
+### 2.2 The helpers
+
 Expose one helper used by every module that touches custom fields, and use it
 everywhere:
 
@@ -155,6 +200,9 @@ searchable.
 ## Definition of done
 
 - [ ] Two layers only: `field_definitions` + `project_field_configs`. No third indirection added
+- [ ] `GET /projects/:projectKey/field-layout` returns `ProjectFieldLayout`, with every config's definition present exactly once, asserted by a test
+- [ ] The layout is one query per array, not one per config, proven by a query count assertion
+- [ ] A stored `defaultValue` that no longer satisfies its field's config is reported by §5's audit and not returned as a usable default
 - [ ] Custom field values read and written through one shared helper, used by every module
 - [ ] `valueSchemaFor` from `@flux/contracts` is the only validator
 - [ ] Unknown field keys rejected, never silently dropped

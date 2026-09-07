@@ -38,4 +38,30 @@ describe('TypeIcon', () => {
     expect(container.querySelector('.animate-pulse')).toBeNull()
     expect(screen.getByRole('img', { name: 'Story' })).toBeTruthy()
   })
+
+  /**
+   * The two class lists are separate boxes, and this is the assertion that they do not
+   * collapse into one. `className` reaches the accessible `<span>`; `glyphClassName`
+   * reaches the `<svg>` and *replaces* the default `size-3.5` rather than fighting it,
+   * which is what `cn`'s conflict resolution buys and what a plain template string
+   * would get wrong — both classes would land and the cascade would decide by source
+   * order in the stylesheet, which is not something a component may depend on.
+   *
+   * `issue/issue-peek-panel.tsx`'s 116px hero circle is the caller this exists for.
+   */
+  it('sizes the glyph independently of the box, and overrides rather than stacks', () => {
+    renderWithProviders(
+      <TypeIcon issueTypeKey="bug" className="size-29 rounded-chip" glyphClassName="size-12" />,
+    )
+
+    const box = screen.getByRole('img', { name: 'Bug' })
+    expect(box).toHaveClass('size-29', 'rounded-chip', 'inline-flex')
+
+    const glyph = box.querySelector('svg')
+    expect(glyph).not.toBeNull()
+    expect(glyph).toHaveClass('size-12')
+    expect(glyph).not.toHaveClass('size-3.5')
+    /** The colour is untouched by a size-only override. */
+    expect(glyph).toHaveClass('text-fg-muted')
+  })
 })

@@ -5,14 +5,14 @@ import { ConnectionStatus } from '@/components/shell/connection-status'
  * The window: chrome floor-to-ceiling on the left, one `<main>` beside it.
  *
  * ```
- * ┌─────────────────────────────────────────────────┐
- * │ ConnectionStatus / notice — full width, global   │
- * ├──────┬───────────┬──────────────────────────────┤
- * │      │           │ <main id="main">  {children} │
- * │ rail │  sidebar  │   ├ <header>   the surface's  │
- * │      │   <nav>   │   ├ toolbar                  │
- * │      │           │   └ the surface itself       │
- * └──────┴───────────┴──────────────────────────────┘
+ * ┌───────────────────────────────────────────────────────────┐
+ * │ ConnectionStatus / notice — full width, global             │
+ * ├──────┬───────────┬─────────────────────────┬──────────────┤
+ * │      │           │ <main id="main">        │  {panel}     │
+ * │ rail │  sidebar  │   ├ <header>  surface's │  the peek    │
+ * │      │   <nav>   │   ├ toolbar             │  panel, when │
+ * │      │           │   └ the surface itself  │  one is open │
+ * └──────┴───────────┴─────────────────────────┴──────────────┘
  * ```
  *
  * Extracted so the three states of the shell — loading, failed, loaded — cannot
@@ -84,9 +84,40 @@ export interface ShellFrameProps {
    * `undefined` in every state but loaded. Nothing has refreshed if nothing loaded.
    */
   notice?: ReactNode | undefined
+  /**
+   * The peek panel, when `?peek=KEY` names an issue. `null` the rest of the time.
+   *
+   * A **sibling of `<main>`**, which is the shape the references draw and not the
+   * shape a drawer library gives you: a full-height column starting at y=0, level
+   * with the surface's own header rather than overlapping it, and taking width from
+   * the content column instead of floating above it. Three things follow, and each
+   * one is why the alternative was not taken:
+   *
+   *   - **Nothing is covered.** An overlay panel hides the right-hand third of the
+   *     board — including the column a card was just dragged into. Here the board
+   *     narrows and every card stays reachable.
+   *   - **No focus trap, and no `inert` on the surface.** The panel is not modal:
+   *     you can click a different card while it is open and it re-points, which is
+   *     the whole reason to peek rather than to navigate. A dialog would forbid
+   *     exactly that.
+   *   - **It scrolls itself.** `overflow-hidden` on the row is inherited from the
+   *     rule above; the thread inside the panel owns its own scroller, so the board
+   *     does not move when the conversation does.
+   *
+   * The one cost is honest and paid here: opening the panel reflows `<main>`, so a
+   * surface inside it must not assume a fixed width. `min-w-0` below is what makes
+   * that a reflow rather than an overflow.
+   */
+  panel?: ReactNode | undefined
 }
 
-export function ShellFrame({ chrome, children, busy = false, notice = null }: ShellFrameProps) {
+export function ShellFrame({
+  chrome,
+  children,
+  busy = false,
+  notice = null,
+  panel = null,
+}: ShellFrameProps) {
   return (
     /**
      * `flex-col` at the top level, and what it stacks is now only the two global
@@ -167,6 +198,7 @@ export function ShellFrame({ chrome, children, busy = false, notice = null }: Sh
         >
           {children}
         </main>
+        {panel}
       </div>
     </div>
   )

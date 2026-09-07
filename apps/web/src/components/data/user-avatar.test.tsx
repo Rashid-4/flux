@@ -177,4 +177,64 @@ describe('UserAvatar', () => {
       'Any assignee',
     )
   })
+
+  /**
+   * The tooltip travels with the accessible name, on **both** branches.
+   *
+   * It used to travel with only one: the absent disc had a `title` and the assigned
+   * disc did not, which is backwards — "Unassigned" is legible from the dashed ring,
+   * and `AO` is the one avatar in the product whose meaning a mouse user cannot
+   * recover without hovering it. `(inactive)` is in the tooltip for the same reason it
+   * is in the name: nothing else on a board card says Linus has left.
+   */
+  it('offers the name as a tooltip too, since initials are not a name', () => {
+    const { container } = renderWithProviders(<UserAvatar user={ada} />)
+    expect(container.querySelector('[data-slot="user-avatar"]')).toHaveAttribute(
+      'title',
+      'Ada Okafor',
+    )
+
+    const { container: inactive } = renderWithProviders(<UserAvatar user={linus} />)
+    expect(inactive.querySelector('[data-slot="user-avatar"]')).toHaveAttribute(
+      'title',
+      'Linus Haddad (inactive)',
+    )
+  })
+
+  /**
+   * `decorative` is for the pairing where the caller already draws the name — the peek
+   * panel's identity block, a comment bubble's run head, the issue page's people rows.
+   *
+   * All four channels have to go at once, and that is the whole test: `role="img"` with
+   * an `aria-label` makes a screen reader say "Ada Okafor, Ada Okafor", and a `title`
+   * repeating text six pixels to its right is the same duplication for a mouse user.
+   * Asserted as absences rather than as `aria-hidden` alone, because leaving either the
+   * role or the tooltip behind is invisible on screen and audible immediately.
+   */
+  it('goes silent when the caller draws the name itself', () => {
+    const { container } = renderWithProviders(<UserAvatar user={ada} decorative />)
+
+    const root = container.querySelector('[data-slot="user-avatar"]')
+    expect(root).toHaveAttribute('aria-hidden', 'true')
+    expect(root).not.toHaveAttribute('role')
+    expect(root).not.toHaveAttribute('aria-label')
+    expect(root).not.toHaveAttribute('title')
+    /** Still a person visually: the hue and the initials are the point of keeping it. */
+    expect(fallbackClasses(container)).toContain(`bg-entity-${userToneIndex(USER_ADA)}`)
+  })
+
+  /**
+   * And the absent branch obeys it too. "Unassigned" announced twice is the same defect
+   * for the row with nobody in it, which is why this is a prop rather than the caller
+   * wrapping the disc in an `aria-hidden` span — a wrapper would have covered the
+   * assigned case and left this one.
+   */
+  it('goes silent for the unassigned slot as well', () => {
+    const { container } = renderWithProviders(<UserAvatar user={null} decorative />)
+
+    const absent = container.querySelector('[data-slot="user-avatar-absent"]')
+    expect(absent).toHaveAttribute('aria-hidden', 'true')
+    expect(absent).not.toHaveAttribute('aria-label')
+    expect(absent).not.toHaveAttribute('title')
+  })
 })

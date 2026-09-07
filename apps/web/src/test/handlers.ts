@@ -47,6 +47,33 @@ export function errorResponse(error: ApiError): HttpResponse<ApiError> {
   return HttpResponse.json(error, { status: HTTP_STATUS_BY_CODE[error.code] })
 }
 
+/**
+ * A page of a list the issue owns, cursor-paged the way §7.1 specifies.
+ *
+ * Written once for both lists, and it does the paging *for real* rather than
+ * returning everything with `nextCursor: null`. That matters more than it looks: a
+ * handler that ignores `cursor` and `limit` makes every "load more" boundary
+ * untestable, so an off-by-one that drops the 51st comment — or repeats the 50th —
+ * ships looking green. The cursor here is the index of the next item, opaque to the
+ * client exactly as a keyset cursor is, and an unparseable one is treated as the
+ * start rather than as an error, because a stale cursor from a previous session is a
+ * real thing to receive and must not be a 500.
+ *
+ * `nextCursor` is null **only** at exhaustion, per the same section: a non-null
+ * cursor on the last page would let a client draw "there is more" over nothing.
+ */
+function pageOf<T>(items: readonly T[], url: URL): { items: T[]; nextCursor: string | null } {
+  const parsedLimit = Number(url.searchParams.get('limit') ?? '50')
+  const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 50
+  const parsedStart = Number(url.searchParams.get('cursor') ?? '0')
+  const start = Number.isInteger(parsedStart) && parsedStart > 0 ? parsedStart : 0
+  const end = start + limit
+  return {
+    items: items.slice(start, end).slice(),
+    nextCursor: end < items.length ? `${end}` : null,
+  }
+}
+
 export const handlers: HttpHandler[] = [
   http.get(`${API_BASE}/bootstrap`, () => HttpResponse.json(scenario().bootstrap)),
 
@@ -144,6 +171,32 @@ export const handlers: HttpHandler[] = [
       statusCategory: target.toStateCategory,
       version: issue.version + 1,
     })
+  }),
+
+  /**
+   * The thread, oldest first, exactly as long as the issue's `commentCount`.
+   *
+   * `scenario()` derives it from that count rather than authoring a thread beside
+   * it, so a card reading 18 opens a panel showing 18. The 404 branch is the same
+   * indistinguishable refusal as `GET /issues/:key` above, and §7.1 requires it be
+   * evaluated *before* the list: `200 []` for an issue the caller cannot see has
+   * told them it exists.
+   *
+   * An issue with zero comments is `200` with `items: []`, never a 404. That is the
+   * empty state, and an empty state is not an error.
+   */
+  http.get(`${API_BASE}/issues/:key/comments`, ({ params, request }) => {
+    const key = String(params.key)
+    if (scenario().issuesByKey[key] === undefined) return errorResponse(aNotFoundError())
+    return HttpResponse.json(pageOf(scenario().commentsByIssueKey[key] ?? [], new URL(request.url)))
+  }),
+
+  http.get(`${API_BASE}/issues/:key/attachments`, ({ params, request }) => {
+    const key = String(params.key)
+    if (scenario().issuesByKey[key] === undefined) return errorResponse(aNotFoundError())
+    return HttpResponse.json(
+      pageOf(scenario().attachmentsByIssueKey[key] ?? [], new URL(request.url)),
+    )
   }),
 
   http.get(`${API_BASE}/boards/:id`, () => HttpResponse.json(scenario().boardView)),

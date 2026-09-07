@@ -3,11 +3,11 @@ import { ROUTE_PATTERNS } from '@/lib/paths'
 import { HomeSurface } from '@/routes/home'
 import { NotFoundSurface } from '@/routes/not-found'
 import { BoardSurface } from '@/routes/board'
+import { IssueSurface } from '@/routes/issue'
 import {
   AdminSurface,
   BacklogSurface,
   ImportsSurface,
-  IssueSurface,
   ProjectSettingsSurface,
   ReportsSurface,
   SearchSurface,

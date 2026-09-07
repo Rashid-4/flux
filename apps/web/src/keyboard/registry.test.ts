@@ -1,12 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { bindingId, formatBinding, formatChord, isTextEntryTarget, matchesChord } from './keys'
+import {
+  bindingId,
+  formatBinding,
+  formatChord,
+  isTextEntryTarget,
+  matchesChord,
+  type Binding,
+} from './keys'
 import {
   dispatchShortcut,
   getPendingSequence,
+  getShortcutSnapshot,
   installShortcutListener,
   registerShortcut,
   resetShortcuts,
   SEQUENCE_TIMEOUT_MS,
+  type DocumentedShortcut,
   type Shortcut,
 } from './registry'
 
@@ -44,6 +53,18 @@ function shortcut(overrides: Partial<Shortcut> & Pick<Shortcut, 'id' | 'binding'
     run: () => {},
     ...overrides,
   } as Shortcut
+}
+
+/**
+ * A documented entry, built positionally rather than through `shortcut()`.
+ *
+ * `shortcut()` always supplies a `run`, and an entry carrying both a handler and an
+ * `implementedBy` is *handled* as far as `isHandled` is concerned — which is the exact
+ * opposite of what the tests below need. Spelling it out separately means the absence
+ * of the handler is visible at the call site instead of implied by an override.
+ */
+function documented(id: string, binding: Binding, description = 'Close it'): DocumentedShortcut {
+  return { id, binding, description, group: 'Global', implementedBy: 'Radix DismissableLayer' }
 }
 
 beforeEach(() => {
@@ -226,6 +247,111 @@ describe('registration', () => {
     })
 
     expect(dispatchShortcut(keyEvent({ key: 'Escape' }))).toBe(false)
+  })
+})
+
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * One chord, one documented entry and one handler.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * `Escape` is the whole reason this case exists, and it is a real product
+ * configuration rather than a hypothetical: `shell/shell-keyboard.tsx` registers
+ * `shell.escape` as *documented*, because the behaviour is Radix's layer stack and this
+ * registry would only be able to reimplement it worse, while `issue/issue-peek-panel.tsx`
+ * registers a *handled* `issue.peek.close` on the same key, because the panel is not a
+ * layer and has no stack to be topmost in.
+ *
+ * §6's throw is about *"one of them silently never runs"*, and a documented entry never
+ * runs by construction — so it cannot be the loser of that race, and it cannot make one.
+ * These four tests are the difference between a registry keyed by binding alone, where
+ * the two entries destroyed each other in a way nothing pointed at, and one keyed by
+ * binding *and* id:
+ *
+ *   - registering the panel's entry **overwrote** the shell's, and unregistering it
+ *     deleted the key outright, so the first peek a user closed took `Escape` out of the
+ *     `?` sheet for the rest of the session;
+ *   - and `reportConflict` threw on the pair, which is why the shell's own tests could
+ *     not render a peeked route at all.
+ */
+describe('a documented entry and a handler on one chord', () => {
+  it('coexist, and the handler is what runs', () => {
+    const run = vi.fn()
+    registerShortcut(documented('shell.escape', [{ key: 'Escape' }], 'Close the topmost layer'))
+
+    expect(() => {
+      registerShortcut(shortcut({ id: 'issue.peek.close', binding: [{ key: 'Escape' }], run }))
+    }).not.toThrow()
+
+    expect(dispatchShortcut(keyEvent({ key: 'Escape' }))).toBe(true)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * In either order. Registration order here is an accident of the mount tree — the
+   * shell mounts before the panel today and would not if the panel ever became a
+   * route-level surface — so a rule that only held one way round would be a rule that
+   * held by luck.
+   */
+  it('coexist whichever registers first', () => {
+    registerShortcut(shortcut({ id: 'issue.peek.close', binding: [{ key: 'Escape' }] }))
+
+    expect(() => {
+      registerShortcut(documented('shell.escape', [{ key: 'Escape' }]))
+    }).not.toThrow()
+
+    expect(getShortcutSnapshot()).toHaveLength(2)
+  })
+
+  /**
+   * Both reach the `?` sheet. §8 makes the sheet *"a projection of registry state"*, so
+   * two rows on `Escape` is what the product actually offers: one names the layer stack,
+   * the other names the panel, and they are different mechanisms with different scopes.
+   */
+  it('both appear in the snapshot the sheet renders from', () => {
+    registerShortcut(documented('shell.escape', [{ key: 'Escape' }]))
+    registerShortcut(shortcut({ id: 'issue.peek.close', binding: [{ key: 'Escape' }] }))
+
+    expect(getShortcutSnapshot().map((entry) => entry.id)).toEqual([
+      'shell.escape',
+      'issue.peek.close',
+    ])
+  })
+
+  /**
+   * The regression that was actually shipping: closing a peek removed `Escape` from the
+   * help sheet permanently, because the teardown deleted a key it shared with an entry
+   * it had never owned.
+   *
+   * `dispatchShortcut` returning `false` afterwards is the other half — it proves the
+   * handler really did go away rather than the documented entry having been the thing
+   * that ran all along.
+   */
+  it('the handler unregistering leaves the documented entry standing', () => {
+    registerShortcut(documented('shell.escape', [{ key: 'Escape' }]))
+    const off = registerShortcut(shortcut({ id: 'issue.peek.close', binding: [{ key: 'Escape' }] }))
+
+    off()
+
+    expect(getShortcutSnapshot().map((entry) => entry.id)).toEqual(['shell.escape'])
+    expect(dispatchShortcut(keyEvent({ key: 'Escape' }))).toBe(false)
+  })
+
+  /**
+   * And the throw is still there for the case it was written for.
+   *
+   * This is the assertion that stops the fix from being "stop checking `Escape`": the
+   * scan has to walk *past* the documented entry that shares the chord and still find
+   * the handler behind it. A scan that stopped at the first match on the binding would
+   * pass every test above and lose the only one that matters.
+   */
+  it('still throws when a second handler joins them', () => {
+    registerShortcut(documented('shell.escape', [{ key: 'Escape' }]))
+    registerShortcut(shortcut({ id: 'issue.peek.close', binding: [{ key: 'Escape' }] }))
+
+    expect(() => {
+      registerShortcut(shortcut({ id: 'dialog.close', binding: [{ key: 'Escape' }] }))
+    }).toThrow(/Duplicate keyboard shortcut "escape".*issue\.peek\.close.*dialog\.close/s)
   })
 })
 

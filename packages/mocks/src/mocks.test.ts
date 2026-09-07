@@ -1,13 +1,30 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AttachmentSchema,
   BacklogViewSchema,
   BoardViewSchema,
   BootstrapSchema,
+  CommentSchema,
   IssueDetailSchema,
+  WorklogSchema,
   rank,
+  type RichTextDoc,
+  type RichTextNode,
 } from '@flux/contracts'
 import * as mocks from './index.js'
 import { uuidFrom } from './determinism.js'
+
+/**
+ * The plain text of a rich-text document, for the assertions that are about a
+ * comment's *length* rather than its structure — a one-word bubble and a wrapping
+ * one are the two the layout cares about, and `JSON.stringify` on the doc would
+ * measure the node names instead.
+ */
+function textOf(doc: RichTextDoc): string {
+  const walk = (nodes: readonly RichTextNode[]): string =>
+    nodes.map((node) => (node.text ?? '') + walk(node.content ?? [])).join('')
+  return walk(doc.content)
+}
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -43,7 +60,7 @@ describe('every builder produces something the contract accepts', () => {
     // If this number drops, a builder lost its `a`/`an` prefix and quietly
     // left the suite. If it rises without a deliberate addition, something
     // that is not a builder is being called below.
-    expect(builders.length).toBeGreaterThanOrEqual(19)
+    expect(builders.length).toBeGreaterThanOrEqual(31)
   })
 
   for (const [name, fn] of builders) {
@@ -313,6 +330,243 @@ describe('the scenario is one consistent world', () => {
     for (const issue of Object.values(s.issuesByKey)) {
       expect(() => IssueDetailSchema.parse(issue)).not.toThrow()
     }
+    for (const thread of Object.values(s.commentsByIssueKey)) {
+      for (const comment of thread) expect(() => CommentSchema.parse(comment)).not.toThrow()
+    }
+    for (const files of Object.values(s.attachmentsByIssueKey)) {
+      for (const file of files) expect(() => AttachmentSchema.parse(file)).not.toThrow()
+    }
+  })
+
+  /**
+   * The equality that is the whole reason the thread is derived here.
+   *
+   * A card says `commentCount: 18`; the panel that opens out of it must produce
+   * eighteen comments. When the two disagree the app is in a state no real API
+   * could return, and every off-by-one at a "load more" boundary hides behind the
+   * discrepancy — the count is what the UI compares its loaded length against.
+   */
+  it('has a thread exactly as long as each issue’s own commentCount', () => {
+    for (const [key, issue] of Object.entries(s.issuesByKey)) {
+      expect(s.commentsByIssueKey[key], `no thread for ${key}`).toBeDefined()
+      expect(s.commentsByIssueKey[key]?.length, `thread length for ${key}`).toBe(issue.commentCount)
+    }
+  })
+
+  it('has a file list exactly as long as each issue’s attachmentCount', () => {
+    for (const [key, issue] of Object.entries(s.issuesByKey)) {
+      expect(s.attachmentsByIssueKey[key], `no attachments for ${key}`).toBeDefined()
+      expect(s.attachmentsByIssueKey[key]?.length, `attachment count for ${key}`).toBe(
+        issue.attachmentCount,
+      )
+    }
+  })
+
+  it('has a card whose count matches the thread the panel will open', () => {
+    // The card is what the panel reads its header from before the thread loads,
+    // so the equality above has to hold against the *card* and not only against
+    // the detail record derived from it.
+    for (const column of s.boardView.columns) {
+      for (const card of column.cards) {
+        expect(s.commentsByIssueKey[card.key]?.length, `thread for ${card.key}`).toBe(
+          card.commentCount,
+        )
+        expect(s.attachmentsByIssueKey[card.key]?.length, `files for ${card.key}`).toBe(
+          card.attachmentCount,
+        )
+      }
+    }
+  })
+
+  it('threads every comment to the issue it belongs to', () => {
+    // A comment carrying another issue's id is how a cache keyed by issue ends up
+    // serving one thread under two keys, which looks like a stale-data bug.
+    for (const [key, thread] of Object.entries(s.commentsByIssueKey)) {
+      const issueId = s.issuesByKey[key]?.id
+      for (const comment of thread) expect(comment.issueId).toBe(issueId)
+    }
+    for (const [key, files] of Object.entries(s.attachmentsByIssueKey)) {
+      const issueId = s.issuesByKey[key]?.id
+      for (const file of files) expect(file.issueId).toBe(issueId)
+    }
+  })
+
+  it('has both an empty thread and one longer than a screen', () => {
+    const lengths = Object.values(s.commentsByIssueKey).map((t) => t.length)
+    // The designed empty state and the scrolling one. Without the first, the
+    // panel's empty state is never rendered; without the second, neither is its
+    // scroll position or its day divider.
+    expect(lengths).toContain(0)
+    expect(Math.max(...lengths)).toBeGreaterThan(20)
+  })
+
+  it('orders every thread oldest first, which is the order it is drawn in', () => {
+    for (const [key, thread] of Object.entries(s.commentsByIssueKey)) {
+      const times = thread.map((c) => c.createdAt)
+      expect(times, `thread order for ${key}`).toEqual([...times].sort())
+    }
+  })
+
+  it('gives every comment a distinct id, across the whole world', () => {
+    // Ids are derived from the issue key and the index, so a collision would mean
+    // two comments sharing a React key — a swap on re-render rather than an error.
+    const all = Object.values(s.commentsByIssueKey).flatMap((t) => t.map((c) => c.id))
+    expect(new Set(all).size).toBe(all.length)
+  })
+})
+
+describe('the generated thread contains the cases a component gets wrong', () => {
+  /**
+   * Seven cases, each one a state a comment list renders incorrectly the first
+   * time it meets it. They are asserted against a thread of six because that is
+   * the promise `thread.ts` makes — every case inside the first six entries — and
+   * a test written against the 27-entry thread would pass while that promise was
+   * quietly broken.
+   */
+  const thread = mocks.commentsFor('LOG-101', 6)
+
+  it('has both sides of the conversation', () => {
+    // Ada is the caller in every fixture, so hers are the "mine" bubble. A thread
+    // of one author has never laid out the alternation the reference draws.
+    const authors = new Set(thread.map((c) => c.author.id))
+    expect(authors.has(mocks.USER_ADA)).toBe(true)
+    expect(authors.size).toBeGreaterThan(1)
+  })
+
+  it('has a reply, so a flat renderer and a threaded one differ', () => {
+    const reply = thread.find((c) => c.parentId !== null)
+    expect(reply).toBeDefined()
+    // The parent must be in the same thread. A parentId pointing at nothing is
+    // what makes a threaded renderer drop the reply silently.
+    expect(thread.some((c) => c.id === reply?.parentId)).toBe(true)
+  })
+
+  it('has a body with a link mark on it', () => {
+    // The rich-text renderer's only externally-reachable node, and the one with a
+    // security decision attached (`rel`, `target`).
+    const marks = thread.flatMap((c) =>
+      (c.body.content ?? []).flatMap((node) =>
+        (node.content ?? []).flatMap((leaf) => leaf.marks?.map((m) => m.type) ?? []),
+      ),
+    )
+    expect(marks).toContain('link')
+  })
+
+  it('has an edited comment, marked by editedAt rather than updatedAt', () => {
+    const edited = thread.find((c) => c.editedAt !== null)
+    expect(edited).toBeDefined()
+    // Later than createdAt, or the marker would read as "edited before it existed".
+    expect(edited?.editedAt).not.toBe(edited?.createdAt)
+    expect(String(edited?.editedAt) > String(edited?.createdAt)).toBe(true)
+    // `updatedAt` alone cannot drive the marker: it moves for any write to the
+    // row, so every unedited comment must have it equal to createdAt.
+    for (const c of thread) {
+      if (c.editedAt === null) expect(c.updatedAt).toBe(c.createdAt)
+    }
+    expect(edited?.version).toBeGreaterThan(1)
+  })
+
+  it('has an internal comment, which needs a badge saying so', () => {
+    expect(thread.some((c) => c.isInternal)).toBe(true)
+    expect(thread.some((c) => !c.isInternal)).toBe(true)
+  })
+
+  it('has a comment from a deactivated author', () => {
+    // UserRef.isInactive is what greys the avatar and withdraws the name as a
+    // link. An all-active cast means nothing ever renders it.
+    expect(thread.some((c) => c.author.isInactive)).toBe(true)
+  })
+
+  it('has a one-word body and a body that wraps', () => {
+    const lengths = thread.map((c) => textOf(c.body).length)
+    expect(Math.min(...lengths)).toBeLessThan(12)
+    expect(Math.max(...lengths)).toBeGreaterThan(150)
+  })
+
+  it('has a mention, so the mentioned-user path is not dead code', () => {
+    expect(thread.some((c) => c.mentionedUserIds.length > 0)).toBe(true)
+  })
+
+  it('produces the same thread for the same arguments, in id and in content', () => {
+    expect(JSON.stringify(mocks.commentsFor('LOG-101', 6))).toBe(JSON.stringify(thread))
+  })
+
+  it('is a prefix-stable generator: a longer thread ends at the same moment', () => {
+    // Both threads end 40 minutes before NOW, so a fixture switched from 6 to 27
+    // does not move "now" — which is what would silently invalidate a relative
+    // timestamp assertion elsewhere.
+    const long = mocks.commentsFor('LOG-101', 27)
+    expect(long.at(-1)?.createdAt).toBe(thread.at(-1)?.createdAt)
+  })
+
+  it('returns nothing for a count of zero rather than one placeholder', () => {
+    expect(mocks.commentsFor('LOG-101', 0)).toEqual([])
+    // And the reply's parent guard holds: with one comment there is nothing to
+    // reply to, so nothing may claim a parent.
+    expect(mocks.commentsFor('LOG-101', 1)[0]?.parentId).toBeNull()
+  })
+})
+
+describe('attachments and worklogs cover their own branches', () => {
+  const files = mocks.attachmentsFor('LOG-101', 4)
+
+  it('covers the icon, preview and no-preview paths with four mime types', () => {
+    expect(new Set(files.map((f) => f.mimeType)).size).toBe(4)
+    expect(files.some((f) => f.mimeType.startsWith('image/'))).toBe(true)
+    expect(files.some((f) => f.mimeType === 'application/pdf')).toBe(true)
+    expect(files.some((f) => f.mimeType.startsWith('video/'))).toBe(true)
+  })
+
+  it('crosses the byte formatter’s unit boundaries', () => {
+    // Kilobytes and megabytes both, because a formatter tested only on one never
+    // shows the other's rounding.
+    expect(files.some((f) => f.sizeBytes < 1_000_000)).toBe(true)
+    expect(files.some((f) => f.sizeBytes > 1_000_000)).toBe(true)
+  })
+
+  it('has one file that arrived on a comment rather than on the issue', () => {
+    // The two are drawn in different places: a comment's attachment belongs under
+    // its bubble, and the issue's belong in the panel's own list.
+    expect(files.some((f) => f.commentId !== null)).toBe(true)
+    expect(files.some((f) => f.commentId === null)).toBe(true)
+  })
+
+  it('carries a downloadUrl with no signature in it', () => {
+    // A fixture with a plausible `?sig=` gets copied into a test that pins a URL
+    // format the storage provider owns and no client may parse.
+    for (const file of files) {
+      expect(file.downloadUrl).toMatch(/^https:\/\//)
+      expect(file.downloadUrl).not.toContain('?')
+    }
+  })
+
+  it('sums worklog entries to the issue’s timeSpentSeconds', () => {
+    // The property that must hold. An aggregate that disagrees with the entries
+    // under it makes every such test look like a rounding bug.
+    for (const count of [1, 3, 7]) {
+      const logs = mocks.worklogsFor('LOG-101', count, 27_000)
+      expect(logs).toHaveLength(count)
+      expect(logs.reduce((sum, w) => sum + w.timeSpentSeconds, 0)).toBe(27_000)
+      for (const w of logs) expect(() => WorklogSchema.parse(w)).not.toThrow()
+    }
+  })
+
+  it('has a worklog with no note, which is most of them in practice', () => {
+    const logs = mocks.worklogsFor('LOG-101', 4, 14_400)
+    expect(logs.some((w) => w.description === null)).toBe(true)
+    expect(logs.some((w) => w.description !== null)).toBe(true)
+  })
+
+  it('logs work at a time distinct from when it was recorded', () => {
+    // `startedAt` is when the work happened; `createdAt` is when someone typed it
+    // in. A fixture where they are equal cannot show which one a UI is rendering.
+    for (const w of mocks.worklogsFor('LOG-101', 3, 10_800)) {
+      expect(w.createdAt).not.toBe(w.startedAt)
+    }
+  })
+
+  it('returns nothing for a count of zero, rather than dividing by it', () => {
+    expect(mocks.worklogsFor('LOG-101', 0, 3600)).toEqual([])
   })
 })
 

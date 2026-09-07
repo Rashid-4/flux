@@ -84,6 +84,24 @@ const badgeVariants = cva(
          * and a row action sit on one line without either being nudged.
          */
         md: 'h-7 px-2.5 text-xs font-medium',
+        /**
+         * The peek panel's identity chips, measured off `UI Images/JIRA 2`: the pair
+         * below the description sits at y 412..454 — **44px**, more than five times the
+         * area of the board card's pill, on a 441px panel.
+         *
+         * That is not a bigger badge for emphasis; it is a different job. The board
+         * draws forty of these at a glance-scale, and the panel draws two as the answer
+         * to "what *is* this issue" — so they are read rather than scanned, and 17px on
+         * a 44px box is the size the reference sets that reading at. `gap-2` for the
+         * same reason: `gap-1`'s 4px reads as tight at 17px where it reads as deliberate
+         * at 15.
+         *
+         * The glyph override is here rather than at the call site because the base
+         * class list pins any un-sized `<svg>` to `size-3.5`, which is a 14px icon
+         * beside 17px text — visibly undersized. 18px is the rung that matches the
+         * cap height of the label beside it.
+         */
+        lg: "h-11 gap-2 px-4 text-md font-medium [&>svg:not([class*='size-'])]:size-4.5",
       },
     },
     defaultVariants: {

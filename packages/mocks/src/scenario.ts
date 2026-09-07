@@ -1,7 +1,15 @@
-import type { BacklogView, Bootstrap, BoardView, IssueDetail } from '@flux/contracts'
+import type {
+  Attachment,
+  BacklogView,
+  Bootstrap,
+  BoardView,
+  Comment,
+  IssueDetail,
+} from '@flux/contracts'
 import { aBacklogView, aBoardView } from './board.js'
 import { aDoneIssueDetail, aMinimalIssueDetail, anIssueDetail } from './issue.js'
 import { aBootstrap } from './tenancy.js'
+import { attachmentsFor, commentsFor } from './thread.js'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -32,6 +40,17 @@ export interface Scenario {
   backlogView: BacklogView
   /** Keyed by issue key, which is what the URL carries. */
   issuesByKey: Readonly<Record<string, IssueDetail>>
+  /**
+   * The thread for every issue in `issuesByKey`, oldest first, and **exactly as
+   * long as that issue's `commentCount`**.
+   *
+   * That equality is the whole reason this is derived here rather than authored:
+   * a card that says 18 and a panel that shows 5 is a world no real API could
+   * produce, and every off-by-one in a "load more" boundary hides behind it.
+   */
+  commentsByIssueKey: Readonly<Record<string, readonly Comment[]>>
+  /** Likewise, `attachmentCount` files per issue. */
+  attachmentsByIssueKey: Readonly<Record<string, readonly Attachment[]>>
   /** Every key on the board, in column-then-rank order. */
   boardIssueKeys: readonly string[]
 }
@@ -70,6 +89,20 @@ function build(): Scenario {
         labels: card.labels,
         blockedByCount: card.blockedByCount,
         rank: card.rank,
+        /**
+         * The two counters, carried across for the same reason as the summary.
+         * They were not, and the peek panel is what made it matter: a card said
+         * `commentCount: 18`, the detail record kept the builder's default of 7,
+         * and the panel opening from the card showed a different number from the
+         * card it opened out of. Both are "the number of comments on LOG-101".
+         *
+         * `subtaskSummary` is deliberately NOT derived. `card.subtasks` is capped
+         * by the server, so `done` cannot be counted from it — a hidden child that
+         * is done would make the derived total quietly wrong, which is worse than
+         * a fixture that says so here.
+         */
+        commentCount: card.commentCount,
+        attachmentCount: card.attachmentCount,
         version: card.version,
       } as Parameters<typeof anIssueDetail>[0])
     }
@@ -82,7 +115,22 @@ function build(): Scenario {
   issuesByKey[minimal.key] = minimal
   issuesByKey[done.key] = done
 
-  return { bootstrap, boardView, backlogView, issuesByKey, boardIssueKeys }
+  const commentsByIssueKey: Record<string, readonly Comment[]> = {}
+  const attachmentsByIssueKey: Record<string, readonly Attachment[]> = {}
+  for (const issue of Object.values(issuesByKey)) {
+    commentsByIssueKey[issue.key] = commentsFor(issue.key, issue.commentCount)
+    attachmentsByIssueKey[issue.key] = attachmentsFor(issue.key, issue.attachmentCount)
+  }
+
+  return {
+    bootstrap,
+    boardView,
+    backlogView,
+    issuesByKey,
+    commentsByIssueKey,
+    attachmentsByIssueKey,
+    boardIssueKeys,
+  }
 }
 
 export function scenario(): Scenario {

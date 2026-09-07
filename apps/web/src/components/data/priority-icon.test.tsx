@@ -50,4 +50,52 @@ describe('PriorityIcon', () => {
     renderWithProviders(<PriorityIcon priority={'urgent-ish' as Priority} />)
     expect(screen.getByRole('img')).toHaveAccessibleName('urgent-ish')
   })
+
+  /**
+   * `showLabel` is for the issue page's details list, where priority is a *stated
+   * field* rather than a mark in a dense row. `<dt>Priority</dt>` followed by a `<dd>`
+   * holding a bare chevron asks the reader to know a legend that is nowhere on screen.
+   *
+   * The role and the label come off together with it, and both halves are asserted
+   * because dropping one is invisible: keeping `role="img"` with its `aria-label` beside
+   * the visible word announces "High, High", and keeping the `title` puts a tooltip on
+   * text a mouse user is already reading.
+   */
+  it.each(ALL)('prints %s as text when the field is stated, and says it once', (priority) => {
+    const { container } = renderWithProviders(<PriorityIcon priority={priority} showLabel />)
+
+    const icon = container.querySelector(`[data-priority="${priority}"]`)
+    expect(icon).toHaveTextContent(new RegExp(`^${priority}$`, 'i'))
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(icon).not.toHaveAttribute('aria-label')
+    expect(icon).not.toHaveAttribute('title')
+  })
+
+  /**
+   * The glyph stays, and stays `aria-hidden`. It is the mark that makes the row
+   * scannable next to the word that makes it unambiguous — §9's pairing, not a
+   * replacement for it.
+   */
+  it('keeps the glyph beside the word as decoration', async () => {
+    const { container } = renderWithProviders(<PriorityIcon priority="high" showLabel />)
+
+    const glyph = container.querySelector('svg')
+    expect(glyph).toHaveAttribute('aria-hidden', 'true')
+    await expectNoAxeViolations(container)
+  })
+
+  /**
+   * Including the unset case, whose word is the one a reader is least able to guess
+   * from a glyph: `Minus` is also what an out-of-enum value falls back to.
+   */
+  it('prints the absent label as text too', () => {
+    const { container } = renderWithProviders(
+      <PriorityIcon priority={null} absentLabel="Not triaged" showLabel />,
+    )
+
+    const icon = container.querySelector('[data-slot="priority-icon-absent"]')
+    expect(icon).toHaveTextContent('Not triaged')
+    expect(icon).not.toHaveAttribute('data-priority')
+    expect(screen.queryByRole('img')).toBeNull()
+  })
 })

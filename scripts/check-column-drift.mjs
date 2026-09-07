@@ -211,6 +211,39 @@ const PAIRS = [
     internal: ['issue_id', 'actor_id', 'actor_kind', 'actor_ref_id'],
   },
   {
+    schema: 'CommentSchema',
+    table: 'comments',
+    columnFor: {
+      // The read model resolves the author into a UserRef, because a thread that
+      // returned author ids would need a directory the client has not fetched.
+      author: 'author_id',
+    },
+    internal: ['deleted_at'],
+  },
+  {
+    schema: 'AttachmentSchema',
+    table: 'attachments',
+    derived: ['downloadUrl'], // presigned per request from storage_key; never stored
+    columnFor: { uploadedBy: 'uploaded_by' },
+    internal: [
+      'storage_key', // the object key. A client holding it can address the bucket instead of the API.
+      'checksum_sha256', // verified server-side on upload confirmation; nothing in the UI re-checks it
+      'upload_status', // this list is ready attachments only, so the field would always read 'ready'
+      'deleted_at',
+    ],
+  },
+  {
+    schema: 'WorklogSchema',
+    table: 'worklogs',
+    columnFor: {
+      author: 'user_id',
+      // `seconds` alone does not say seconds of what. The contract matches
+      // IssueSchema.timeSpentSeconds, which is the sum of these rows.
+      timeSpentSeconds: 'seconds',
+    },
+    internal: ['deleted_at'],
+  },
+  {
     schema: 'AuditEntrySchema',
     table: 'audit_log',
     columnFor: {
@@ -305,15 +338,6 @@ const UNPAIRED_TABLES = new Map([
   [
     'event_outbox',
     'EventEnvelopeSchema is the wire format, not this row: the row also carries relay bookkeeping (attempts, dead_lettered_at) that no consumer should see.',
-  ],
-  [
-    'comments',
-    'Reaches clients inside IssueDetailSchema. A standalone CommentSchema is worth extracting when the comment module is specified.',
-  ],
-  ['worklogs', 'As above — embedded in the issue read model.'],
-  [
-    'attachments',
-    'As above. Upload state is internal to the upload flow; clients see ready attachments or nothing.',
   ],
   [
     'issue_links',

@@ -1,4 +1,5 @@
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
+import { IssuePeekPanel } from '@/components/issue/issue-peek-panel'
 import { BootstrapError } from '@/components/shell/bootstrap-error'
 import type { ShellContext } from '@/components/shell/context'
 import { IconRail } from '@/components/shell/icon-rail'
@@ -8,6 +9,7 @@ import { ShellFrame } from '@/components/shell/shell-frame'
 import { ShellKeyboard } from '@/components/shell/shell-keyboard'
 import { SidebarSlot } from '@/components/shell/sidebar-slot'
 import { ShellChromeSkeleton, ShellMainSkeleton } from '@/components/shell/shell-skeleton'
+import { peekedIssueKey } from '@/lib/paths'
 import { useBootstrap } from '@/queries/bootstrap'
 import { useSidebarOpen } from '@/stores/chrome'
 
@@ -74,10 +76,32 @@ import { useSidebarOpen } from '@/stores/chrome'
  * oversight: `lazy` introduces a second pending state *inside* the shell, which needs
  * its own designed UI, and the surface that makes it matter is the board. It arrives
  * with the board, together with the fallback it needs.
+ *
+ * ### The peek panel is the shell's, not the board's
+ *
+ * `?peek=LOG-142` opens ../components/issue/issue-peek-panel.tsx beside `<main>`, and
+ * it is read here rather than inside `routes/board.tsx` for one reason: the same panel
+ * has to open over the backlog, over a search result and over a report, and a copy per
+ * surface is four copies of the geometry with four chances to drift. Reading it from the
+ * URL at the shell means the *link* is the whole integration — a board card sets
+ * `?peek=`, and the panel appears — and any future surface gets it by doing the same.
+ *
+ * The panel is only rendered inside the loaded branch, because it needs
+ * `bootstrap.user.id` to tell the reader's own comments from everyone else's. That is
+ * also why the peek is not read above the gate: a panel over the bootstrap-error screen
+ * would be a panel with no reader, no organization, and nothing behind its close button.
  */
 export function Shell() {
   const bootstrap = useBootstrap()
   const sidebarOpen = useSidebarOpen()
+  /**
+   * `useLocation`, not `useSearchParams`. The setter half of `useSearchParams` is a
+   * navigation this component must never perform — the panel's state is owned by
+   * whichever link was clicked — and `peekedIssueKey` takes the raw string, so there is
+   * nothing to parse here and nothing that can disagree with `lib/paths.ts` about what
+   * an empty `?peek=` means.
+   */
+  const peeked = peekedIssueKey(useLocation().search)
 
   if (bootstrap.isLoadingError) {
     return (
@@ -152,6 +176,22 @@ export function Shell() {
             <ProjectSidebar bootstrap={bootstrap.data} />
           </SidebarSlot>
         </>
+      }
+      panel={
+        peeked === null ? null : (
+          /**
+           * Keyed on the issue, so switching cards remounts rather than updates.
+           *
+           * That is the opposite of the usual advice and it is right here. The panel
+           * holds a scroller pinned to the newest comment, a transient "copied"
+           * confirmation and a focus effect — and updating in place would carry the
+           * previous issue's scroll offset and check mark onto the next issue, then run
+           * the focus effect against a thread that is still loading. A remount is also
+           * what makes the pin correct: the new thread starts at its own bottom instead
+           * of wherever the last one was left.
+           */
+          <IssuePeekPanel key={peeked} issueKey={peeked} currentUserId={bootstrap.data.user.id} />
+        )
       }
     >
       {/**

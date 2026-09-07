@@ -70,45 +70,70 @@ export interface PriorityIconProps {
   priority: Priority | null
   /** What an unset priority is called. The accessible name. */
   absentLabel?: string | undefined
+  /**
+   * Draw the name as visible text beside the glyph.
+   *
+   * For the places where the priority is a *stated field* rather than a mark in a
+   * dense row — the issue page's details list. A chevron alone is unreadable there:
+   * `<dt>Priority</dt>` followed by a `<dd>` holding an up-arrow asks the reader to
+   * know a legend that is nowhere on screen, which is what §9 means by never colour
+   * (or shape) alone.
+   *
+   * It is a prop on this component rather than a `<span>` beside it at the call site,
+   * because the vocabulary — which word goes with which glyph, including the fallback
+   * for a priority added by a deploy this bundle has not seen — has to stay in one
+   * file. A call site rendering its own label is how "Blocker" and "Blocking" end up
+   * in the product at the same time.
+   *
+   * The wrapper drops `role="img"` and its label when this is set: the text *is* the
+   * accessible name, and keeping both announced it twice.
+   */
+  showLabel?: boolean | undefined
   className?: string | undefined
 }
 
 export function PriorityIcon({
   priority,
   absentLabel = 'No priority',
+  showLabel = false,
   className,
 }: PriorityIconProps) {
-  if (priority === null) {
+  const reading =
+    priority === null
+      ? { label: absentLabel, Icon: Minus, className: 'text-fg-subtle' }
+      : (PRIORITY[priority] ?? { label: priority, Icon: Minus, className: 'text-fg-subtle' })
+  const Icon = reading.Icon
+
+  /**
+   * `data-priority` stays absent for the unset case rather than carrying `"none"`.
+   * There is no such value in `PrioritySchema`, and a selector or a test matching on it
+   * would be asserting a vocabulary the contract does not have.
+   */
+  const identity = {
+    'data-slot': priority === null ? 'priority-icon-absent' : 'priority-icon',
+    'data-priority': priority ?? undefined,
+  } as const
+
+  const glyph = <Icon aria-hidden="true" className={cn('size-3.5', reading.className)} />
+
+  if (showLabel) {
     return (
-      <span
-        data-slot="priority-icon-absent"
-        role="img"
-        aria-label={absentLabel}
-        title={absentLabel}
-        className={cn('inline-flex', className)}
-      >
-        <Minus aria-hidden="true" className="size-3.5 text-fg-subtle" />
+      <span {...identity} className={cn('inline-flex items-center gap-1.5', className)}>
+        {glyph}
+        {reading.label}
       </span>
     )
   }
 
-  const reading = PRIORITY[priority] ?? {
-    label: priority,
-    Icon: Minus,
-    className: 'text-fg-subtle',
-  }
-  const Icon = reading.Icon
-
   return (
     <span
-      data-slot="priority-icon"
-      data-priority={priority}
+      {...identity}
       role="img"
       aria-label={reading.label}
       title={reading.label}
       className={cn('inline-flex', className)}
     >
-      <Icon aria-hidden="true" className={cn('size-3.5', reading.className)} />
+      {glyph}
     </span>
   )
 }

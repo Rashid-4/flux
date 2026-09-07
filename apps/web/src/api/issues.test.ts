@@ -3,7 +3,14 @@ import { aVersionConflictError, scenario, uuidFrom } from '@flux/mocks'
 import { http, HttpResponse } from 'msw'
 import { ZodError } from 'zod'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createIssue, getIssue, transitionIssue, updateIssue } from './issues'
+import {
+  createIssue,
+  getIssue,
+  getIssueAttachments,
+  getIssueComments,
+  transitionIssue,
+  updateIssue,
+} from './issues'
 import { newIdempotencyKey } from './idempotency'
 import { API_BASE, isApiRequestError } from './request'
 import { failsWith } from '../test/failures'
@@ -319,5 +326,131 @@ describe('transitionIssue', () => {
     // a condition names what is unmet, an unknown id is a stale board.
     expect(error.knownCode).toBe('transition_condition_failed')
     expect(error.message).toBe(blocked.unavailableReason)
+  })
+})
+
+// ── getIssueComments / getIssueAttachments ───────────────────────────
+
+/**
+ * The two paged lists the panel and the page read.
+ *
+ * Their bodies are three lines each, so what is worth testing is not the happy path but
+ * the three things a paged reader gets wrong: the *page request* it actually sends, the
+ * meaning of `nextCursor` at the boundary, and whether an out-of-range `limit` is caught
+ * here or discovered as a 422 a round trip later.
+ */
+describe('getIssueComments', () => {
+  it('reads the thread oldest first, which is the order it is rendered in', async () => {
+    const page = await getIssueComments(liveKey)
+    const seeded = scenario().commentsByIssueKey[liveKey] ?? []
+
+    expect(page.items).toHaveLength(seeded.length)
+    /**
+     * Ascending `createdAt`, asserted rather than assumed: a newest-first thread has to
+     * be reversed by every reader, and one that forgets renders the argument backwards
+     * while looking entirely plausible.
+     */
+    const times = page.items.map((comment) => Date.parse(comment.createdAt))
+    expect(times).toEqual([...times].sort((a, b) => a - b))
+  })
+
+  /**
+   * `limit` is sent, not left to a server default.
+   *
+   * §7.1's page size is what the component's "load more" boundary is written against, so
+   * a request that omits it renders whatever the API happens to default to that day.
+   */
+  it('sends the default page size explicitly', async () => {
+    const urls: string[] = []
+    server.use(
+      http.get(`${API_BASE}/issues/:key/comments`, ({ request }) => {
+        urls.push(request.url)
+        return HttpResponse.json({ items: [], nextCursor: null })
+      }),
+    )
+
+    await getIssueComments(liveKey)
+
+    expect(urls[0]).toContain('limit=50')
+    /** And no `cursor=` at all for the first page — an empty one is not a cursor. */
+    expect(urls[0]).not.toContain('cursor=')
+  })
+
+  /**
+   * A `limit` outside `PageRequestSchema`'s range fails here, naming the field.
+   *
+   * The alternative is a 422 the user waits for, and an error whose message is the
+   * server's rather than the caller's mistake.
+   */
+  it('refuses an out-of-range limit before spending a round trip', async () => {
+    await expect(getIssueComments(liveKey, { limit: 500 })).rejects.toBeInstanceOf(ZodError)
+  })
+
+  /**
+   * `nextCursor` is null **only** at exhaustion, and non-null means there is more.
+   *
+   * Both directions, because each failure draws the opposite lie: a cursor on the last
+   * page renders "load more" over nothing, and a null one mid-list silently truncates
+   * the thread.
+   */
+  it('reports more only when there is more', async () => {
+    const seeded = scenario().commentsByIssueKey[liveKey] ?? []
+    if (seeded.length < 2) throw new Error('the fixture thread is too short to page')
+
+    const first = await getIssueComments(liveKey, { limit: 1 })
+    expect(first.items).toHaveLength(1)
+    expect(first.nextCursor).not.toBeNull()
+
+    const rest = await getIssueComments(liveKey, {
+      cursor: first.nextCursor ?? undefined,
+      limit: 100,
+    })
+    expect(rest.items).toHaveLength(seeded.length - 1)
+    expect(rest.nextCursor).toBeNull()
+  })
+
+  it('reports an unknown key as not_found rather than as an empty thread', async () => {
+    /**
+     * `200 []` for an issue the caller cannot see has told them it exists — §7.1 requires
+     * the visibility check before the list, and this is the client-side half of that.
+     */
+    const error = await getIssueComments('LOG-999999').catch((thrown: unknown) => thrown)
+
+    expect(isApiRequestError(error)).toBe(true)
+    if (!isApiRequestError(error)) return
+    expect(error.knownCode).toBe('not_found')
+  })
+})
+
+describe('getIssueAttachments', () => {
+  it('returns the issue’s files with a download URL on each', async () => {
+    const page = await getIssueAttachments(liveKey)
+    const seeded = scenario().attachmentsByIssueKey[liveKey] ?? []
+
+    expect(page.items).toHaveLength(seeded.length)
+    for (const attachment of page.items) {
+      expect(attachment.downloadUrl).toBeTypeOf('string')
+      /**
+       * And no `storageKey`. It is internal, it names a bucket path, and
+       * `AttachmentSchema` deliberately does not carry it — a schema that started
+       * passing one through would be a leak the parse should have stopped.
+       */
+      expect(attachment).not.toHaveProperty('storageKey')
+    }
+  })
+
+  it('pages independently of the thread', async () => {
+    const first = await getIssueAttachments(liveKey, { limit: 1 })
+
+    expect(first.items).toHaveLength(1)
+    expect(first.nextCursor).not.toBeNull()
+  })
+
+  it('reports an unknown key as not_found', async () => {
+    const error = await getIssueAttachments('LOG-999999').catch((thrown: unknown) => thrown)
+
+    expect(isApiRequestError(error)).toBe(true)
+    if (!isApiRequestError(error)) return
+    expect(error.knownCode).toBe('not_found')
   })
 })

@@ -110,6 +110,40 @@ for (const [key, issue] of Object.entries(world.issuesByKey)) {
   queryClient.setQueryData(keys.issue(key), issue)
 }
 
+/**
+ * The peek panel's thread and the issue page's attachment list, seeded in the
+ * **infinite-query** shape rather than the page shape.
+ *
+ * `useIssueComments` and `useIssueAttachments` are `useInfiniteQuery` with a `select`
+ * that flattens `data.pages`, so a cache entry holding a bare `{ items, nextCursor }`
+ * is not a hit with the wrong contents — it is a `data.pages` of `undefined`, and the
+ * `select` throws inside the render. `pageParams: [undefined]` is the first page's
+ * param, which is what `initialPageParam` supplies in the product.
+ *
+ * `nextCursor: null` on purpose: one page, so "Load more comments" never appears in a
+ * screenshot. The longest fixture thread is 27 entries against a 50-entry page, so a
+ * second page is unreachable from this data anyway — a cursor here would draw a control
+ * the real surface would not.
+ *
+ * Both are seeded for **every** issue rather than the board's, because `?peek=` and
+ * `/browse/:key` reach the two off-board fixtures too (`LOG-200`, `LOG-201`), and an
+ * unseeded key fails instantly under `retry: false` — a visible failure, but one that
+ * reads as a defect in the panel rather than a gap in the instrument.
+ */
+for (const [key, comments] of Object.entries(world.commentsByIssueKey)) {
+  queryClient.setQueryData(keys.issueComments(key), {
+    pages: [{ items: comments, nextCursor: null }],
+    pageParams: [undefined],
+  })
+}
+
+for (const [key, attachments] of Object.entries(world.attachmentsByIssueKey)) {
+  queryClient.setQueryData(keys.issueAttachments(key), {
+    pages: [{ items: attachments, nextCursor: null }],
+    pageParams: [undefined],
+  })
+}
+
 function requireHarnessRoot(): HTMLElement {
   const element = document.getElementById('harness-root')
   if (element === null) {

@@ -1,8 +1,13 @@
 import {
+  AttachmentPageSchema,
+  CommentPageSchema,
   CreateIssueSchema,
   IssueDetailSchema,
+  PageRequestSchema,
   TransitionIssueSchema,
   UpdateIssueSchema,
+  type AttachmentPage,
+  type CommentPage,
   type IssueDetail,
 } from '@flux/contracts'
 import type { z } from 'zod'
@@ -52,6 +57,16 @@ import { request } from './request'
  * one, so writing them now would mean inventing three response shapes that the
  * contract would later contradict. They are filed in
  * docs/change-requests/002-issue-command-contract-gaps.md instead.
+ *
+ * The comment *mutations* are absent for a different and smaller reason. Their
+ * shapes exist — `CreateCommentSchema` and `UpdateCommentSchema` are both in the
+ * contract — so writing them would be honest, and they are still not here: a
+ * composer that posts needs an optimistic entry, a rollback, a retry of a failed
+ * post that must not double-post, and an invalidation of both the thread and the
+ * issue's `commentCount`. That is a mutation layer, and this commit is the read
+ * path. The panel's composer therefore renders, is disabled, and says why —
+ * docs/product-quality-bar.md §13, which is explicit that a control saying why it
+ * cannot is better than one that silently does nothing.
  */
 
 /** `CreateIssueSchema` as a caller supplies it — before zod applies defaults. */
@@ -137,6 +152,113 @@ export async function transitionIssue(
   return IssueDetailSchema.parse(
     await request('POST', `/issues/${encodeIssueKey(key)}/transitions`, {
       body: TransitionIssueSchema.parse(input),
+    }),
+  )
+}
+
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * The issue's own lists.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * `getIssue` above returns the *frame* of the screen — the fields, the status, the
+ * transitions, the counts. These return what the counts count.
+ * docs/specs/api/issues.md §7.1 specifies four such endpoints as one family with one
+ * pagination convention, and this is that family's shape: shared options, one
+ * `PageRequestSchema.parse` on the way out, a `pageSchema` on the way back.
+ *
+ * ### Two of the four, and the other two are not an oversight
+ *
+ * Comments and attachments are here because the peek panel and the issue page read
+ * them. `GET /issues/:key/worklogs` and `GET /issues/:key/history` are specified in
+ * the same table and are deliberately absent until the worklog panel and the
+ * activity feed exist, for a reason narrower than the one above about rank and move:
+ * `@flux/mocks` has no generator for a page of history entries, so a reader for it
+ * could be written and could not be *tested*. An untested reader of a paged endpoint
+ * is exactly where a pagination convention diverges quietly — a `page`/`per_page`
+ * pair creeps in, and nothing fails until the API arrives. Both land in the commit
+ * that builds their section, together with the fixture that proves them, and they
+ * copy `pageQuery` below rather than inventing a second convention.
+ *
+ * ### Why one function per list and not a generic `getIssueList(kind)`
+ *
+ * A parameterised reader would return a union of page types, so every caller would
+ * narrow it again by the same string it just passed in — a type-level round trip
+ * that buys nothing. One function per endpoint returns exactly one shape, and the
+ * import graph keeps saying which screen depends on which endpoint, which is why
+ * this file has no barrel.
+ *
+ * `IssueListOptions` is shared because all four endpoints take `PageRequest` and
+ * nothing else. If one later needs a filter of its own — `?since=` on history is the
+ * plausible one — it gets its own options type at that point, rather than a member
+ * here that three endpoints ignore.
+ */
+export interface IssueListOptions {
+  /** Opaque cursor from the previous response's `nextCursor`. */
+  cursor?: string | undefined
+  /** 1–200 per `PageRequestSchema`; the four lists default to 50. */
+  limit?: number | undefined
+  signal?: AbortSignal | undefined
+}
+
+/**
+ * `PageRequestSchema.parse` before the request, not after a 422.
+ *
+ * The same reasoning as `api/boards.ts`: an out-of-range `limit` throws here naming
+ * the field, instead of spending a round trip to be told; and the default of 50 is
+ * applied and *sent*, so the page size the component renders is the one it asked
+ * for rather than whatever a server default happens to be on the day.
+ */
+function pageQuery(options: IssueListOptions): { cursor: string | undefined; limit: number } {
+  const page = PageRequestSchema.parse({ cursor: options.cursor, limit: options.limit })
+  return { cursor: page.cursor, limit: page.limit }
+}
+
+/**
+ * `GET /issues/:key/comments` — the thread, oldest first.
+ *
+ * This is the one request the peek panel makes. Everything else the panel shows —
+ * summary, status, assignee, priority, labels, the excerpt — is already on
+ * `BoardCardSchema` and therefore already in the cache, so the panel paints
+ * immediately and the thread fills in. §7.1's 90ms budget is written against that
+ * fact: it is the *perceived* open time of the panel, not one request among several.
+ *
+ * Oldest first, which is the order a conversation is read in and the order that
+ * makes `nextCursor` mean "older is above, newer is below" consistently. A newest-
+ * first thread has to be reversed by every reader, and one that forgets renders the
+ * argument backwards.
+ */
+export async function getIssueComments(
+  key: string,
+  options: IssueListOptions = {},
+): Promise<CommentPage> {
+  return CommentPageSchema.parse(
+    await request('GET', `/issues/${encodeIssueKey(key)}/comments`, {
+      query: pageQuery(options),
+      signal: options.signal,
+    }),
+  )
+}
+
+/**
+ * `GET /issues/:key/attachments` — ready files only.
+ *
+ * `AttachmentSchema` carries `downloadUrl` and not `storage_key`, and the URL is
+ * presigned and minted per request. That has a consequence for callers rather than
+ * only for the server: a `downloadUrl` held in the cache expires, so a stale page
+ * of attachments produces a dead link rather than a 403 the user can understand.
+ * Whatever renders these must therefore not cache them longer than the presign
+ * window — which is why this is its own query key rather than a field on the issue,
+ * whose `staleTime` is measured in minutes.
+ */
+export async function getIssueAttachments(
+  key: string,
+  options: IssueListOptions = {},
+): Promise<AttachmentPage> {
+  return AttachmentPageSchema.parse(
+    await request('GET', `/issues/${encodeIssueKey(key)}/attachments`, {
+      query: pageQuery(options),
+      signal: options.signal,
     }),
   )
 }

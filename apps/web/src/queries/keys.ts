@@ -37,11 +37,14 @@
  * 1. `['board']` as a broader prefix would restate the literal `'board'` a second
  *    time in this file, which is the drift the registry exists to prevent — one
  *    entry renamed, the other not, and the invalidation silently matches nothing.
- * 2. Nothing needs it yet. The board, backlog and issue surfaces are unspecified
- *    (their specs are being written), so any entry beyond the five here would be
- *    a guess at an invalidation a screen has not asked for. When a surface needs
- *    a broader prefix it gets an entry here, derived from the same tuple, in the
- *    commit that needs it.
+ * 2. Nothing needs it yet, and every entry here is one a screen reads today. That
+ *    rule is what `issueAttachments` was added under — the issue page lists files,
+ *    so the key exists; `issueWorklogs` and `issueHistory` are specified endpoints
+ *    with no surface reading them yet, so they are not here. An entry for an
+ *    invalidation nobody has asked for is a guess, and a wrong guess in this file
+ *    is a stale view rather than a compile error. When a surface needs a broader
+ *    prefix it gets an entry here, derived from the same tuple, in the commit that
+ *    needs it.
  *
  * ### One thing that will change, and where
  *
@@ -58,4 +61,13 @@ export const keys = {
   backlog: (boardId: string) => ['backlog', boardId] as const,
   issue: (key: string) => ['issue', key] as const,
   issueComments: (key: string) => ['issue', key, 'comments'] as const,
+  /**
+   * Nested under the issue for the same reason as the thread — attaching a file
+   * changes `attachmentCount` — and separate from it because of `downloadUrl`.
+   * Those URLs are presigned and short-lived, so this entry is the one place in the
+   * app whose data expires on a clock the client does not control: it takes a
+   * shorter `staleTime` than the issue it hangs off, and a page of them held past
+   * the presign window is a set of dead links rather than a stale number.
+   */
+  issueAttachments: (key: string) => ['issue', key, 'attachments'] as const,
 } as const

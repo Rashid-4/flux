@@ -77,15 +77,22 @@ function StubSurface() {
   return <SurfaceHeader title="Projects" />
 }
 
-/** The gate renders `<Outlet />`, so it needs a route to sit in. */
-function renderShell() {
+/**
+ * The gate renders `<Outlet />`, so it needs a route to sit in.
+ *
+ * `search` is appended rather than made part of the pattern, because the query string
+ * is not part of a route match — which is the whole reason the peek panel is read here
+ * and not in `routes/board.tsx`. `/projects?peek=LOG-101` matches the same route as
+ * `/projects`, and the panel appears.
+ */
+function renderShell(search = '') {
   return renderWithProviders(
     <Routes>
       <Route element={<Shell />}>
         <Route path="/projects" element={<StubSurface />} />
       </Route>
     </Routes>,
-    { initialPath: '/projects' },
+    { initialPath: `/projects${search}` },
   )
 }
 
@@ -742,5 +749,108 @@ describe('the four bootstrap failure modes', () => {
 
     expect(seen.size).toBe(4)
     for (const message of seen) expect(message).not.toMatch(/something went wrong/i)
+  })
+})
+
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * `?peek=` — the shell's parameter, not the board's.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * The panel is read here so that every surface gets it for free: the same URL opens it
+ * over the board, the backlog and a search result, and none of those three files
+ * contains the word `peek`. That design is only true if the *shell* is what reads the
+ * query string, which is exactly what this block pins — and it pins it structurally,
+ * because the panel's whole reason for living beside `<main>` rather than over it is a
+ * DOM relationship that no role query and no screenshot can see.
+ *
+ * The negative cases are the more valuable half. A panel that renders when nothing
+ * asked for one takes a third of the board away, and a panel over the
+ * bootstrap-failure screen is a panel with no reader, no organization behind it, and
+ * nothing for its close button to return to.
+ */
+describe('the peek panel', () => {
+  const PEEKED = 'LOG-101'
+
+  function findPanel() {
+    return screen.findByRole('complementary', { name: `${PEEKED} details` })
+  }
+
+  /**
+   * Beside `<main>`, in the same row as the chrome — asserted by parentage rather
+   * than by width, since jsdom has no layout and the width is `w-detail` in the
+   * component either way.
+   *
+   * `main.contains(panel)` is the assertion that fails on the tempting alternative,
+   * where a surface renders the panel itself: it would still be a `complementary`
+   * landmark, still 441px wide, and it would scroll with the board and sit *below*
+   * the surface header rather than level with it.
+   */
+  it('opens beside the content column when the URL names an issue', async () => {
+    renderShell(`?peek=${PEEKED}`)
+    await findLoadedShell()
+
+    const panel = await findPanel()
+    const main = screen.getByRole('main')
+    expect(main.contains(panel)).toBe(false)
+    expect(panel.parentElement).toBe(main.parentElement)
+  })
+
+  it('renders nothing when no issue is peeked', async () => {
+    renderShell()
+    await findLoadedShell()
+
+    expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  /**
+   * `?peek=` with no value is not an issue key.
+   *
+   * It is a real URL to receive — a close that rebuilt the query with an empty
+   * parameter produces it, and so does a hand-edited link — and the failure it would
+   * cause is a panel that requests `GET /issues/` and shows an error beside a board
+   * the reader was using. `peekedIssueKey` is unit-tested in `lib/paths.test.ts`;
+   * what this pins is that the shell asks it rather than reading the parameter itself.
+   */
+  it('renders nothing for an empty peek parameter', async () => {
+    renderShell('?peek=')
+    await findLoadedShell()
+
+    expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  /**
+   * And nothing over a failed bootstrap, where the panel would have no reader.
+   *
+   * The panel needs `bootstrap.data.user.id` to know which bubbles are the reader's
+   * own, so it is rendered inside the loaded branch — a fact that reads as an
+   * implementation detail until the failure state arrives with `?peek=` still in the
+   * URL, which is what a retry after a dropped connection does.
+   */
+  it('renders nothing over the bootstrap failure screen', async () => {
+    server.use(fails('GET', '/bootstrap', 'internal_error'))
+    renderShell(`?peek=${PEEKED}`)
+
+    await screen.findByRole('heading', { level: 1 })
+    expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  /**
+   * The surface stays interactive: the panel is not modal, so `<main>` keeps its
+   * content and gains no `inert` and no `aria-hidden`.
+   *
+   * This is the property that makes peeking worth having — clicking a different card
+   * while the panel is open re-points it — and it is the first thing a drawer
+   * component from a library would take away.
+   */
+  it('leaves the surface reachable while it is open', async () => {
+    const { container } = renderShell(`?peek=${PEEKED}`)
+    await findLoadedShell()
+    await findPanel()
+
+    const main = screen.getByRole('main')
+    expect(main).not.toHaveAttribute('inert')
+    expect(main).not.toHaveAttribute('aria-hidden')
+    expect(container.querySelector('[data-slot="surface-header"]')).not.toBeNull()
   })
 })

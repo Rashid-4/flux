@@ -80,6 +80,22 @@ export interface SurfaceHeaderTab {
 export interface SurfaceHeaderProps {
   title: string
   /**
+   * The title wraps instead of truncating.
+   *
+   * One surface needs it and it is `routes/issue.tsx`, where the title *is* the issue's
+   * summary — up to 255 characters of it, by `IssueSchema` — and the sentence the reader
+   * navigated to is the last thing on the page that may be hidden. Everywhere else the
+   * title is a project name or a surface name, short by nature and worth truncating so
+   * that every header closes on the same pixel.
+   *
+   * Wrapping rather than a two-line clamp, deliberately. A clamp is still a truncation,
+   * and this is a value a user typed: the honest cost of a 255-character summary is a
+   * header three lines tall on that one issue, which is information rather than damage.
+   * `<main>` is what scrolls (`components/shell/shell-frame.tsx`), so a taller header
+   * takes space from the body and never from the viewport.
+   */
+  titleWrap?: boolean | undefined
+  /**
    * Left of the title — a project glyph, an issue-type mark.
    *
    * Vertically centred on the title's *line box* rather than on the header, so it
@@ -116,6 +132,7 @@ export interface SurfaceHeaderProps {
 
 export function SurfaceHeader({
   title,
+  titleWrap = false,
   lead,
   description,
   breadcrumb,
@@ -156,7 +173,21 @@ export function SurfaceHeader({
          * ellipsing — the single most common way a truncation tested on short strings
          * fails on real data.
          */}
-        <h1 className="min-w-0 flex-1 truncate text-3xl font-semibold text-fg">{title}</h1>
+        <h1
+          className={cn(
+            'min-w-0 flex-1 text-3xl font-semibold text-fg',
+            /**
+             * `break-words` and not just the absence of `truncate`: a summary can hold a
+             * 90-character URL or a stack frame with no space in it, and a word that
+             * cannot break overflows the header rather than wrapping inside it — which
+             * puts the actions cluster off the right edge, the same failure `min-w-0`
+             * above prevents for the truncating case.
+             */
+            titleWrap ? 'break-words' : 'truncate',
+          )}
+        >
+          {title}
+        </h1>
         {actions !== undefined && (
           /**
            * `-mr-3` is optical alignment, not a mistake, and it is measured. The
@@ -306,11 +337,10 @@ export function SurfaceHeaderCrumbs({ items, label = 'Breadcrumb' }: SurfaceHead
       />
       {/**
        * An `<ol>`, because a breadcrumb is an ordered trail and that is what a screen
-       * reader announces it as. The separators are `aria-hidden` `<li>`s rather than
-       * CSS `::before` content, so the list's own item count stays honest — a
-       * pseudo-element separator is invisible to the accessibility tree, which is the
-       * correct outcome, and a real `<li>` holding "/" would otherwise be announced
-       * as a fourth step in a three-step trail.
+       * reader announces it as. Each separator is an `aria-hidden` `<span>` *inside* the
+       * item it precedes rather than an `<li>` of its own, so the list's item count stays
+       * honest: a separator promoted to a list item would make a three-step trail
+       * announce as five steps, two of which are the word "slash".
        */}
       <ol className="flex min-w-0 items-center gap-4 pl-7.75 text-md">
         {items.map((item, index) => (

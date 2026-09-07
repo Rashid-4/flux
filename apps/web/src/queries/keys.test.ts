@@ -50,6 +50,7 @@ describe('keys', () => {
     expect(keys.backlog(BOARD_ID)).toEqual(['backlog', BOARD_ID])
     expect(keys.issue(ISSUE_KEY)).toEqual(['issue', ISSUE_KEY])
     expect(keys.issueComments(ISSUE_KEY)).toEqual(['issue', ISSUE_KEY, 'comments'])
+    expect(keys.issueAttachments(ISSUE_KEY)).toEqual(['issue', ISSUE_KEY, 'attachments'])
   })
 
   it('gives every surface a distinct key', () => {
@@ -60,6 +61,7 @@ describe('keys', () => {
       keys.backlog(BOARD_ID),
       keys.issue(ISSUE_KEY),
       keys.issueComments(ISSUE_KEY),
+      keys.issueAttachments(ISSUE_KEY),
     ]
     /**
      * Serialised, because that is how TanStack compares them — `queryKeyHash`
@@ -88,6 +90,38 @@ describe('keys — what one invalidation reaches', () => {
 
     expect(isInvalidated(queryClient, keys.issue(ISSUE_KEY))).toBe(true)
     expect(isInvalidated(queryClient, keys.issueComments(ISSUE_KEY))).toBe(true)
+  })
+
+  /**
+   * The attachment list hangs off the issue for the same reason, and it is the half with
+   * a deadline: `downloadUrl` is presigned and expires, so a page held past its window
+   * is a list of dead links rather than a stale count. Nesting is what lets the issue's
+   * own invalidation refresh them and what keeps the list's shorter `staleTime` its own.
+   */
+  it('reaches the attachment list when the issue is invalidated', async () => {
+    const queryClient = aClient()
+    queryClient.setQueryData(keys.issue(ISSUE_KEY), { key: ISSUE_KEY })
+    queryClient.setQueryData(keys.issueAttachments(ISSUE_KEY), [])
+
+    await queryClient.invalidateQueries({ queryKey: keys.issue(ISSUE_KEY) })
+
+    expect(isInvalidated(queryClient, keys.issueAttachments(ISSUE_KEY))).toBe(true)
+  })
+
+  /**
+   * And the two lists are siblings rather than one entry: uploading a file must not
+   * discard a thread the reader is part-way through, and posting a comment must not
+   * re-mint every presigned URL on the page.
+   */
+  it('keeps the two lists independent of each other', async () => {
+    const queryClient = aClient()
+    queryClient.setQueryData(keys.issueComments(ISSUE_KEY), [])
+    queryClient.setQueryData(keys.issueAttachments(ISSUE_KEY), [])
+
+    await queryClient.invalidateQueries({ queryKey: keys.issueComments(ISSUE_KEY) })
+
+    expect(isInvalidated(queryClient, keys.issueComments(ISSUE_KEY))).toBe(true)
+    expect(isInvalidated(queryClient, keys.issueAttachments(ISSUE_KEY))).toBe(false)
   })
 
   it('leaves another issue alone', async () => {

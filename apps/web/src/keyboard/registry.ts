@@ -115,8 +115,42 @@ export type Shortcut = HandledShortcut | DocumentedShortcut
  */
 interface Entry {
   shortcut: Shortcut
-  key: string
+  /** The chord string this entry claims, for the conflict scan below. */
+  binding: string
   token: symbol
+}
+
+/**
+ * The map is keyed by **binding *and* id**, not by binding alone.
+ *
+ * It was keyed by binding for as long as one binding could only mean one thing, and
+ * `Escape` broke that — legitimately. `shell.escape` is a `DocumentedShortcut`: it
+ * exists so the `?` sheet lists the key, and its behaviour is Radix's layer stack.
+ * `issue.peek.close` is a `HandledShortcut` on the same key, because the peek panel
+ * is not a Radix layer and there is no stack for it to be topmost in.
+ *
+ * Under a binding-keyed map those two were mutually destructive in a way nothing
+ * pointed at: registering the panel's entry *overwrote* the shell's, and unregistering
+ * it deleted the key outright — so closing one peek removed `Escape` from the help
+ * sheet for the rest of the session, and the throw in `reportConflict` fired on a pair
+ * that has no conflict to report. A documented entry never runs, so it cannot be the
+ * one that "silently never runs".
+ *
+ * The separator is `\u0000` because a composite key needs a character that cannot occur
+ * in either half, and every printable candidate can: `.` is in every id, and `+` and a
+ * space are both in bindings — `mod+k`, `g then b`. Two different pairs colliding on one
+ * key is the bug this function exists to prevent, so the separator has to be outside both
+ * alphabets rather than merely unlikely to appear in them.
+ *
+ * **The escape, and not the character.** Typing the raw byte here works perfectly at
+ * runtime and costs the file its text-ness: git classifies any blob containing a NUL as
+ * binary, so `git diff`, `git blame` and every review tool report
+ * `Bin 14293 -> 16354 bytes` in place of the change. This file spent one commit in that
+ * state — it compiled, it typechecked, its tests passed, and the only symptom was a source
+ * file that could no longer be reviewed. `\u0000` is the identical key, in text.
+ */
+function entryKey(binding: string, id: string): string {
+  return `${binding}\u0000${id}`
 }
 
 const entries = new Map<string, Entry>()
@@ -140,9 +174,10 @@ function publish(): void {
 /**
  * Development only, and it throws.
  *
- * §6: *"Two handlers claiming `g b` in the same scope is a bug that is invisible in
- * production and infuriating to diagnose — one of them silently never runs. Throw
- * in dev."*
+ * §6: *"Two **handlers** claiming `g b` in the same scope is a bug that is invisible
+ * in production and infuriating to diagnose — one of them silently never runs. Throw
+ * in dev."* The emphasis is load-bearing and is why `registerShortcut` only calls this
+ * for a pair of `HandledShortcut`s — see `entryKey`.
  *
  * In production it warns instead. A shortcut collision is a real defect but it is
  * not worth taking a user's board down over: they lose one keystroke, and the
@@ -166,21 +201,36 @@ function reportConflict(binding: string, existing: Shortcut, incoming: Shortcut)
  * and from `useShortcut` with the lifecycle React already provides.
  */
 export function registerShortcut(shortcut: Shortcut): () => void {
-  const key = bindingId(shortcut.binding)
-  const existing = entries.get(key)
+  const binding = bindingId(shortcut.binding)
+  const key = entryKey(binding, shortcut.id)
 
   /**
-   * Re-registering *the same* shortcut is not a conflict. React's StrictMode mounts,
-   * unmounts and remounts every component in development, and an effect that
-   * re-runs must not be a duplicate-binding error — that would make StrictMode
-   * unusable, which is exactly the tool that finds missing cleanups.
+   * Re-registering *the same* shortcut is not a conflict, and under a composite key it
+   * cannot become one: the id is part of the key, so a remount overwrites its own entry
+   * rather than colliding with it. React's StrictMode mounts, unmounts and remounts
+   * every component in development, and an effect that re-runs must not be a
+   * duplicate-binding error — that would make StrictMode unusable, which is exactly the
+   * tool that finds missing cleanups.
+   *
+   * What is left to check is the thing §6 is actually about: two *handlers* on one
+   * chord, where `dispatchShortcut` takes the first match and registration order — an
+   * accident of the mount tree — decides which one the user gets. A documented entry
+   * cannot lose that race because it never runs, so it counts on neither side of the
+   * comparison.
    */
-  if (existing !== undefined && existing.shortcut.id !== shortcut.id) {
-    reportConflict(key, existing.shortcut, shortcut)
+  if (isHandled(shortcut)) {
+    for (const existing of entries.values()) {
+      if (existing.binding !== binding) continue
+      if (existing.shortcut.id === shortcut.id) continue
+      if (!isHandled(existing.shortcut)) continue
+      reportConflict(binding, existing.shortcut, shortcut)
+      /** One line per collision, not one per entry that shares the chord. */
+      break
+    }
   }
 
   const token = Symbol(shortcut.id)
-  entries.set(key, { shortcut, key, token })
+  entries.set(key, { shortcut, binding, token })
   publish()
 
   return () => {

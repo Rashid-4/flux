@@ -44,6 +44,26 @@
  *     pnpm ui:diff --theme light
  *     pnpm ui:diff --path '#/projects/LOG/backlog'
  *     pnpm ui:diff --base http://localhost:5174 --out /tmp/refdiff
+ *     pnpm ui:diff --click '[data-issue-key="LOG-101"]'   # open the peek panel first
+ *
+ * ### `--click`, and why a deep link is the wrong way to photograph the panel
+ *
+ * The peek panel is reachable two ways: clicking a card, and loading
+ * `?peek=LOG-101` directly. They are *not* the same picture, and the difference is
+ * not a defect in either of them.
+ *
+ * The panel moves focus to its own region when it opens, because it is not modal
+ * and a reader who is told nothing has no way to find it. On a deep link there has
+ * been no user interaction at all, so Chrome's `:focus-visible` heuristic matches
+ * and the global focus indicator draws a 2px accent outline down the panel's left
+ * edge — 1327px of it, the loudest thing in the frame, at x=1396 for a panel whose
+ * border starts at 1400. On a click the last interaction was a pointer, so it does
+ * not. Both behaviours are correct; only the second is what the reference is a
+ * mockup of.
+ *
+ * So the panel is opened the way a person opens it. `--click` takes a selector,
+ * clicks it after the load settles, and waits again — which has the side benefit of
+ * exercising the card→panel wiring in a real browser rather than in jsdom.
  *
  * It needs a dev server already running (`pnpm dev`) — it deliberately does not
  * start one, because the loop this exists for is edit, save, re-run, and a
@@ -110,6 +130,8 @@ function parseArgs(argv) {
     out: '/tmp/refdiff',
     /** Rows/columns to print. The whole list is 1841 long; the interesting part is the top of the app. */
     limit: 40,
+    /** A selector to click once the load settles, or `null` for none — see the header. */
+    click: null,
   }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
@@ -380,6 +402,18 @@ async function main() {
     /** Motion has to finish, or a mid-transition sidebar reports as a missing edge. */
     await page.waitForTimeout(400)
 
+    /**
+     * `.first()` because a selector like `[data-issue-key="LOG-101"]` matches the
+     * card *and* the panel's own root once the panel is open, and Playwright's
+     * strict mode fails on the second match rather than picking one. Failing loudly
+     * on a selector that matches nothing is deliberate — a silent no-op here would
+     * photograph the surface without the thing the run was about.
+     */
+    if (opts.click !== null) {
+      await page.locator(opts.click).first().click({ timeout: 5_000 })
+      await page.waitForTimeout(400)
+    }
+
     const fluxPng = join(opts.out, `flux-${opts.theme}.png`)
     await page.screenshot({ path: fluxPng, animations: 'disabled' })
 
@@ -390,7 +424,9 @@ async function main() {
     const diffPng = join(opts.out, `diff-${opts.theme}.png`)
     writeFileSync(diffPng, Buffer.from(result.diffPng))
 
-    console.log(`\n  ${opts.theme} · ${url}`)
+    console.log(
+      `\n  ${opts.theme} · ${url}${opts.click === null ? '' : ` · clicked ${opts.click}`}`,
+    )
     console.log(`  viewport ${WINDOW.width}x${WINDOW.height} at DPR 1`)
     console.log(
       `  ${(result.differingFraction * 100).toFixed(1)}% of pixels differ by more than 8/255`,

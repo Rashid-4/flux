@@ -93,6 +93,16 @@ export {
 } from './issue.js'
 
 export {
+  aComment,
+  aCommentPage,
+  aWorklog,
+  anAttachment,
+  attachmentsFor,
+  commentsFor,
+  worklogsFor,
+} from './thread.js'
+
+export {
   UNKNOWN_CODE_NOTE,
   aBareInternalError,
   aConfirmationRequiredError,

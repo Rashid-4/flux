@@ -6,7 +6,16 @@ import { Badge } from './badge'
 
 const TONES = ['neutral', 'primary', 'success', 'warning', 'info', 'danger'] as const
 const VARIANTS = [...TONES, 'outline'] as const
-const SIZES = ['sm', 'md'] as const
+/**
+ * All four rungs, not the two that existed when this file was written.
+ *
+ * `chip` and `lg` were both added later — the board card's label pill and the peek
+ * panel's identity chips — and neither appeared here, so the exhaustive-looking
+ * `it.each` below covered half the ladder. A subset that reads as a whole is the
+ * blind-spot shape `CLAUDE.md` describes: it licenses the belief that the sizes are
+ * checked.
+ */
+const SIZES = ['sm', 'chip', 'md', 'lg'] as const
 
 describe('Badge', () => {
   it('defaults to the neutral reading at md', async () => {
@@ -88,6 +97,53 @@ describe('Badge', () => {
       </Badge>,
     )
     expect(screen.getByText('In progress')).toHaveAttribute('data-size', size)
+  })
+
+  /**
+   * The four rungs are four *boxes*, and none of them is another one restyled.
+   *
+   * Asserted as a set of distinct heights rather than by pinning each class, because
+   * the failure worth catching is a rung that silently equals its neighbour — a
+   * copy-pasted `cva` entry, or `lg` added by overriding `md`'s padding at one call
+   * site. `sm` and `chip` share `h-6` by design (same box, different typography), so
+   * the claim is that the *ladder* has three heights and each rung names one.
+   */
+  it('gives each rung its own box', () => {
+    const heights: Record<string, string> = {}
+    for (const size of SIZES) {
+      renderWithProviders(<Badge size={size}>{size}</Badge>)
+      const found = [...screen.getByText(size).classList].find((cls) => /^h-\d/.test(cls))
+      expect(found, `size ${size} sets no height`).toBeDefined()
+      heights[size] = found ?? ''
+    }
+
+    expect(heights['sm']).toBe(heights['chip'])
+    expect(new Set(Object.values(heights)).size).toBe(3)
+  })
+
+  /**
+   * `lg` is the peek panel's identity chip, measured at **44px** off `UI Images/JIRA 2`
+   * — five times the area of the board's pill, because those two chips are the answer to
+   * "what *is* this issue" and are read rather than scanned.
+   *
+   * The glyph override is the part worth pinning. The base class list pins any un-sized
+   * `<svg>` to `size-3.5`, so a 14px icon beside 17px text is what this rung looks like
+   * without it — and that is a defect nothing else here can see, since both classes are
+   * real and `palette.test.ts` only checks colour utilities.
+   */
+  it('sets the panel chip at the measured 44px, with a glyph to match the text', () => {
+    renderWithProviders(
+      <Badge size="lg" variant="primary">
+        <span data-testid="glyph-stand-in" />
+        Story
+      </Badge>,
+    )
+    const badge = screen.getByText(/Story/)
+
+    expect(badge).toHaveClass('h-11', 'gap-2', 'px-4', 'text-md')
+    /** 18px, not the base rung's 14 — the cap height of `text-md` beside it. */
+    expect(badge.className).toContain('size-4.5')
+    expect(badge.className).not.toContain('size-3.5')
   })
 
   it('renders as its child when asChild is set', () => {

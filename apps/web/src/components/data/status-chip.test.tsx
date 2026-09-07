@@ -64,4 +64,47 @@ describe('StatusChip', () => {
     )
     expect(screen.getAllByText(/To do|In progress|Done|Cancelled/)).toHaveLength(4)
   })
+
+  /**
+   * `lg` is the peek panel's measured 44px chip, and the reason it is a prop is §31:
+   * the size is the *only* thing the panel and the board disagree about. Everything
+   * else — category → tone → glyph → label — is the product's reading of
+   * `StatusCategorySchema`, and a panel that hand-picked `bg-info-soft` and a
+   * `CircleDashed` would have forked that vocabulary the moment a fifth category
+   * landed.
+   *
+   * So the assertion is that the two sizes are the *same chip*: same tone, same glyph,
+   * same word, one bigger box.
+   */
+  it('scales to the panel without forking the reading', () => {
+    const { container: md } = renderWithProviders(<StatusChip category="in_progress" />)
+    const { container: lg } = renderWithProviders(<StatusChip category="in_progress" size="lg" />)
+
+    const small = md.querySelector('[data-slot="status-chip"]')
+    const large = lg.querySelector('[data-slot="status-chip"]')
+
+    expect(small).toHaveAttribute('data-size', 'md')
+    expect(large).toHaveAttribute('data-size', 'lg')
+    expect(large).toHaveAttribute('data-category', 'in_progress')
+    expect(large).toHaveAttribute('data-variant', small?.getAttribute('data-variant') ?? '')
+    expect(large).toHaveTextContent('In progress')
+    expect(large).toHaveClass('h-11')
+  })
+
+  /**
+   * The glyph moves with the box, and it has to be *stated* rather than inherited.
+   *
+   * `Badge`'s base pins any un-sized `<svg>` to 14px and its `lg` rung raises that to
+   * 18px — but this chip always passes a `className`, so the `:not([class*='size-'])`
+   * guard excludes it from both and the local value is the only one that applies. 12px
+   * beside 17px text is a dot; the failure is visible on screen and invisible to every
+   * other test here, since both classes are real.
+   */
+  it('takes the glyph up with it, since the badge cannot size an icon it was handed', () => {
+    const { container: md } = renderWithProviders(<StatusChip category="done" />)
+    const { container: lg } = renderWithProviders(<StatusChip category="done" size="lg" />)
+
+    expect(md.querySelector('svg')).toHaveClass('size-3')
+    expect(lg.querySelector('svg')).toHaveClass('size-4.5')
+  })
 })

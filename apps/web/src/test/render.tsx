@@ -1,3 +1,4 @@
+import type { Bootstrap } from '@flux/contracts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   render,
@@ -8,7 +9,8 @@ import {
   type RenderResult,
 } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
+import type { ShellContext } from '@/components/shell/context'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 /**
@@ -100,10 +102,38 @@ interface ProvidersProps {
   client: QueryClient
   initialPath: string
   routePattern: string | undefined
+  shellBootstrap: Bootstrap | undefined
   children: ReactNode
 }
 
-function Providers({ client, initialPath, routePattern, children }: ProvidersProps) {
+/**
+ * A pathless parent route that hands down a `ShellContext`, exactly as
+ * ../routes/shell.tsx does.
+ *
+ * Every route surface calls `useShellContext()`, which reads `useOutletContext()` and
+ * **throws** with a helpful message when there is none — so a test that renders one of
+ * them bare fails on the context rather than on anything it meant to assert. The
+ * tempting fix is to mock `useShellContext`, and that is the trap this exists to close:
+ * a mocked context makes the test pass while proving nothing about whether the surface
+ * is wired under the shell at all.
+ *
+ * The shape is duplicated from the real shell rather than imported from it, because
+ * importing `Shell` would drag in the sidebar, the rail, the command palette and their
+ * requests — the surface under test would then be one component inside a full
+ * application, and a failure anywhere in that tree would read as a failure here.
+ */
+function ShellOutlet({ bootstrap }: { bootstrap: Bootstrap }) {
+  const context: ShellContext = { bootstrap }
+  return <Outlet context={context} />
+}
+
+function Providers({
+  client,
+  initialPath,
+  routePattern,
+  shellBootstrap,
+  children,
+}: ProvidersProps) {
   return (
     <QueryClientProvider client={client}>
       {/**
@@ -130,11 +160,27 @@ function Providers({ client, initialPath, routePattern, children }: ProvidersPro
            * resolves, and a helper should not silently alter link resolution for the
            * tests that never asked about routing.
            */}
-          {routePattern === undefined ? (
+          {routePattern === undefined && shellBootstrap === undefined ? (
             children
           ) : (
             <Routes>
-              <Route path={routePattern} element={children} />
+              {/**
+               * With a `shellBootstrap`, the matched route is nested under a pathless
+               * parent that provides the outlet context — the same nesting
+               * `routes/router.tsx` uses, so a surface that works here is one that works
+               * there.
+               *
+               * `'*'` stands in when no pattern was given, and the docblock above applies:
+               * a splat changes how a relative `<Link to="x">` resolves. A route surface
+               * has a concrete pattern in `ROUTE_PATTERNS`, so pass it.
+               */}
+              {shellBootstrap === undefined ? (
+                <Route path={routePattern} element={children} />
+              ) : (
+                <Route element={<ShellOutlet bootstrap={shellBootstrap} />}>
+                  <Route path={routePattern ?? '*'} element={children} />
+                </Route>
+              )}
             </Routes>
           )}
         </MemoryRouter>
@@ -158,6 +204,18 @@ interface RouterTestOptions {
    * renamed segment is a compile error in the test too.
    */
   routePattern?: string | undefined
+  /**
+   * Nest the matched route under a shell that provides this as its outlet context.
+   *
+   * Required for any surface in `routes/`: they all read `bootstrap` through
+   * `useShellContext()`, which throws rather than returning `null` when there is no
+   * shell above it. Pass `scenario().bootstrap` unless the test is *about* an unusual
+   * bootstrap — a caller with no projects, or without `canCreateProject`.
+   *
+   * Absent by default, so a component test gets no shell it did not ask for and a
+   * surface that stops reading the context does not keep a redundant wrapper.
+   */
+  shellBootstrap?: Bootstrap | undefined
 }
 
 export interface RenderWithProvidersOptions
@@ -187,12 +245,18 @@ export function renderWithProviders(
     queryClient = createTestQueryClient(),
     initialPath = DEFAULT_INITIAL_PATH,
     routePattern,
+    shellBootstrap,
     ...rest
   } = options
   const result = render(ui, {
     ...rest,
     wrapper: ({ children }) => (
-      <Providers client={queryClient} initialPath={initialPath} routePattern={routePattern}>
+      <Providers
+        client={queryClient}
+        initialPath={initialPath}
+        routePattern={routePattern}
+        shellBootstrap={shellBootstrap}
+      >
         {children}
       </Providers>
     ),
@@ -224,12 +288,18 @@ export function renderHookWithProviders<Result, Props>(
     queryClient = createTestQueryClient(),
     initialPath = DEFAULT_INITIAL_PATH,
     routePattern,
+    shellBootstrap,
     ...rest
   } = options
   const result = renderHook(hook, {
     ...rest,
     wrapper: ({ children }) => (
-      <Providers client={queryClient} initialPath={initialPath} routePattern={routePattern}>
+      <Providers
+        client={queryClient}
+        initialPath={initialPath}
+        routePattern={routePattern}
+        shellBootstrap={shellBootstrap}
+      >
         {children}
       </Providers>
     ),

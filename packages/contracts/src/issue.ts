@@ -10,8 +10,10 @@ import {
   PrioritySchema,
   RichTextDocSchema,
   StatusCategorySchema,
+  pageSchema,
 } from './common.js'
 import {
+  AttachmentIdSchema,
   CommentIdSchema,
   ComponentIdSchema,
   IssueIdSchema,
@@ -28,7 +30,9 @@ import {
   WorkflowIdSchema,
   WorkflowStateIdSchema,
   WorkflowTransitionIdSchema,
+  WorklogIdSchema,
 } from './ids.js'
+import { UserRefSchema } from './tenancy.js'
 import { AvailableTransitionSchema } from './workflow.js'
 
 /** `PrioritySchema` and `LinkTypeSchema` moved to `common.ts`. See CR-006. */
@@ -258,6 +262,29 @@ export const CreateCommentSchema = z.object({
   isInternal: z.boolean().default(false),
   idempotencyKey: IdempotencyKeySchema,
 })
+export type CreateComment = z.infer<typeof CreateCommentSchema>
+
+/**
+ * Editing a comment. `version` because `comments` carries a version trigger
+ * (`db/migrations/0006_issues.sql`) and two people editing the same comment must
+ * get a 409 rather than a last-write-wins overwrite of someone else's sentence.
+ *
+ * `body` is required, not optional: there is no such thing as a partial edit of a
+ * rich-text document — the client holds the whole document in its editor and sends
+ * the whole document back. `isInternal` is separately optional because
+ * reclassifying a comment is a different action from rewriting it, and doing one
+ * must not require restating the other.
+ *
+ * No `parentId`. A reply cannot be re-parented: the thread's shape is what people
+ * quoted and replied to, and moving a comment under a different parent rewrites a
+ * conversation that already happened.
+ */
+export const UpdateCommentSchema = z.object({
+  body: RichTextDocSchema,
+  isInternal: z.boolean().optional(),
+  version: z.number().int().positive(),
+})
+export type UpdateComment = z.infer<typeof UpdateCommentSchema>
 
 export const LinkIssueSchema = z.object({
   targetIssueId: IssueIdSchema,
@@ -271,6 +298,173 @@ export const IssueHistoryEntrySchema = z.object({
   createdAt: InstantSchema,
 })
 export type IssueHistoryEntry = z.infer<typeof IssueHistoryEntrySchema>
+
+// ── The issue's own lists (CR-011) ───────────────────────────────────
+
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * Comments, attachments and worklogs, as lists rather than as counts.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * `IssueDetailSchema` above has carried `commentCount` and `attachmentCount` since
+ * it was written, and nothing behind either of them. CR-011 is the account:
+ * *"`commentCount: 12` with nothing behind it is the shape of the problem — the
+ * payload knows there are twelve and can produce none of them."*
+ *
+ * Three decisions apply to all three schemas here, made once rather than three
+ * times, because deciding them one at a time is how a product ends up with four
+ * pagination conventions.
+ *
+ * ### The counts stay
+ *
+ * Adding the lists does not remove `commentCount` and `attachmentCount`. They are
+ * what let the page label a section *before* its contents arrive — "Comments (12)"
+ * with a skeleton under it, rather than a heading that changes shape when the
+ * request lands. A count that costs nothing extra and removes a layout shift is
+ * worth keeping.
+ *
+ * ### Each list is its own request, and none of them is inlined
+ *
+ * `docs/specs/api/issues.md` gives the detail endpoint a 120ms budget. A
+ * forty-comment thread of rich-text documents does not fit inside it, and the
+ * thread is the part of the page people scroll to *last*. So the detail response
+ * stays small and each list is fetched beside it — which is also what lets the
+ * board's peek panel open instantly from a cached card and fill the thread in
+ * after.
+ *
+ * ### The author is resolved, and it is `UserRefSchema`
+ *
+ * Every row here would otherwise carry a `UserId` that the client resolves against
+ * a directory it has not fetched. `UserRefSchema` is the shape its own docblock
+ * calls *"a user as the product renders them"*, and it carries `isInactive`, so a
+ * comment written by someone who has since left is greyed out rather than rendered
+ * as a name that can no longer be assigned work.
+ */
+
+export const CommentSchema = z.object({
+  id: CommentIdSchema,
+  issueId: IssueIdSchema,
+  author: UserRefSchema,
+  body: RichTextDocSchema,
+  /** The comment this replies to, or null for a top-level entry. */
+  parentId: CommentIdSchema.nullable(),
+  /**
+   * Invisible to guest and reporter roles — the service-desk case. The server
+   * filters these out **in the query**, never in the serialiser, so an internal
+   * comment is not present in a response a guest could inspect; this flag exists
+   * so a member can *see* that a comment is internal, which is the whole point of
+   * writing one.
+   */
+  isInternal: z.boolean(),
+  /**
+   * Extracted from `body` on write rather than re-parsed on read. Present here so
+   * the thread can highlight a mention of the reader without walking the document,
+   * and so "mentions of me" is one array-containment query.
+   */
+  mentionedUserIds: z.array(UserIdSchema),
+  /** Read by the client and sent back on edit; a mismatch is a 409. */
+  version: z.number().int().positive(),
+  createdAt: InstantSchema,
+  updatedAt: InstantSchema,
+  /**
+   * Null until someone edits the comment, and distinct from `updatedAt` on
+   * purpose. `updatedAt` moves for any write to the row — a moderation flag, a
+   * reclassification, a backfill — and "edited" is a claim about the *text*, shown
+   * to every reader. One timestamp doing both jobs means either an edit marker
+   * that appears when nobody edited anything, or no edit marker at all.
+   */
+  editedAt: InstantSchema.nullable(),
+})
+export type Comment = z.infer<typeof CommentSchema>
+
+/** `GET /issues/:key/comments` — cursor-paged, oldest first. */
+export const CommentPageSchema = pageSchema(CommentSchema)
+export type CommentPage = z.infer<typeof CommentPageSchema>
+
+/**
+ * A file on the issue.
+ *
+ * Two columns behind this are deliberately absent. `storage_key` is the object
+ * key: it is the server's addressing scheme, and a client that knows it can
+ * construct requests against the bucket instead of against the API. `downloadUrl`
+ * replaces it and is **presigned, short-lived and minted per request** — never
+ * stored, never carried in an event, so a URL captured from one response cannot be
+ * replayed later or handed to someone without access.
+ *
+ * `upload_status` is absent for a simpler reason: this list contains ready
+ * attachments only. A field whose value is always `'ready'` is a field the UI must
+ * branch on and never can, which is worse than not having it. The two-phase upload
+ * flow is where that state belongs, and it will carry its own shape.
+ */
+export const AttachmentSchema = z.object({
+  id: AttachmentIdSchema,
+  issueId: IssueIdSchema,
+  /**
+   * Set when the file was attached to a comment rather than to the issue itself,
+   * so the thread can render it inline instead of only in the file list.
+   */
+  commentId: CommentIdSchema.nullable(),
+  filename: z.string(),
+  /**
+   * The declared type, used to pick an icon and to decide whether a preview is
+   * even attempted. Never trusted as a rendering instruction: it is client-supplied
+   * at presign time, so an `image/png` that is not a PNG must fail to decode rather
+   * than reach a parser chosen by this string.
+   */
+  mimeType: z.string(),
+  /** `bigint` in Postgres; a size that exceeds `Number.MAX_SAFE_INTEGER` is not a
+   *  file, it is a bug in whatever reported it. */
+  sizeBytes: z.number().int().positive(),
+  uploadedBy: UserRefSchema,
+  createdAt: InstantSchema,
+  /** Presigned and short-lived. See the note above — this is not the storage key. */
+  downloadUrl: z.string().url(),
+})
+export type Attachment = z.infer<typeof AttachmentSchema>
+
+/** `GET /issues/:key/attachments`. Paged for the same reason as the thread: a
+ *  long-running bug accumulates screenshots without bound. */
+export const AttachmentPageSchema = pageSchema(AttachmentSchema)
+export type AttachmentPage = z.infer<typeof AttachmentPageSchema>
+
+/**
+ * One logged entry of work. `IssueSchema.timeSpentSeconds` is the sum of these,
+ * and the field is named to say so: a reader who wants to know why the aggregate
+ * reads 14400 can add these up and get the same number.
+ *
+ * `description` rather than `comment`, which is what CR-011 proposed and what the
+ * column is not. `comments` is a table and a thread in this product, and a worklog
+ * field called `comment` would be the third meaning of the word on one screen.
+ */
+export const WorklogSchema = z.object({
+  id: WorklogIdSchema,
+  issueId: IssueIdSchema,
+  author: UserRefSchema,
+  timeSpentSeconds: z.number().int().positive(),
+  /**
+   * When the work happened, not when it was recorded — `createdAt` is that. The
+   * two differ by days on a Friday afternoon's worth of catching up, and every
+   * time report is grouped by this one.
+   */
+  startedAt: InstantSchema,
+  description: z.string().nullable(),
+  createdAt: InstantSchema,
+  updatedAt: InstantSchema,
+})
+export type Worklog = z.infer<typeof WorklogSchema>
+
+export const WorklogPageSchema = pageSchema(WorklogSchema)
+export type WorklogPage = z.infer<typeof WorklogPageSchema>
+
+/**
+ * `GET /issues/:key/history` — the activity feed.
+ *
+ * No new entry schema: `IssueHistoryEntrySchema` above was already the right
+ * shape, carrying `fromDisplay`/`toDisplay` so the feed never renders a raw id.
+ * The only thing missing was a page of them, which is this line.
+ */
+export const IssueHistoryPageSchema = pageSchema(IssueHistoryEntrySchema)
+export type IssueHistoryPage = z.infer<typeof IssueHistoryPageSchema>
 
 // ── Hierarchy invariants ─────────────────────────────────────────────
 

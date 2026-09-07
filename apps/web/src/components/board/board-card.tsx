@@ -1,13 +1,13 @@
 import type { BoardCard as BoardCardValue } from '@flux/contracts'
 import { Check, EllipsisVertical, MessageSquare, Paperclip, Plus } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { LabelChip } from '@/components/data/label-chip'
 import { PriorityIcon } from '@/components/data/priority-icon'
 import { TypeIcon } from '@/components/data/type-icon'
 import { UserAvatar } from '@/components/data/user-avatar'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/cn'
-import { paths } from '@/lib/paths'
+import { withPeek } from '@/lib/paths'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -117,6 +117,24 @@ export interface BoardCardProps {
 }
 
 export function BoardCard({ card, dragging = false, className }: BoardCardProps) {
+  /**
+   * The card opens the **peek panel**, not the full page.
+   *
+   * `to={{ search }}` with no pathname keeps the board exactly where it is — same
+   * route, same scroll, same filters — and adds `?peek=LOG-142`, which is the panel's
+   * whole state (`lib/paths.ts` carries why it is a param and not a route). The full
+   * page is one press further in, from the panel's "See full details".
+   *
+   * `useLocation()` rather than a `to` prop threaded down from the board, because the
+   * *current* search string is what has to be preserved: building the link from
+   * nothing would drop a board filter the moment someone clicked a card. It is one
+   * hook per card reading one value, and every card on the board reads the same one.
+   *
+   * Cmd-click still does the right thing: a new tab opens the board with the panel
+   * already on the issue, which is a shareable URL rather than a lost click.
+   */
+  const { search } = useLocation()
+
   return (
     /**
      * The whole card is the link, which is why nothing inside it may be one —
@@ -138,8 +156,15 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
      * with no avatar and no counts.
      */
     <Link
-      to={paths.issue(card.key)}
+      to={{ search: withPeek(search, card.key) }}
       data-slot="board-card"
+      /**
+       * The handle the peek panel focuses on close. `issue/issue-peek-panel.tsx` has the
+       * reasoning: the panel is a sibling of `<main>` in a different subtree, so there
+       * is no ref to pass, and without this a keyboard user who closes the panel lands
+       * at the top of the document instead of back on the card they were reading.
+       */
+      data-issue-key={card.key}
       data-dragging={dragging ? 'true' : undefined}
       className={cn(
         'group/card flex shrink-0 flex-col overflow-hidden rounded-card bg-surface',

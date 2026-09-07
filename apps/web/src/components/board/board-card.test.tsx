@@ -28,16 +28,65 @@ import { BoardCard } from './board-card'
  * the disabled affordances that say why.
  */
 describe('BoardCard', () => {
-  it('renders the summary, the key and a link to the issue', async () => {
+  it('renders the summary, the key and a link that opens the peek panel', async () => {
     const card = aBoardCard()
     const { container } = renderWithProviders(<BoardCard card={card} />)
 
+    /**
+     * `?peek=` on the current route, **not** `/browse/:key`, and this test used to
+     * assert the second one.
+     *
+     * The change is the product decision in `lib/paths.ts`: clicking a card opens the
+     * issue in a panel beside the board, and the board must not go away — its scroll
+     * position, its filters and the reader's place in it all survive because the route
+     * does not change. `/browse/:key` is the full page, reached from the panel's "See
+     * full details".
+     *
+     * Asserting the href rather than a click is deliberate. The behaviour that matters
+     * is that this is a real link — middle-clickable, ⌘-clickable, copyable — and a
+     * `fireEvent.click` would pass just as well against an `onClick` on a `<div>`,
+     * which is the implementation this must not silently become.
+     */
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', `/browse/${card.key}`)
+    expect(link).toHaveAttribute('href', `/?peek=${card.key}`)
     expect(screen.getByText(card.summary)).toBeInTheDocument()
     expect(screen.getByText(card.key)).toBeInTheDocument()
 
     await expectNoAxeViolations(container)
+  })
+
+  /**
+   * The panel composes with whatever the surface already has in its query string.
+   *
+   * A board carries its own filters there, and `withPeek` copies the existing params
+   * rather than building `?peek=` from nothing — so opening a card cannot silently
+   * clear the filter the reader was looking through. The naive
+   * `` to={`?peek=${key}`} `` does exactly that, and the loss is invisible until
+   * somebody notices their board went back to showing everything.
+   */
+  it('keeps the surface search params when it opens the panel', () => {
+    const card = aBoardCard()
+    renderWithProviders(<BoardCard card={card} />, {
+      initialPath: '/projects/LOG/board?assignee=me',
+    })
+
+    const href = screen.getByRole('link').getAttribute('href') ?? ''
+    expect(href).toContain('assignee=me')
+    expect(href).toContain(`peek=${card.key}`)
+  })
+
+  /**
+   * `data-issue-key` is what returns focus to this card when the panel closes.
+   *
+   * The panel's close path queries for it by attribute, so a rename here is a keyboard
+   * user landing on `<body>` after pressing Escape — a silent regression in jsdom and
+   * in a browser alike, which is why the attribute is pinned rather than assumed.
+   */
+  it('is findable by issue key, so the panel can return focus to it', () => {
+    const card = aBoardCard()
+    const { container } = renderWithProviders(<BoardCard card={card} />)
+
+    expect(container.querySelector(`[data-issue-key="${card.key}"]`)).not.toBeNull()
   })
 
   /**

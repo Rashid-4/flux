@@ -55,9 +55,30 @@ export interface TypeIconProps {
   /** The type's display name, when the caller has it. Otherwise the key. */
   name?: string | undefined
   className?: string | undefined
+  /**
+   * The glyph's own classes, when 14px in `--color-fg-muted` is not the right reading.
+   *
+   * A second `className` is a smell and it is the right shape here, because the two
+   * boxes are genuinely different: the outer `<span>` is the accessible image and the
+   * thing a caller positions, and the `<svg>` inside it is the ink. `className` can
+   * never reach the ink, since the size and colour below are set *on* the glyph and
+   * `cn` resolves conflicts within one class list rather than across a boundary.
+   *
+   * The alternative — a `size` prop with two or three named rungs — was rejected
+   * because the callers do not agree on colour either. `board/board-card.tsx` wants
+   * the muted 14px default; `issue/issue-peek-panel.tsx` draws a 116px hero circle
+   * with a 48px glyph in the full foreground; the issue page's own header wants 24px.
+   * That is a ladder that grows a rung per surface, and every rung would restate a
+   * size and a colour that Tailwind already spells.
+   *
+   * What must **not** move out to the caller is the map above. A surface needing a
+   * bigger bug glyph reaches for `Bug` from lucide directly the moment this prop does
+   * not exist, and then the type→icon vocabulary lives in two places — §31.
+   */
+  glyphClassName?: string | undefined
 }
 
-export function TypeIcon({ issueTypeKey, name, className }: TypeIconProps) {
+export function TypeIcon({ issueTypeKey, name, className, glyphClassName }: TypeIconProps) {
   const reading = KNOWN[issueTypeKey.toLowerCase()] ?? {
     label: name ?? issueTypeKey,
     Icon: CircleDot,
@@ -74,7 +95,7 @@ export function TypeIcon({ issueTypeKey, name, className }: TypeIconProps) {
       title={label}
       className={cn('inline-flex', className)}
     >
-      <Icon aria-hidden="true" className="size-3.5 text-fg-muted" />
+      <Icon aria-hidden="true" className={cn('size-3.5 text-fg-muted', glyphClassName)} />
     </span>
   )
 }

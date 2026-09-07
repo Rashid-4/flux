@@ -75,6 +75,21 @@ export interface UserAvatarProps {
    * that would be wrong in two of those three places.
    */
   absentLabel?: string | undefined
+  /**
+   * The caller draws the person's name in visible text beside this, so the disc is
+   * `aria-hidden` instead of a second announcement of it.
+   *
+   * `role="img"` labelled with the name is right where the disc stands alone — a board
+   * card, an avatar stack, a comment bubble — and wrong the moment the name is also on
+   * screen: a screen reader then says "Ada Okafor, Ada Okafor", which is precisely the
+   * visible-label-plus-`sr-only`-copy that ../error-state.tsx argues against. In that
+   * pairing the initials and the tone are decoration and the text is the content.
+   *
+   * It is a prop rather than the caller wrapping this in an `aria-hidden` span because
+   * the *absent* branch has a label too, and "Unassigned" announced twice is the same
+   * defect for the row that has no person in it at all.
+   */
+  decorative?: boolean | undefined
   className?: string | undefined
 }
 
@@ -109,8 +124,24 @@ export function UserAvatar({
   user,
   size = 'md',
   absentLabel = 'Unassigned',
+  decorative = false,
   className,
 }: UserAvatarProps) {
+  /**
+   * One helper for both branches, so the decorative case cannot be right for an
+   * assigned avatar and forgotten for an unassigned one.
+   *
+   * `title` travels with the label, which also closes a gap: the absent branch carried
+   * one and the assigned branch did not, so a board of initials discs had no tooltip on
+   * the only avatars whose name is not obvious from context. And in the decorative
+   * pairing it goes away with the label — a tooltip repeating text six pixels to its
+   * right is noise for a mouse user in the same way the duplicate is for a screen reader.
+   */
+  const naming = (label: string) =>
+    decorative
+      ? ({ 'aria-hidden': true } as const)
+      : ({ role: 'img', 'aria-label': label, title: label } as const)
+
   if (user === null) {
     return (
       /**
@@ -122,9 +153,7 @@ export function UserAvatar({
       <Avatar
         size={size}
         data-slot="user-avatar-absent"
-        role="img"
-        aria-label={absentLabel}
-        title={absentLabel}
+        {...naming(absentLabel)}
         className={className}
       >
         <AvatarFallback
@@ -149,8 +178,7 @@ export function UserAvatar({
       data-slot="user-avatar"
       data-tone={String(tone)}
       data-inactive={user.isInactive ? 'true' : undefined}
-      role="img"
-      aria-label={label}
+      {...naming(label)}
       className={cn(user.isInactive && 'opacity-50', className)}
     >
       {user.avatarUrl !== null && <AvatarImage src={user.avatarUrl} alt={user.displayName} />}

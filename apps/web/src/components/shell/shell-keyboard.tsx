@@ -136,6 +136,15 @@ export function ShellKeyboard({ bootstrap }: ShellKeyboardProps) {
    * a defined order, and Radix's `DismissableLayer` already maintains that stack —
    * including nesting, and including layers this registry never sees. Registering a
    * handler here would either duplicate that stack or fight it.
+   *
+   * That reasoning is about *layers*, and one surface is deliberately outside it:
+   * ../issue/issue-peek-panel.tsx registers its own handled `Escape` under
+   * `issue.peek.close`. The peek panel is not a layer — it is a non-modal region
+   * beside `<main>`, with no overlay, no focus trap and no entry in Radix's stack — so
+   * there is nothing here to duplicate or fight, and the alternative was a keydown
+   * listener on the region that only worked once focus was already inside it. Two
+   * `Escape` rows in the `?` sheet is the honest reading: one names the layer stack,
+   * one names the panel, and they are different mechanisms with different scopes.
    */
   useShortcut({
     id: 'shell.escape',

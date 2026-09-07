@@ -258,34 +258,10 @@ export function ProjectSettingsSurface() {
 }
 
 /**
- * `/browse/:issueKey`.
- *
- * Not project-scoped — an issue key names its own project, and an issue keeps its key
- * when it moves between them (`lib/paths.ts`). Unlike the three above, this one cannot
- * validate its parameter: `getIssue(key)` is a request, and a placeholder that fires
- * one would be a page that can fail while having nothing to show either way. So the key
- * is echoed and nothing is claimed about it.
+ * `/browse/:issueKey` used to be here, and is now `routes/issue.tsx` — the real page,
+ * with the description, the links, the attachments, every field and the thread. It left
+ * behind the one observation worth keeping: unlike the three surfaces above, it could
+ * not validate its own parameter, because resolving an issue key is a request rather
+ * than a lookup in `bootstrap`. The real page therefore renders its not-found state
+ * from the response's own `not_found` code, not from a guard.
  */
-export function IssueSurface() {
-  const { issueKey } = useParams<{ issueKey: string }>()
-  const key = issueKey ?? ''
-
-  useDocumentTitle(key === '' ? 'Issue' : key)
-
-  return (
-    <>
-      <SurfaceHeader
-        title={key === '' ? 'Issue' : key}
-        description="Issue"
-        actions={<PaletteAction />}
-      />
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        <EmptyState
-          icon={<Construction className="size-5" />}
-          title="The issue view is not available yet"
-          detail="Description and comments, the full change history, links and dependencies, attachments, and every field in one place."
-        />
-      </div>
-    </>
-  )
-}

@@ -46,10 +46,27 @@ export interface StatusChipProps {
   category: StatusCategory
   /** The workflow state's own name, when it is more specific than the category. */
   label?: string | undefined
+  /**
+   * `md` — the board card's and the backlog row's scale — or `lg`, the peek panel's
+   * measured 44px identity chip.
+   *
+   * A prop rather than a `className` override, and rather than the panel drawing its
+   * own pill. The panel needs a 44px chip and it also needs *this* chip: the
+   * category → tone → glyph → label mapping above is the product's reading of
+   * `StatusCategorySchema`, and a second surface that hand-picks `bg-info-soft` and a
+   * `CircleDashed` has forked that vocabulary the moment a fifth category is added.
+   * §31 — the size is the only thing the two callers disagree about, so the size is
+   * the only thing that is a prop.
+   *
+   * The glyph moves with it. 12px beside 14px text is right and 12px beside 17px is a
+   * dot, so `lg` takes 18px — which is `Badge`'s own `lg` default for an un-sized
+   * `<svg>`, restated here only because the `size-3` below would otherwise win.
+   */
+  size?: 'md' | 'lg' | undefined
   className?: string | undefined
 }
 
-export function StatusChip({ category, label, className }: StatusChipProps) {
+export function StatusChip({ category, label, size = 'md', className }: StatusChipProps) {
   const reading = CATEGORY[category]
   const text = label ?? reading.label
   const Icon = reading.Icon
@@ -57,11 +74,12 @@ export function StatusChip({ category, label, className }: StatusChipProps) {
   return (
     <Badge
       variant={reading.variant}
+      size={size}
       data-slot="status-chip"
       data-category={category}
       className={className}
     >
-      <Icon aria-hidden="true" className="size-3" />
+      <Icon aria-hidden="true" className={size === 'lg' ? 'size-4.5' : 'size-3'} />
       <span className="max-w-40 truncate">{text}</span>
     </Badge>
   )

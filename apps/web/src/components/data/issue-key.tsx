@@ -1,9 +1,8 @@
 import type { IssueKey as IssueKeyValue } from '@flux/contracts'
 import { Check, Copy } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { toast } from '@/components/data/toaster'
 import { Button } from '@/components/ui/button'
+import { useCopyToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/cn'
 import { paths } from '@/lib/paths'
 
@@ -30,8 +29,6 @@ import { paths } from '@/lib/paths'
  * a client transition is instant. `Link` is what the rest of the app uses; this was
  * the only anchor in the product that was not.
  */
-type CopyOutcome = 'idle' | 'copied' | 'failed'
-
 export interface IssueKeyProps {
   issueKey: IssueKeyValue
   /**
@@ -43,49 +40,21 @@ export interface IssueKeyProps {
 }
 
 export function IssueKey({ issueKey, linked = true, className }: IssueKeyProps) {
-  const [outcome, setOutcome] = useState<CopyOutcome>('idle')
-
-  useEffect(() => {
-    if (outcome === 'idle') return
-    const timer = setTimeout(() => {
-      setOutcome('idle')
-    }, 4000)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [outcome])
-
   /**
-   * A blocked clipboard has to be visible, not only announced.
+   * The transient confirmation, the reset timer and the visible failure all live in
+   * `lib/clipboard.ts`. They were written here first and moved when
+   * `issue/issue-peek-panel.tsx` needed the same behaviour for the issue's URL — see
+   * that hook's header for why a blocked clipboard is the ordinary case rather than the
+   * edge case, and why the toast is not the caller's option to omit.
    *
-   * `navigator.clipboard` is absent on any non-secure origin and `writeText` rejects
-   * outright when the permission is denied or the document is not focused — none of
-   * which the user did anything to cause. The sr-only live region alone left a
-   * sighted user pressing a button that did nothing, which
-   * `docs/product-quality-bar.md` §13 calls worse than one that says why it cannot.
-   * So the failure also takes the tone that does not expire, and it names the key,
-   * because "copy failed" with an unknown subject is not actionable when there are
-   * forty of these on screen.
+   * The key names itself in the failure, because "copy failed" with an unknown subject
+   * is not actionable when there are forty of these on screen.
    */
-  const reportFailure = () => {
-    setOutcome('failed')
-    toast({
-      title: `Could not copy ${issueKey}`,
-      description: 'Your browser blocked clipboard access. Select the key and copy it manually.',
-      tone: 'danger',
-    })
-  }
-
-  const copy = () => {
-    const clipboard: Clipboard | undefined = navigator.clipboard
-    if (clipboard === undefined) {
-      reportFailure()
-      return
-    }
-    void clipboard.writeText(issueKey).then(() => {
-      setOutcome('copied')
-    }, reportFailure)
-  }
+  const { outcome, announcement, copy } = useCopyToClipboard({
+    value: issueKey,
+    label: issueKey,
+    fallbackHint: 'Select the key and copy it manually.',
+  })
 
   /**
    * ### Why `block` is on a `<code>`, and why it is load-bearing
@@ -143,7 +112,7 @@ export function IssueKey({ issueKey, linked = true, className }: IssueKeyProps) 
         )}
       </Button>
       <span role="status" className="sr-only">
-        {outcome === 'copied' ? `Copied ${issueKey}` : outcome === 'failed' ? 'Copy failed' : ''}
+        {announcement}
       </span>
     </span>
   )

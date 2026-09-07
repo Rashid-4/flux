@@ -1,6 +1,16 @@
 import { matchPath, matchRoutes } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { isWithin, paths, ROUTE_PATTERNS, type RouteName } from './paths'
+import {
+  isWithin,
+  paths,
+  peekedIssueKey,
+  PEEK_PARAM,
+  projectKeyOf,
+  ROUTE_PATTERNS,
+  withoutPeek,
+  withPeek,
+  type RouteName,
+} from './paths'
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -301,5 +311,155 @@ describe('isWithin', () => {
 
   it('does not match a section it merely shares a suffix with', () => {
     expect(isWithin(ROUTE_PATTERNS.admin, '/org/admin')).toBe(false)
+  })
+})
+
+describe('the peek param', () => {
+  it('round-trips an issue key through a search string', () => {
+    expect(peekedIssueKey(withPeek('', 'LOG-142'))).toBe('LOG-142')
+  })
+
+  it('keeps the surface’s own params, which is why it takes the current search', () => {
+    // The board's filters, the backlog's cursor and a search query all live in the
+    // same query string. Building `?peek=…` from nothing would silently discard
+    // whatever the user had narrowed the surface to.
+    const next = withPeek('?assignee=me&status=doing', 'LOG-142')
+    const params = new URLSearchParams(next)
+    expect(params.get('assignee')).toBe('me')
+    expect(params.get('status')).toBe('doing')
+    expect(params.get(PEEK_PARAM)).toBe('LOG-142')
+  })
+
+  it('replaces rather than appends, so clicking a second card does not stack', () => {
+    const next = withPeek(withPeek('', 'LOG-142'), 'LOG-207')
+    expect(new URLSearchParams(next).getAll(PEEK_PARAM)).toEqual(['LOG-207'])
+    expect(peekedIssueKey(next)).toBe('LOG-207')
+  })
+
+  it('reads null when there is no panel', () => {
+    expect(peekedIssueKey('')).toBeNull()
+    expect(peekedIssueKey('?assignee=me')).toBeNull()
+  })
+
+  it('treats an empty peek as no panel rather than as an empty key', () => {
+    // A hand-edited URL and a stale link both produce this. An issue whose key is
+    // the empty string would be fetched, 404, and render an error for a panel
+    // nobody asked for.
+    expect(peekedIssueKey('?peek=')).toBeNull()
+  })
+
+  it('closes without leaving a bare question mark behind', () => {
+    // `to={{ search: '?' }}` puts a visible, meaningless `?` in the address bar,
+    // and it gets copied into every shared link.
+    expect(withoutPeek('?peek=LOG-142')).toBe('')
+    expect(withoutPeek('')).toBe('')
+  })
+
+  it('closes without discarding the rest of the query', () => {
+    const closed = withoutPeek('?assignee=me&peek=LOG-142&status=doing')
+    expect(peekedIssueKey(closed)).toBeNull()
+    expect(new URLSearchParams(closed).get('assignee')).toBe('me')
+    expect(new URLSearchParams(closed).get('status')).toBe('doing')
+  })
+
+  it('accepts the router’s own URLSearchParams without mutating it', () => {
+    // `useSearchParams()` hands back the router's object. Writing to it would
+    // change state outside a navigation, so the helpers copy.
+    const live = new URLSearchParams('?assignee=me')
+    withPeek(live, 'LOG-142')
+    withoutPeek(live)
+    expect(live.toString()).toBe('assignee=me')
+  })
+
+  it('escapes a key that would otherwise break the query string', () => {
+    // Issue keys are `KEY-123` today, so nothing needs escaping — which is why an
+    // unescaped implementation would have shipped and why this is asserted.
+    const next = withPeek('', 'LOG&peek=OTHER-1')
+    expect(peekedIssueKey(next)).toBe('LOG&peek=OTHER-1')
+    expect(new URLSearchParams(next).getAll(PEEK_PARAM)).toHaveLength(1)
+  })
+
+  it('is orthogonal to the pathname, which is the reason it is a param at all', () => {
+    // The panel opens over whatever surface you were on. A route change would
+    // replace that surface; this leaves it matched and scrolled where it was.
+    for (const pathname of [paths.board('LOG'), paths.backlog('LOG'), paths.search()]) {
+      const url = new URL(`https://flux.test${pathname}${withPeek('', 'LOG-142')}`)
+      expect(url.pathname).toBe(pathname)
+      expect(peekedIssueKey(url.search)).toBe('LOG-142')
+    }
+  })
+
+  it('is not how the full page is addressed', () => {
+    // "See full details" is a route, not a wider panel. Two representations of one
+    // issue, and only one of them survives a reload into a full-width layout.
+    expect(paths.issue('LOG-142')).toBe('/browse/LOG-142')
+    expect(paths.issue('LOG-142')).not.toContain(PEEK_PARAM)
+  })
+})
+
+/**
+ * ══════════════════════════════════════════════════════════════════════
+ * `projectKeyOf` — the crumb that must not arrive late.
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * Its only consumer is the issue page's breadcrumb, which needs a link to the project
+ * *before* `GET /issues/:key` answers. The URL it was reached by already contains the
+ * answer, and reading it from there is what stops the breadcrumb gaining a crumb when
+ * the request lands — which would move the issue key sideways on every cold load of
+ * the most-visited page in the product.
+ *
+ * The two failures worth guarding are opposite. Too strict and a real key returns
+ * `null`, so the breadcrumb silently loses its project. Too loose and it returns a
+ * fragment, so the crumb links to `/projects/undefined/board` — a 404 reached by
+ * clicking, which is worse than the crumb not being there.
+ */
+describe('projectKeyOf', () => {
+  it('reads the project out of a key the router already matched', () => {
+    expect(projectKeyOf('LOG-142')).toBe('LOG')
+    expect(projectKeyOf('WEB-1')).toBe('WEB')
+    /** Ten characters is the contract's ceiling, and `0` is legal after the first. */
+    expect(projectKeyOf('A1B2C3D4E5-999999999')).toBe('A1B2C3D4E5')
+  })
+
+  /**
+   * `/browse/log-142` is a URL a person types, and the crumb it produces has to point
+   * at the canonical project. Lower-cased in, upper-cased out — and the round trip
+   * through `paths.board` is the assertion that carries the meaning, since the string
+   * on its own says nothing about whether the link resolves.
+   */
+  it('canonicalises the case, because a typed URL is a real entry point', () => {
+    expect(projectKeyOf('log-142')).toBe('LOG')
+    expect(paths.board(projectKeyOf('log-142') ?? '')).toBe(paths.board('LOG'))
+  })
+
+  it('tolerates the whitespace a paste brings with it', () => {
+    expect(projectKeyOf('  LOG-142\n')).toBe('LOG')
+  })
+
+  /**
+   * Everything the contract's own shape rejects. `IssueKeySchema` is
+   * `/^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,8}$/`, so each of these is a specific clause of it:
+   * a leading digit, a one-character project, eleven characters, a `0` sequence, a
+   * project containing the separator, and the two half-keys.
+   *
+   * Written as a table rather than six `it`s because the property is one property —
+   * *not a key, therefore no crumb* — and a `null` returned for the wrong reason is
+   * still the right answer here. The caller renders no project rather than a broken link.
+   */
+  it.each([
+    '1OG-142',
+    'L-142',
+    'ABCDEFGHIJK-1',
+    'LOG-0',
+    'LOG-01',
+    'LO-G-142',
+    'LOG',
+    '-142',
+    'LOG-',
+    'LOG-142-1',
+    'LOG 142',
+    '',
+  ])('returns null for %o rather than a fragment of one', (input) => {
+    expect(projectKeyOf(input)).toBeNull()
   })
 })

@@ -21,7 +21,9 @@ requirements, not aspirations.
 | `POST /issues` | **150ms** | The pitch is that it feels instant. Above ~200ms a create feels like a form submission rather than a keystroke. |
 | `PATCH /issues/:key` | **150ms** | Same, and inline edits happen far more often than creates. |
 | `POST /issues/:key/transitions` | **150ms** | Drag-to-transition on a board must land before the card settles. |
-| `GET /issues/:key` (detail) | **120ms** | Includes comments page 1, links, history page 1, resolved permissions. |
+| `GET /issues/:key` (detail) | **120ms** | The frame of the screen: fields, links, subtask summary, counts, resolved permissions. It is a fixed-size payload, which is what makes the number defensible — see §6. |
+| `GET /issues/:key/comments` (page) | **90ms** | The panel opens from a cached card and this is the only request it makes, so it *is* the perceived open time. One keyset query plus a batched author lookup. |
+| `GET /issues/:key/{attachments,worklogs,history}` | **90ms** | Same shape, same query plan. A different number for each would be an accident rather than a decision. |
 | `POST /issues/:key/rank` | **80ms** | One-row UPDATE. Anything slower means the rank strategy was implemented wrong. |
 | Bulk update, 500 issues | async | Never synchronous. Returns a job id. |
 
@@ -203,39 +205,138 @@ recording the source project.
 
 Response `IssueDetail`.
 
-One round trip for the whole screen. The detail view is the most-visited page in
-the product and it must not be built from six requests.
+One round trip for **the frame of the screen** — everything needed to draw the
+issue's header, fields, links and controls, with nothing in it that grows without
+bound.
 
-Include: the issue, resolved reporter/assignee `UserRef`s, issue type, status and
-its category, components, fix versions, labels, custom field values *with* their
-definitions (the client cannot render a field it has no definition for), links
-grouped by type with the linked issues' minimal shape, comment page 1, history
-page 1, attachment metadata, watcher state for the caller, and the caller's
-resolved permissions for this issue.
+Include: the issue, resolved reporter/assignee, issue type, status and its
+category, components, fix versions, labels, custom field *values*, links grouped by
+type with the linked issues' minimal shape, `subtaskSummary`, `commentCount`,
+`attachmentCount`, watcher state for the caller, and the caller's resolved
+permissions for this issue. That is exactly `IssueDetailSchema` — the payload is
+the schema, and anything named here that the schema does not carry is a bug in this
+paragraph rather than a requirement on the implementation.
 
-That last one matters: the UI must not guess what to disable. Return the answers
-from `evaluatePermissions()` so the buttons the user cannot use are not rendered
-as enabled-then-rejected.
+That last field matters: the UI must not guess what to disable. Return the answers
+from `evaluatePermissions()` so the buttons the user cannot use are not rendered as
+enabled-then-rejected.
+
+**What this deliberately does not include, and why.** This section used to promise
+"comment page 1, history page 1, attachment metadata" and custom field
+"definitions", and `IssueDetailSchema` carried none of the four — so the sentence
+described a payload nobody could have implemented without changing the contract,
+which is the drift `docs/change-requests/011-issue-view-read-model-gaps.md` was
+filed against. The resolution kept the payload and fixed the prose, for reasons
+that are worth stating rather than inheriting:
+
+- **The four lists are unbounded and the frame is not.** A 200-comment issue and a
+  one-comment issue must cost the same to open. Inlining page 1 makes the p95 of
+  the most-visited endpoint in the product a function of how much people have
+  talked, and §Performance budgets prices it at 120ms.
+- **The counts stay.** `commentCount` labels the section before its contents
+  arrive, so the panel and the page reserve the right space and do not shift when
+  the thread lands.
+- **The lists are separately cacheable and separately invalidated.** Posting a
+  comment must not re-fetch the issue's fields, permissions and links; changing the
+  assignee must not discard a thread the user has scrolled.
+- **The field definitions belong to the project, not the issue.** They are the same
+  answer for every issue in the project, they are needed by the create form before
+  any issue exists, and inlining them repeats a 40-option select's options on every
+  issue. `GET /projects/:projectKey/field-layout` ([fields.md](fields.md) §2, subsection 2.1)
+  returns them once per session.
+
+The four lists are §7 below.
 
 Batch the lookups. A detail view that issues one query per linked issue is an N+1
 that only shows up on the issues that matter most.
 
 ## 7. Comments, links, worklogs, attachments, watchers
 
-- **Comments** — `comments` has a `version` trigger, so edits take a version.
-  Internal comments (`comment.view_internal`) must be filtered in the **query**,
-  not in the serialiser. A filter applied after fetching is one refactor away from
-  leaking.
+### 7.1 The four list endpoints
+
+Every list an issue owns is its own cursor-paged request. One convention across all
+four, because four endpoints that page four different ways is how a client ends up
+with four "load more" implementations and three of them wrong.
+
+| Endpoint | Response | Order | Page size |
+| --- | --- | --- | --- |
+| `GET /issues/:key/comments` | `CommentPage` | `created_at` ascending — oldest first, newest at the bottom, the way every thread in the world is drawn | 50, max 100 |
+| `GET /issues/:key/attachments` | `AttachmentPage` | `created_at` descending — most recent first, because a file list is a stack | 50, max 100 |
+| `GET /issues/:key/worklogs` | `WorklogPage` | `started_at` descending — when the work happened, not when it was typed in | 50, max 100 |
+| `GET /issues/:key/history` | `IssueHistoryPage` | `occurred_at` descending, newest first | 50, max 100 |
+
+All four take `PageRequest` (`cursor`, `limit`) and return `{ items, nextCursor,
+totalEstimate? }`. `nextCursor` is `null` **only** when the list is exhausted — a
+non-null cursor on an empty page is a server bug, because a client that has to
+request a page to discover there is nothing there cannot draw the difference
+between "this is the whole conversation" and "this is the end of page one", and
+those two states must not look alike.
+
+The cursor is opaque and keyset-based: encode the sort key and the id, never an
+offset. An offset re-reads rows on every page and skips a row whenever one is
+inserted between two requests — which on a thread being actively replied to is the
+common case, not the edge one.
+
+`404 not_found` when the issue is missing, soft-deleted, or invisible to the
+caller — the same indistinguishable response as §10, evaluated before the list is
+touched. A list endpoint that returns `200 []` for an issue the caller cannot see
+has told them it exists.
+
+Three rules that apply to all four and are easy to get wrong once each:
+
+- **Resolve the author server-side.** All four carry a `UserRef`, not a `userId`. A
+  client holding ids needs a directory it has not fetched, and the alternative it
+  reaches for is a request per author.
+- **`isInactive` is part of that ref.** A comment from someone who has left the
+  organization still renders; their name stops being a link and their avatar is
+  greyed. Deriving that client-side requires the directory again.
+- **Never 404 an empty list.** Zero comments is `200` with `items: []`. The empty
+  state is designed ([product-quality-bar.md](../../product-quality-bar.md) §11); an error is not an empty
+  state.
+
+### 7.2 Per-list rules
+
+- **Comments** — `comments` has a `version` trigger, so edits take a version
+  (`UpdateCommentSchema`; `body` is required because there is no partial edit of a
+  rich-text document, and `parentId` is absent because a reply cannot be
+  re-parented out from under the people who replied to it). Internal comments
+  (`comment.view_internal`) must be filtered in the **query**, not in the
+  serialiser. A filter applied after fetching is one refactor away from leaking —
+  and with pagination it is worse than a leak: filtering after the `LIMIT` returns
+  short pages whose length depends on who is asking, so the caller's permissions
+  become visible in the page size.
+  `editedAt` is distinct from `updatedAt` on purpose. `updatedAt` moves for any
+  write to the row, including a reclassification to internal; only `editedAt` means
+  a human rewrote the text, and only it may drive the "edited" marker.
 - **Links** — `issue_links`; an `AFTER INSERT OR DELETE` trigger maintains
   `issues.blocked_by_count`. Never write that column by hand. Reject self-links
   and duplicate pairs. `blocks` is directional; `relates_to` is symmetric and must
   not be stored twice.
 - **Worklogs** — inserting adjusts `time_spent_s` and `remaining_estimate_s`.
-  Never let `remaining_estimate_s` go negative.
+  Never let `remaining_estimate_s` go negative. The entries a page returns must sum
+  to the issue's `timeSpentSeconds`: they are the same quantity at two granularities
+  and a UI showing both has no way to reconcile a disagreement. `WorklogSchema` calls
+  the free-text field `description` rather than `comment`, because `comments` is a
+  table and a thread on this screen and a third meaning of the word would be one too
+  many.
 - **Attachments** — the API issues a pre-signed upload URL and records metadata;
   bytes never pass through it. Validate declared content type against the
   extension, cap size per the org's plan, and treat the stored filename as
   untrusted on the way back out.
+  `AttachmentSchema` returns `downloadUrl` and **not** `storage_key`: the key is the
+  server's addressing scheme, and a client that holds it can address the bucket
+  instead of the API, at which point every access rule lives in two places. The URL
+  is presigned, short-lived, and minted per request — so it is never stored, never
+  cached beyond its own expiry, and never carried in an event, because an event is
+  durable and a signature must not be.
+  `upload_status` is also absent. This list returns ready attachments only, so the
+  field would always read `'ready'` — a field the UI must branch on and never can,
+  which is worse than not having it. The in-flight upload's state belongs to the
+  upload flow, which holds it client-side until confirmation succeeds.
+  `mimeType` is client-supplied at presign time and is therefore metadata, never a
+  rendering instruction: choose the icon from it, never the sniffing or execution
+  behaviour. Serve downloads from a separate origin with
+  `Content-Disposition: attachment` and a server-determined type.
 - **Watchers** — implicit for reporter and assignee, explicit otherwise. A user
   who unwatches must stay unwatched even if they are later assigned; store the
   explicit decision rather than deriving it.
@@ -330,8 +431,17 @@ this list, so an unticked box means the module cannot be reviewed.
 - [ ] Rank changes are a single-row UPDATE; rebalance is deferred to an event
 - [ ] Issue numbers are allocated race-free, proven by a concurrent-create test
 - [ ] `GET /issues/:key` is one round trip with no N+1, proven by a query count assertion
+- [ ] `GET /issues/:key` payload is exactly `IssueDetailSchema` — no list inlined, and a test asserting its cost does not grow with the comment count
+- [ ] All four list endpoints are keyset-paged, with a test proving a row inserted between two page requests is neither skipped nor repeated
+- [ ] `nextCursor` is null only when the list is exhausted, with a test on the exact-multiple-of-page-size boundary
+- [ ] Every list resolves its author to a `UserRef` in one batched query, proven by a query count assertion
+- [ ] An empty list returns `200 []`, and an invisible issue returns `404` from the list endpoints too
 - [ ] Caller's resolved permissions returned in the detail payload
 - [ ] Internal comments filtered in SQL, not in the serialiser
+- [ ] A page of comments has the same length for a member and for a guest whose internal comments were excluded — filtering happens before the LIMIT, proven by a test
+- [ ] `editedAt` is set only by a body rewrite; a reclassification to internal moves `updatedAt` alone
+- [ ] Worklog entries on a page sum to the issue's `timeSpentSeconds`
+- [ ] `storage_key` and `upload_status` appear in no response body; `downloadUrl` is minted per request and appears in no event
 - [ ] History written once per user action, with all changed fields
 - [ ] Reopening clears `resolved_at` and `resolution`
 - [ ] Bulk operations evaluate permission per issue and report per-issue results
