@@ -151,10 +151,67 @@ describe('the keyboard model', () => {
     expect(input).toHaveFocus()
   })
 
+  /**
+   * The input holds focus from the moment it opens, and **not** because of an
+   * `autoFocus` attribute.
+   *
+   * There is no `autoFocus` on it. Radix's `FocusScope` focuses the first tabbable
+   * element inside the content on open, and the input is that element — so the
+   * attribute was doing nothing the focus scope was not already doing, while tripping
+   * `jsx-a11y/no-autofocus`, a rule that is right about page-load autofocus and simply
+   * not about a modal opened by a keystroke. Removing it rather than disabling the rule
+   * needs this test, because the behaviour is now something a dependency provides
+   * rather than something this file states.
+   */
+  it('focuses the input on open without an autoFocus attribute', async () => {
+    setup()
+    const input = await openAndWait()
+
+    expect(input).toHaveFocus()
+    expect(input).not.toHaveAttribute('autofocus')
+  })
+
   /** Radix's DismissableLayer owns Escape; this asserts it is actually wired. */
   it('closes on Escape and restores focus to whatever had it', async () => {
     const { user } = setup()
 
+    const outside = document.createElement('button')
+    outside.textContent = 'trigger'
+    document.body.append(outside)
+    outside.focus()
+
+    await openAndWait()
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => {
+      expect(screen.queryByRole('combobox')).toBeNull()
+    })
+    expect(outside).toHaveFocus()
+    outside.remove()
+  })
+
+  /**
+   * And it still restores focus when a *previous* palette was torn down while open.
+   *
+   * This is the shape of a real defect rather than a hypothetical. The opener used to
+   * be read straight from a module-level singleton inside `onCloseAutoFocus`, and Radix
+   * registers that handler imperatively during `FocusScope` cleanup and dispatches it
+   * from a `setTimeout` — so a palette unmounted while open fires its restore *later*,
+   * and it consumed the opener the *next* palette had just captured. The live palette
+   * then had nothing to restore to and focus fell to `<body>`, which is the exact
+   * failure §9 names. The opener is now claimed into a per-instance ref at open.
+   *
+   * Reproduced by unmounting an open palette and immediately opening another, which is
+   * what a remount of the shell during an org switch does.
+   */
+  it('restores focus after a previous palette was unmounted while open', async () => {
+    const first = setup()
+    openPalette()
+    await screen.findByRole('combobox')
+    first.unmount()
+    resetPalette()
+
+    const { user } = setup()
     const outside = document.createElement('button')
     outside.textContent = 'trigger'
     document.body.append(outside)

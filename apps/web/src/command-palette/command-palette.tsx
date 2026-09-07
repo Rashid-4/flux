@@ -84,8 +84,28 @@ function emitOpen(): void {
  * `docs/specs/web/README.md` §9 names losing focus to `<body>` as the failure to
  * avoid. §7.3 asks for restoration *"to the element that had it"*, which is this
  * rather than a trigger.
+ *
+ * Captured here, at the keystroke, rather than in `onOpenAutoFocus` — that fires a
+ * tick later, once the dialog has mounted, and this is the one moment the opener is
+ * guaranteed to still be the active element.
+ *
+ * **Taken, not read.** The component claims it into a ref the moment it opens, and
+ * `takeRestoreTarget` is what makes that a hand-off rather than a shared read. A
+ * module singleton read directly from `onCloseAutoFocus` is a singleton read by a
+ * callback that can outlive the palette it belongs to: Radix registers its unmount
+ * autofocus handler imperatively during cleanup and dispatches it from a `setTimeout`,
+ * so a palette torn down while open runs that handler *later* — and it would consume
+ * whatever the next palette had just captured, leaving the live one with nothing to
+ * restore to. Measured: focus landed on `<body>`, which is precisely the failure the
+ * paragraph above exists to prevent.
  */
 let restoreFocusTo: HTMLElement | null = null
+
+function takeRestoreTarget(): HTMLElement | null {
+  const target = restoreFocusTo
+  restoreFocusTo = null
+  return target
+}
 
 export function openPalette(): void {
   if (paletteOpen) return
@@ -156,6 +176,18 @@ export function CommandPalette({ bootstrap, providers = DEFAULT_PROVIDERS }: Com
   const shortcuts = useShortcuts()
   const baseId = useId()
   const listRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Claim the opener for *this* opening, so nothing else can consume it.
+   *
+   * `takeRestoreTarget()` in a render-phase branch rather than an effect: an effect
+   * runs after Radix's `FocusScope` has already mounted and could already have
+   * dispatched, and the whole point is to hold the value before any other handler can
+   * read it. Guarded on `openerRef.current === null` so a re-render while open — a
+   * keystroke, every keystroke — does not re-take and null it out.
+   */
+  const openerRef = useRef<HTMLElement | null>(null)
+  if (open && openerRef.current === null) openerRef.current = takeRestoreTarget()
 
   /**
    * The corpus, rebuilt only when its *data* changes — never on a keystroke.
@@ -354,8 +386,8 @@ export function CommandPalette({ bootstrap, providers = DEFAULT_PROVIDERS }: Com
            * silently does nothing.
            */
           onCloseAutoFocus={(event) => {
-            const target = restoreFocusTo
-            restoreFocusTo = null
+            const target = openerRef.current
+            openerRef.current = null
             if (target === null || !target.isConnected) return
             event.preventDefault()
             target.focus()
@@ -377,7 +409,6 @@ export function CommandPalette({ bootstrap, providers = DEFAULT_PROVIDERS }: Com
           <div className="flex shrink-0 items-center gap-2 border-b border-border px-3">
             <Search aria-hidden="true" className="size-4 shrink-0 text-fg-subtle" />
             <input
-              autoFocus
               type="text"
               role="combobox"
               aria-expanded
