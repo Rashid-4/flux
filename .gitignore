@@ -27,6 +27,18 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
+# Claude Code's per-machine state, inside a directory that is otherwise committed.
+#
+# `.claude/launch.json` is shared on purpose — it is how `pnpm --filter @flux/web dev`
+# gets started for a preview, and it is the same command on every machine. The two
+# files below are not: `settings.local.json` is the permission allow-list a session
+# accumulates, which is specific to one person's machine and one person's risk
+# appetite, and `memory/` is a session's own notes. Neither is a fact about the
+# product. This repository is public, so the cost of a `git add -A` sweeping either
+# one in is higher than a stray diff.
+.claude/settings.local.json
+.claude/memory/
+
 playwright-report/
 test-results/
 .vite/
