@@ -1,4 +1,4 @@
-import { LayoutGrid, ListFilter, Rows3, Table2 } from 'lucide-react'
+import { List, SlidersHorizontal, SquareKanban, Table } from 'lucide-react'
 import type { ComponentType, SVGProps } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatChord } from '@/keyboard/keys'
@@ -44,19 +44,23 @@ import { cn } from '@/lib/cn'
  * a bug. Centring both inside the 40px content box lands both at **251.6** against a
  * measured 250/251.
  *
- * ### `size-6` icons, calibrated on the one glyph that can be identified
+ * ### `size-6` icons, and the four glyphs are the references' own
  *
- * The selected chip's mark is unmistakably lucide's `LayoutGrid` — four squares
- * inset 3/24 — so its ink is 0.75 of its box in **both** axes, which makes it a
- * ruler. Measured 19 wide × 18 tall, twice: 24 × 0.75 = 18, plus a 1.5px stroke
- * straddling the path. So the box is 24px, and the same 24 then falls out of the
- * horizontal construction below.
+ * Read at 2× rather than guessed: the selected chip's mark is a rounded square with
+ * three short vertical bars — lucide's `SquareKanban`, not the four-square
+ * `LayoutGrid` this first shipped with; the table mark is a bordered grid with a
+ * header row, `Table` rather than `Table2`; the list mark is three lines with a dot
+ * before each, `List` rather than `Rows3`; and the filter mark is two horizontal
+ * sliders, `SlidersHorizontal` rather than the funnel-and-lines `ListFilter`. Each
+ * of the four earlier choices was a near neighbour that read as a different icon set
+ * beside the mockup — which is the same class of drift as a token that resolves to
+ * the wrong colour, and just as invisible one glyph at a time.
  *
- * The filter mark does not agree — its ink measures 17 where `ListFilter` at 24px
- * draws 19.5 — and that is expected rather than troubling: it is a different glyph
- * from the one the references' designer used, so it calibrates nothing. One size for
- * the row beats matching one decorative mark and breaking the rhythm of the other
- * three. The labels, which is what the eye actually reads, land on the pixel.
+ * The box is 24px, calibrated on the one mark whose ink is a fixed fraction of its
+ * box: `SquareKanban`'s outer square is inset 3/24, so 24 × 0.75 = 18 plus a 1.5px
+ * stroke straddling the path is the measured 19 × 18. The same 24 then falls out of
+ * the horizontal construction below, and the labels — which is what the eye actually
+ * reads — land on the pixel.
  *
  * ### The chip is 113px because of what is inside it, not because it is 115
  *
@@ -162,15 +166,15 @@ interface Layout {
  * this the one row in the product that shouts.
  */
 const LAYOUTS: readonly Layout[] = [
-  { label: 'Kanban', Icon: LayoutGrid },
+  { label: 'Kanban', Icon: SquareKanban },
   {
     label: 'Table',
-    Icon: Table2,
+    Icon: Table,
     unavailable: 'A table of these issues is not built yet — this board only draws columns.',
   },
   {
     label: 'List view',
-    Icon: Rows3,
+    Icon: List,
     unavailable: 'A flat list of these issues is not built yet — this board only draws columns.',
   },
 ]
@@ -295,7 +299,7 @@ function FilterButton() {
           }}
           className="ml-auto flex shrink-0 items-center gap-1.5 text-md whitespace-nowrap text-rail-icon aria-disabled:cursor-not-allowed"
         >
-          <ListFilter aria-hidden="true" className="size-6 shrink-0" />
+          <SlidersHorizontal aria-hidden="true" className="size-6 shrink-0" />
           Filter
         </button>
       </TooltipTrigger>

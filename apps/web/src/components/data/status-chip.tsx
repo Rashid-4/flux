@@ -2,6 +2,7 @@ import type { StatusCategory } from '@flux/contracts'
 import { Check, Circle, CircleDashed, Minus } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/cn'
 
 /**
  * Status as a reading, never as colour alone.
@@ -63,21 +64,43 @@ export interface StatusChipProps {
    * `<svg>`, restated here only because the `size-3` below would otherwise win.
    */
   size?: 'md' | 'lg' | undefined
+  /**
+   * The peek panel's treatment: a 1px `--border` outline on the panel's own fill,
+   * with the text in `--fg`, instead of the tinted `-soft` pair.
+   *
+   * Measured off `UI Images/JIRA 2.webp` and `JIRA 1.webp`, where the two identity
+   * chips under the description are white with a hairline in light and the panel's
+   * near-black with a slightly lighter hairline in dark — in *neither* is the chip a
+   * tinted fill, and in dark a `--info-soft` pill was the only saturated block in an
+   * achromatic panel. The glyph stays, because it is the non-colour signal §9
+   * requires and the outline removes the colour; what changes is only the box.
+   *
+   * A prop rather than a `className`, for the reason `size` is: the category → glyph
+   * → label mapping must not fork, and a caller passing `bg-panel border-border`
+   * would still be fighting the `variant` fill underneath.
+   */
+  outline?: boolean | undefined
   className?: string | undefined
 }
 
-export function StatusChip({ category, label, size = 'md', className }: StatusChipProps) {
+export function StatusChip({
+  category,
+  label,
+  size = 'md',
+  outline = false,
+  className,
+}: StatusChipProps) {
   const reading = CATEGORY[category]
   const text = label ?? reading.label
   const Icon = reading.Icon
 
   return (
     <Badge
-      variant={reading.variant}
+      variant={outline ? 'outline' : reading.variant}
       size={size}
       data-slot="status-chip"
       data-category={category}
-      className={className}
+      className={cn(outline && 'border-border bg-panel text-fg', className)}
     >
       <Icon aria-hidden="true" className={size === 'lg' ? 'size-4.5' : 'size-3'} />
       <span className="max-w-40 truncate">{text}</span>

@@ -211,16 +211,16 @@
      variant `README` §5 names as a wrong token — the divergence belongs to the
      theme, not to the component.
 
-     The selected marker diverges the same way: white in dark, blue in light. The
-     brand-hue pass this token used to defer has now happened, so it points at
-     `--primary` rather than at `--primary-accent`: the marker and the active tab's
+     The selected marker diverges the same way: white in dark, blue in light. It
+     points at `--mark-blue` and not at `--primary`: the marker and the active tab's
      3px underline are both graphics, not text, so 1.4.11's 3:1 is the bar they
-     answer to and the brighter of the two blues is the one the references draw.
-     The light reference's marker samples #409aff and its tab underline #4085d4 —
-     the same hue at two compression artefacts, a small saturated region on white
-     brightening and a thin line desaturating. `--primary` is that hue. */
+     answer to, and the blue the references actually draw for them is the bright
+     one — the marker samples #409aff and rgb(58,158,255) across its 3px, the tab
+     underline #4085d4, the same hue at two compression artefacts. `--primary` is
+     that hue taken down to carry white text, which a 3px bar never does, so using
+     it here painted the marker a visibly deeper blue than the one being copied. */
   --rail-icon: var(--fg);
-  --rail-selected: var(--primary);
+  --rail-selected: var(--mark-blue);
   /* -- Chrome fills -------------------------------------------------------- */
   /* Two fills that sit *on* the chrome: the resting state of a selected row, and
      the hover state of an unselected one. They are named rather than reached for
@@ -551,6 +551,68 @@
   --entity-7: oklch(0.855 0.06 322); /* #e3c3e7 */
   --entity-7-fg: oklch(0.39 0.062 322); /* #553a59 — 6.19:1 on --entity-7 */
 
+  /* -- Marks --------------------------------------------------------------- */
+  /* Seven saturated hues for a *mark*: the outline glyph beside a project's name,
+     the status dot at the head of a board column, and the rail's selected bar in
+     this theme. A mark is a stroke or a dot with its name beside it — never text,
+     and never a fill with text on it (that is `--tag-*` below) — so the bar it
+     answers to is visibility beside its label rather than AA, the same call
+     `--border` and the entity fills make.
+
+     Measured off both references, and the same value in both themes because the
+     references draw them that way. The sidebar's star, circle, square and
+     triangle sample rgb(239,144,14), rgb(105,88,192), rgb(240,98,171) and
+     rgb(76,152,51) on the white chrome, and — to within the antialiasing of a
+     1.5px stroke on black — the same four hues on the dark one. Blue is the title
+     glyph's own reading, rgb(62,152,255) light and rgb(65,155,245) dark. Red is
+     the first column's dot and every count badge, rgb(253,70,89) in both. Grey is
+     the one that inverts: it exists to sit off the chrome, and the chrome is
+     white here and black there, so it is the only mark the `.dark` block moves.
+
+     Each value keeps the reference's hue to a degree and its chroma to within
+     0.01; the lightness is the reference's rounded to the nearest 0.01. */
+  --mark-blue: oklch(0.67 0.17 254); /* #3f96fa */
+  --mark-green: oklch(0.68 0.18 140); /* #52b23b */
+  --mark-amber: oklch(0.75 0.16 66); /* #f1961d */
+  --mark-violet: oklch(0.56 0.17 288); /* #735ed1 */
+  --mark-pink: oklch(0.69 0.19 351); /* #ee60aa */
+  --mark-red: oklch(0.65 0.21 20); /* #f44657 */
+  --mark-grey: oklch(0.74 0.006 250); /* #a8abae */
+
+  /* -- Tags ---------------------------------------------------------------- */
+  /* The label chip: a filled pill with a word in it, and the one element the two
+     references draw *inverted*. Light fills each pill with its hue and prints
+     white on it; dark fills it with a pastel of the same hue and prints near-black.
+     A single `-solid` family cannot express that, and `bg-x dark:bg-y` at the call
+     site is the `dark:` variant README §5 names as a wrong token — so the pair is a
+     token per theme, and `data/label-chip.tsx` hashes the label onto one of the
+     seven the way `user-avatar.tsx` hashes a user onto an entity hue.
+
+     This is where flux diverges from the light reference on purpose. Its "Design"
+     pill is white on rgb(78,204,41) at 2.2:1 and its "App" pill white on
+     rgb(255,152,0) at 2.0:1 — a saturated palette that is systematically below AA
+     for the 15px semibold it carries, the same finding the Brand block records for
+     the blue. Every fill here is the reference's hue at the lightness that clears
+     4.5:1 for its text: blue is `--primary` itself, whose derivation from the
+     reference blue is the Brand block's; amber keeps the reference's brightness
+     and takes dark text instead, exactly as `--warning-fg` does; the rest darken
+     until white holds. The ratios are on the `-fg` lines, where
+     `contrast.test.ts` reads them. */
+  --tag-blue: var(--primary);
+  --tag-blue-fg: var(--primary-fg);
+  --tag-green: oklch(0.545 0.155 146); /* #1a8731 */
+  --tag-green-fg: oklch(1 0 89.9); /* #ffffff — 4.61:1 on --tag-green */
+  --tag-amber: oklch(0.78 0.16 72); /* #f5a420 */
+  --tag-amber-fg: oklch(0.209 0.009 264.4); /* #16181c — 8.64:1 on --tag-amber */
+  --tag-violet: oklch(0.53 0.22 290); /* #7144df */
+  --tag-violet-fg: oklch(1 0 89.9); /* #ffffff — 5.84:1 on --tag-violet */
+  --tag-pink: oklch(0.56 0.2 350); /* #c32e85 */
+  --tag-pink-fg: oklch(1 0 89.9); /* #ffffff — 5.19:1 on --tag-pink */
+  --tag-red: oklch(0.58 0.2 22); /* #d73240 */
+  --tag-red-fg: oklch(1 0 89.9); /* #ffffff — 4.75:1 on --tag-red */
+  --tag-grey: oklch(0.55 0.02 255); /* #6a727d */
+  --tag-grey-fg: oklch(1 0 89.9); /* #ffffff — 4.87:1 on --tag-grey */
+
   /* -- Focus --------------------------------------------------------------- */
   /* The accent value, repeated rather than aliased: a focus ring is measured
      against SC 1.4.11's 3:1 on every surface it can land on, not against the text
@@ -618,7 +680,20 @@
      that looked like claims, and three of them were stale by the time anyone
      looked. A number in this file is either checked or it is not written. */
   --fg: oklch(0.966 0.003 247.9); /* #f2f4f6 — 15.18:1 on --surface, 17.04:1 on --canvas */
-  --fg-muted: oklch(0.738 0.019 253.4); /* #a2abb6 — 7.20:1 on --surface, 8.08:1 on --canvas */
+  /* 0.69, down from 0.738, and the reason is a measurement across the whole dark
+     reference rather than one surface. Every piece of secondary text in
+     `JIRA 1.webp` — a card's description, a subtask label, a breadcrumb, an inactive
+     tab, the sidebar rows, a column's count — reads the *same* grey, rgb(122,124,125)
+     to rgb(133,133,133), which is L 0.58 to 0.61. The old value was L 0.738: a third
+     of the way from that grey to white, and the single largest reason the dark theme
+     read brighter and busier than the one it was copying.
+
+     It cannot go all the way. The reference's grey is 4.0:1 on a card, which fails AA
+     for 17px text, and the test below this file holds every text token to 4.5:1 on
+     every surface — `--surface-3` is the binding one at 5.12:1 here, with `--fg-subtle`
+     already at 4.63:1 on it and unable to move. So this is the lowest secondary grey
+     the constraint allows, one step above subtle rather than two. */
+  --fg-muted: oklch(0.69 0.018 251); /* #939ca6 — 6.01:1 on --surface, 6.75:1 on --canvas */
   --fg-subtle: oklch(0.662 0.018 250.9); /* #8b949e — 5.44:1 on --surface, 6.11:1 on --canvas */
 
   /* -- Rail ---------------------------------------------------------------- */
@@ -792,6 +867,44 @@
   --entity-7: oklch(0.4 0.06 322); /* #573d5b */
   --entity-7-fg: oklch(0.9 0.048 322); /* #eed4f1 — 6.89:1 on --entity-7 */
 
+  /* -- Marks --------------------------------------------------------------- */
+  /* Six of the seven are the light values, restated because a `.dark` block must
+     declare every token — the reference's dark glyphs and dots are the same
+     saturated hues on black that they are on white. Grey is the one that moves: on
+     a #000000 rail it has to step *down* from the light value to read as a quiet
+     mark rather than a bright one, and the reference's dark grey glyph samples
+     rgb(123,123,123) against the light one's rgb(175,175,175). */
+  --mark-blue: oklch(0.67 0.17 254);
+  --mark-green: oklch(0.68 0.18 140);
+  --mark-amber: oklch(0.75 0.16 66);
+  --mark-violet: oklch(0.56 0.17 288);
+  --mark-pink: oklch(0.69 0.19 351);
+  --mark-red: oklch(0.65 0.21 20);
+  --mark-grey: oklch(0.62 0.006 250); /* #83868a */
+
+  /* -- Tags ---------------------------------------------------------------- */
+  /* The inversion the light block describes: pastel fills, near-black text. The
+     dark reference's "Website" pill is rgb(172,210,254) and its "Design" pill
+     rgb(225,247,128) — the one saturated colour in an otherwise achromatic window,
+     which the Brand block above counts — and both print black. Each pastel here is
+     the light fill's hue at L 0.86–0.93 with the chroma sRGB allows there (violet
+     and red hit the gamut wall first, at 0.055 and 0.065), and every one carries
+     the same foreground so the seven chips read as one family. */
+  --tag-blue: oklch(0.86 0.07 250); /* #afd5fe */
+  --tag-blue-fg: oklch(0.209 0.009 264.4); /* #16181c — 11.66:1 on --tag-blue */
+  --tag-green: oklch(0.93 0.15 118); /* #dff57b */
+  --tag-green-fg: oklch(0.209 0.009 264.4); /* #16181c — 14.80:1 on --tag-green */
+  --tag-amber: oklch(0.9 0.07 70); /* #fdd7ac */
+  --tag-amber-fg: oklch(0.209 0.009 264.4); /* #16181c — 13.11:1 on --tag-amber */
+  --tag-violet: oklch(0.87 0.055 292); /* #d4cef6 */
+  --tag-violet-fg: oklch(0.209 0.009 264.4); /* #16181c — 11.81:1 on --tag-violet */
+  --tag-pink: oklch(0.87 0.08 350); /* #febfdc */
+  --tag-pink-fg: oklch(0.209 0.009 264.4); /* #16181c — 11.60:1 on --tag-pink */
+  --tag-red: oklch(0.86 0.065 22); /* #f9c1be */
+  --tag-red-fg: oklch(0.209 0.009 264.4); /* #16181c — 11.34:1 on --tag-red */
+  --tag-grey: oklch(0.86 0.008 250); /* #cdd1d6 */
+  --tag-grey-fg: oklch(0.209 0.009 264.4); /* #16181c — 11.58:1 on --tag-grey */
+
   /* -- Focus --------------------------------------------------------------- */
   /* The accent value, repeated for the reason the light block gives. */
   --ring: oklch(0.72 0.14 255.8);
@@ -923,6 +1036,32 @@
   --color-entity-7: var(--entity-7);
   --color-entity-7-fg: var(--entity-7-fg);
 
+  /* Seven marks and seven tag pairs, written out for the reason the entity pairs
+     are: `project-glyph.tsx` and `label-chip.tsx` each hold a literal table of
+     these, because a class composed at runtime generates no CSS. */
+  --color-mark-blue: var(--mark-blue);
+  --color-mark-green: var(--mark-green);
+  --color-mark-amber: var(--mark-amber);
+  --color-mark-violet: var(--mark-violet);
+  --color-mark-pink: var(--mark-pink);
+  --color-mark-red: var(--mark-red);
+  --color-mark-grey: var(--mark-grey);
+
+  --color-tag-blue: var(--tag-blue);
+  --color-tag-blue-fg: var(--tag-blue-fg);
+  --color-tag-green: var(--tag-green);
+  --color-tag-green-fg: var(--tag-green-fg);
+  --color-tag-amber: var(--tag-amber);
+  --color-tag-amber-fg: var(--tag-amber-fg);
+  --color-tag-violet: var(--tag-violet);
+  --color-tag-violet-fg: var(--tag-violet-fg);
+  --color-tag-pink: var(--tag-pink);
+  --color-tag-pink-fg: var(--tag-pink-fg);
+  --color-tag-red: var(--tag-red);
+  --color-tag-red-fg: var(--tag-red-fg);
+  --color-tag-grey: var(--tag-grey);
+  --color-tag-grey-fg: var(--tag-grey-fg);
+
   --color-ring: var(--ring);
 
   /* -- Type ---------------------------------------------------------------- */
@@ -985,10 +1124,16 @@
   --text-2xs--line-height: 1.125rem;
   --text-xs: 0.875rem; /* 14 / 20 — counts, badges, meta */
   --text-xs--line-height: 1.25rem;
+  /* 500, not 600, and 0.06em, not 0.08em. Both references draw FAVORITES, ALL
+     PROJECTS, ARCHIVE and the panel's MEETING at a medium weight — the strokes of
+     the reference's "FAVORITES" are the same width as the project names below it,
+     where 600 set them visibly heavier than anything else in the sidebar — and
+     "FAVORITES" spans 80px of ink at 15px, which the wider tracking pushed past 100
+     in Inter. Neither number is a taste; both were the loudest thing on the chrome. */
   --text-label: 0.9375rem; /* 15 / 20 — uppercase tracked section label */
   --text-label--line-height: 1.25rem;
-  --text-label--letter-spacing: 0.08em;
-  --text-label--font-weight: 600;
+  --text-label--letter-spacing: 0.06em;
+  --text-label--font-weight: 500;
   --text-sm: 0.9375rem; /* 15 / 22 — secondary, chip labels */
   --text-sm--line-height: 1.375rem;
   --text-base: 1rem; /* 16 / 24 — UI default */

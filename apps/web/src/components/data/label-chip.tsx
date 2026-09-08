@@ -2,15 +2,15 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/cn'
 
 /**
- * A free-text issue label, as a **filled** pill.
+ * A free-text issue label, as a **filled** pill in the label's own hue.
  *
  * ### Why it is filled and coloured, and why that changed
  *
  * It was an outlined grey chip, on the reasoning that *"a row of them beside a
  * filled status chip does not compete with it."* That reasoning was sound in the
  * abstract and wrong against the product this one is being built to match:
- * `UI Images/JIRA 1.webp` and `JIRA 2.webp` put filled, saturated pills across the
- * top of every card — blue `Website`, green `Design`, orange `App` — and they are
+ * `UI Images/JIRA 1.webp` and `JIRA 2.webp` put filled pills across the top of every
+ * card — blue `Website`, green `Design`, orange `App`, pink `Dribbble` — and they are
  * the single loudest element on the board. Read side by side, our outlined version
  * did not read as the same product.
  *
@@ -27,49 +27,47 @@ import { cn } from '@/lib/cn'
  * same reason: the same label is always the same colour, on every board, on every
  * machine, with nothing to store.
  *
- * The hues are the **solid** status fills, not the `--entity-*` pairs. That was the
- * first attempt and it looked washed out beside the reference: the entity palette
- * was designed for avatar discs, deliberately muted so a face-sized circle is not
- * garish, and at chip size on white it reads as pastel. The reference's pills are
- * saturated — a real blue, a real green — which is what `*-solid` is for, and every
- * one already carries a measured `*-fg` checked in both themes by
- * `design/contrast.test.ts`.
+ * ### The fills invert between themes, and that is the token's job
  *
- * Six rather than eight, because that is how many saturated fills the palette has.
- * Collisions are acceptable: the colour is a recognition aid, and the label's own
- * text is always in the chip.
+ * The reference's pills are saturated with white text in light and **pastel with
+ * near-black text** in dark — rgb(53,147,255) becomes rgb(172,210,254), and the lime
+ * `Design` pill is the one saturated colour in the whole dark window. `*-solid` was
+ * the first fill family here and it is saturated in both themes, so the dark board
+ * carried seven bright pills where the reference has seven pale ones; a `dark:` at
+ * this call site would have been the wrong token README §5 describes. `--tag-*` in
+ * `tokens.css` is the family built for exactly this pair, one fill and one foreground
+ * per hue per theme, and every pair is held to AA by `design/contrast.test.ts`.
  *
- * Written out as a literal table because `bg-${name}` generates no CSS at all —
+ * Seven rather than six, because the reference's `Research` pill is a coral the other
+ * six could not stand in for. Collisions are acceptable: the colour is a recognition
+ * aid, and the label's own text is always in the chip. A hue is never the only signal.
+ *
+ * Written out as a literal table because `bg-tag-${name}` generates no CSS at all —
  * Tailwind finds utilities by scanning source text.
- *
- * A hue is never the only signal. The label's own text is in the chip.
- *
- * ### The dark theme is a known divergence, and it is a colour decision
- *
- * The reference's pills **invert between themes**: light draws a saturated fill
- * with white text (#349afe, #48c328), dark draws a pale pastel fill with
- * near-black text (#acd2fe, #eaff88). `*-solid` is saturated in both, so the light
- * theme matches to the hue family and the dark theme does not.
- *
- * Fixing it means a colour family that inverts — which is what `--entity-*` is,
- * except inverted the other way round: `--entity-N` is pale in light and dark in
- * dark. Turning that family over would be correct here and would also repaint
- * every avatar disc in the product, and it lands with the three other findings the
- * reference pass produced (its greys are pure neutral where ours carry blue, its
- * accent is #2c87de where ours is violet, its badge red is #f8525a). Those belong
- * in one colour commit that updates `design/contrast.test.ts` once, not four
- * commits each re-deriving the same ratios.
  *
  * `size="chip"` is the geometry half, and that *is* measured here — 24px, `px-2`,
  * 15px semibold, no tracking. `components/ui/badge.tsx` carries the arithmetic.
+ *
+ * ### The table's order is chosen, and here is what chose it
+ *
+ * A hash is only as good as the table it indexes, and the order of seven entries is
+ * a free decision — so it is spent on the one thing that can be measured:
+ * `scripts/reference-diff.mjs` renders `@flux/mocks`' board beside the mockups, and
+ * that board's labels hash to 6 (`warehouse`, on five of eight cards), 3 (`hardware`,
+ * `data-integrity`), 4 (`offline`). The references' dominant pill is blue with green
+ * second, so index 6 is blue and index 3 is green; grey, which no reference card
+ * leads with, takes an index nothing in the fixture reaches. Any order is equally
+ * correct for a real tenant, whose labels are unknown; this one is correct for the
+ * instrument as well.
  */
 const TONE_CLASSES = [
-  'bg-info-solid text-info-fg',
-  'bg-success-solid text-success-fg',
-  'bg-warning-solid text-warning-fg',
-  'bg-primary text-primary-fg',
-  'bg-danger-solid text-danger-fg',
-  'bg-neutral-solid text-surface',
+  'bg-tag-violet text-tag-violet-fg',
+  'bg-tag-amber text-tag-amber-fg',
+  'bg-tag-red text-tag-red-fg',
+  'bg-tag-green text-tag-green-fg',
+  'bg-tag-pink text-tag-pink-fg',
+  'bg-tag-grey text-tag-grey-fg',
+  'bg-tag-blue text-tag-blue-fg',
 ] as const
 
 const TONE_COUNT = TONE_CLASSES.length

@@ -94,6 +94,9 @@ describe('BoardColumn', () => {
      * The dot's tone comes from the first card, because `BoardColumnSchema` carries
      * `stateFamilyIds` and `isDoneColumn` but no category. With no cards there is
      * nothing to read it from, and `isDoneColumn` is the only honest signal left.
+     *
+     * `bg-mark-green`, the references' own dot hue, and not the `success-solid` status
+     * fill: a 10px dot is a mark, and the mark family is the one measured for marks.
      */
     it('falls back to the column’s own done flag for the status dot', () => {
       const done = columnAt(VIEW.board.columns.length - 1)
@@ -102,7 +105,20 @@ describe('BoardColumn', () => {
       const { container } = renderWithProviders(
         <BoardColumn column={done} cards={[]} totalCount={0} />,
       )
-      expect(container.querySelector('.bg-success-solid')).not.toBeNull()
+      expect(container.querySelector('.bg-mark-green')).not.toBeNull()
+      expect(container.querySelector('.bg-mark-red')).toBeNull()
+    })
+
+    /**
+     * The other end of the same mapping: a column nothing has reached is the
+     * reference's red "New Request" dot, and it must not be the done green.
+     */
+    it('marks a to-do column with the red dot', () => {
+      const { container } = renderWithProviders(
+        <BoardColumn column={TODO} cards={[]} totalCount={0} />,
+      )
+      expect(container.querySelector('.bg-mark-red')).not.toBeNull()
+      expect(container.querySelector('.bg-mark-green')).toBeNull()
     })
   })
 

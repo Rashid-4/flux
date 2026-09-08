@@ -44,7 +44,13 @@ export function PaletteAction() {
            */
           aria-label="Search flux"
           aria-keyshortcuts="Meta+K Control+K"
-          className="[&_svg]:size-6"
+          /**
+           * `text-fg`, over the ghost variant's muted default. The references draw
+           * the header's three glyphs in their brightest ink — pure white in dark,
+           * near-black in light — the same weight as the title beside them. A muted
+           * magnifier read as a secondary control, and the palette is not one.
+           */
+          className="text-fg [&_svg]:size-6"
         >
           <Search aria-hidden="true" />
         </Button>

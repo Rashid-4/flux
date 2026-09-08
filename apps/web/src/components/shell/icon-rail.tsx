@@ -3,8 +3,8 @@ import {
   ChartNoAxesColumn,
   ChevronLeft,
   ChevronRight,
-  FolderKanban,
-  LayoutDashboard,
+  Folder,
+  LayoutGrid,
   Search,
   Settings,
   Upload,
@@ -82,10 +82,23 @@ import { useSidebarOpen, useToggleSidebar } from '@/stores/chrome'
 
 interface RailItem {
   label: string
-  icon: typeof LayoutDashboard
+  icon: typeof LayoutGrid
   to: string
   /** The pattern the current pathname is tested against for the active mark. */
   section: string
+  /**
+   * Whether the glyph fills solid when it is the current section.
+   *
+   * The references mark the selected rail item two ways: the bar on the outer edge,
+   * and the icon itself drawn as a **filled** shape in the marker's colour rather
+   * than an outline — their selected folder is a white silhouette on the black
+   * rail, a blue one on the white. That reads because a folder is a closed shape;
+   * `fill-current` on a magnifier fills its lens and on a gear fills its hub, so the
+   * fill is opted into per glyph rather than applied to the active state at large.
+   * Only the folder is closed here; the chart, the upload arrow and the search
+   * glyph brighten to the marker colour and keep their strokes.
+   */
+  activeFill?: boolean | undefined
   /**
    * The org permission that must be `true` for this to appear.
    *
@@ -98,18 +111,28 @@ interface RailItem {
   permission?: keyof OrgPermissions | undefined
 }
 
+/**
+ * The glyphs are the references' where the routes coincide. Both mockups open the
+ * rail with a four-square grid — `LayoutGrid`, whose ink is 0.75 of its box in each
+ * axis and matches the measured 18px of a 24px box exactly — and mark the projects
+ * entry with a plain folder, filled when selected. `LayoutDashboard` (two tall
+ * rectangles and two short) and `FolderKanban` (a folder with three bars in it) were
+ * near neighbours that read as a different icon set beside the reference; the other
+ * four have no counterpart in the mockups and keep the glyph that names their route.
+ */
 const RAIL_ITEMS: readonly RailItem[] = [
   {
     label: 'Your work',
-    icon: LayoutDashboard,
+    icon: LayoutGrid,
     to: paths.home(),
     section: ROUTE_PATTERNS.home,
   },
   {
     label: 'Projects',
-    icon: FolderKanban,
+    icon: Folder,
     to: paths.projects(),
     section: ROUTE_PATTERNS.projects,
+    activeFill: true,
   },
   { label: 'Search', icon: Search, to: paths.search(), section: ROUTE_PATTERNS.search },
   {
@@ -175,10 +198,16 @@ export function IconRail({ bootstrap }: IconRailProps) {
        * loudest thing on the screen and the reference's is the quietest. The
        * sidebar's selected project row measures to the same fill, which is why the
        * token is named for the chrome rather than for the rail.
+       *
+       * `text-3xl font-bold`: the reference's letter is 26px of ink in the 60px disc
+       * at a heavy weight — the one place in either mockup where the type is bold —
+       * and a 24px semibold `f` sat in it like a caption. 30px bold puts the
+       * ascender-to-baseline height of the `f` at 22px, which is as close as a
+       * lowercase letter comes to a 26px capital without leaving the scale.
        */}
       <div
         aria-hidden="true"
-        className="flex size-15 items-center justify-center rounded-chip bg-chrome-raised text-2xl font-semibold text-fg select-none"
+        className="flex size-15 items-center justify-center rounded-chip bg-chrome-raised text-3xl font-bold text-fg select-none"
       >
         f
       </div>
@@ -330,6 +359,7 @@ function RailLink({ item, active }: { item: RailItem; active: boolean }) {
              */
             active &&
               'text-rail-selected before:absolute before:top-0 before:-left-[27px] before:h-full before:w-[3px] before:bg-rail-selected',
+            active && item.activeFill === true && '[&_svg]:fill-current',
           )}
         >
           <Icon aria-hidden="true" className="size-6" strokeWidth={1.5} />

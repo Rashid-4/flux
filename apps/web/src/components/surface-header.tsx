@@ -259,13 +259,15 @@ export function SurfaceHeader({
  * nowhere to go. That is consistent with the references, which mark the active tab
  * with the underline and the ink weight and nothing else.
  *
- * `text-fg-muted` for the inactive ones is a **deliberate divergence** from the
+ * `text-fg-subtle` for the inactive ones is a **deliberate divergence** from the
  * reference pixels, and the only one in this file. The references' inactive dark ink
- * samples (102, 104, 106) on (16, 18, 19) — a contrast ratio of **3.27:1**, which
+ * samples (131, 133, 135) on (16, 18, 19) — a contrast ratio of **4.4:1**, which
  * fails WCAG 2.2 SC 1.4.3 for 21px normal-weight text (4.5:1 required; the large-text
- * exemption starts at 24px, or 18.66px bold). `--fg-muted` is 6.97:1 dark and 7.41:1
- * light. Accessibility outranks the pixel match, and this is written down rather than
- * absorbed silently.
+ * exemption starts at 24px, or 18.66px bold). `--fg-subtle` is the closest AA value
+ * the palette has — 6.11:1 on the dark panel and 5.48:1 on the light one — and it
+ * replaced `--fg-muted` here, which was a full rung brighter than the reference and
+ * made the inactive tabs compete with the active one. Accessibility outranks the pixel
+ * match, and this is written down rather than absorbed silently.
  *
  * `border-rail-selected` for the active underline: white in dark, the accent in
  * light, which is exactly what the references sample — L(64, 133, 212),
@@ -288,7 +290,7 @@ function SurfaceHeaderTabLink({ tab }: { tab: SurfaceHeaderTab }) {
         'border-b-3 pb-3.75 text-xl whitespace-nowrap transition-colors duration-90 ease-out',
         tab.active
           ? 'border-rail-selected font-medium text-fg'
-          : 'border-transparent text-fg-muted hover:text-fg',
+          : 'border-transparent text-fg-subtle hover:text-fg',
       )}
     >
       {tab.label}

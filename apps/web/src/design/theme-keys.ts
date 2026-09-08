@@ -112,6 +112,33 @@ export const COLOR_KEYS = [
   'entity-6-fg',
   'entity-7',
   'entity-7-fg',
+  // Saturated marks — the project glyph's stroke, a column's status dot, the
+  // light rail marker. Named by hue because a mark's hue is its identity, as
+  // with the entity fills; `project-glyph.tsx` hashes a project onto one.
+  'mark-blue',
+  'mark-green',
+  'mark-amber',
+  'mark-violet',
+  'mark-pink',
+  'mark-red',
+  'mark-grey',
+  // Label-chip fill and text pairs, which invert between themes — saturated
+  // with white text in light, pastel with near-black in dark. `label-chip.tsx`
+  // hashes a label onto one; `tokens.css` documents the measurement.
+  'tag-blue',
+  'tag-blue-fg',
+  'tag-green',
+  'tag-green-fg',
+  'tag-amber',
+  'tag-amber-fg',
+  'tag-violet',
+  'tag-violet-fg',
+  'tag-pink',
+  'tag-pink-fg',
+  'tag-red',
+  'tag-red-fg',
+  'tag-grey',
+  'tag-grey-fg',
   'ring',
 ] as const
 

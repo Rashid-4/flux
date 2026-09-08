@@ -188,6 +188,17 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
          * card. `LabelChip` truncates at `max-w-40`; that bounds one chip, not the
          * row.
          *
+         * `flex-wrap items-start` inside a box that is exactly one chip tall is what
+         * makes the clip land *between* chips rather than through one. Without it
+         * the box cut the first chip that did not fit at whatever pixel the space
+         * ran out — a violet sliver with half an `h` in it beside `2 blocked`, on
+         * the fixture's second card — which read as a rendering fault. With it, a
+         * chip that does not fit wraps to a second row that the 24px box hides, so
+         * the row shows whole chips or none. What it costs is honest: the hidden
+         * labels are not announced as hidden. The card's `title` and the peek panel
+         * both carry the full list, and a `+N` count would have taken the same
+         * 30px from the label that is shown.
+         *
          * Everything after that box is flux's, and it is here because the
          * reference leaves 121px empty between its last chip (1217) and its kebab
          * (1338). Each is `h-6` like a chip, so the row's height is still the
@@ -195,7 +206,7 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
          * so a long label clips its own chips rather than crushing a count.
          */}
         <div className="flex h-6 min-w-0 items-center gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <div className="flex h-6 min-w-0 flex-1 flex-wrap items-start gap-1.5 overflow-hidden">
             {card.labels.map((label) => (
               <LabelChip key={label} label={label} />
             ))}
@@ -209,25 +220,28 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
            * on this card that must not be the item a sixth label pushes out of
            * view.
            */}
+          {/**
+           * `size="chip"` on all three, not `sm`. The `sm` rung is the uppercase
+           * tracked micro-label, and beside the reference's sentence-case pills it
+           * shouted — `2 BLOCKED` in 0.08em tracking next to `warehouse` in none
+           * read as two badge systems on one row. Every pill on a card is now the
+           * same 24px box, 15px semibold, sentence case, and the tone is the only
+           * thing that differs: a `-soft` tint for flux's own readings, the `--tag-*`
+           * hue for a label. `Breached` and `2 blocked` are still words, which is
+           * the signal §9 needs the colour never to be alone in carrying.
+           */}
           {card.slaState === 'breached' && (
-            <Badge size="sm" variant="danger">
+            <Badge size="chip" variant="danger">
               Breached
             </Badge>
           )}
-          {/**
-           * `chip` rather than `sm` for the estimate, and only because it is a
-           * numeral: `sm` carries `text-label`'s 0.08em, which is applied *after*
-           * the last glyph too, so a one-digit badge sets 1.2px left of centre in
-           * its own `px-2`. `uppercase` has nothing to do on a digit either. Same
-           * 24×`px-2` box as the labels beside it.
-           */}
           {card.storyPoints !== null && (
             <Badge size="chip" variant="neutral">
               {card.storyPoints}
             </Badge>
           )}
           {card.blockedByCount > 0 && (
-            <Badge size="sm" variant="warning">
+            <Badge size="chip" variant="warning">
               {card.blockedByCount} blocked
             </Badge>
           )}
@@ -319,6 +333,24 @@ export function BoardCard({ card, dragging = false, className }: BoardCardProps)
  * The circles are `size-4.5` and so is the `+`: `Plus` at 18px draws 11.6px of
  * ink against a measured 12, and putting it in the circles' box rather than
  * beside them is what keeps the two rows' left edges identical.
+ *
+ * ### The marker is neutral, and the done row is not struck through
+ *
+ * Both are measurements that reversed a first guess. The open circle's stroke
+ * samples rgb(113,115,116) on the dark card and rgb(137,139,141) on the light one,
+ * which is `--border-control` in each theme to within four channels — not
+ * `--border-strong`, which is a rung darker on dark and two rungs lighter on light.
+ * The done circle is a **grey** disc with a white tick — rgb(80,82,84) dark,
+ * rgb(96,98,100) light — and not the success green this shipped with, which was the
+ * one saturated thing on a card whose reference has none below the chip row. And the
+ * done label keeps its weight and its colour: no strike. The two signals §9 asks for
+ * are the filled disc and the tick inside it, against an empty ring; the strike was a
+ * third that the reference does not draw.
+ *
+ * `bg-fg-subtle text-surface` is the nearest pair the palette has to that grey disc:
+ * exact in light, and in dark a lighter disc with a dark tick where the reference has
+ * a darker disc with a white one — the same information, inverted by a rung, and
+ * recorded here rather than absorbed into a new token for a 18px circle.
  */
 function Subtasks({ card }: { card: BoardCardValue }) {
   const hidden = card.subtaskTotal - card.subtasks.length
@@ -329,24 +361,20 @@ function Subtasks({ card }: { card: BoardCardValue }) {
         <div key={subtask.id} className="flex h-7.75 items-center gap-2">
           <span
             aria-hidden="true"
+            data-done={subtask.isDone ? 'true' : undefined}
             className={cn(
               'flex size-4.5 shrink-0 items-center justify-center rounded-chip border',
               subtask.isDone
-                ? 'border-success-solid bg-success-solid text-success-fg'
-                : 'border-border-strong',
+                ? 'border-fg-subtle bg-fg-subtle text-surface'
+                : 'border-border-control',
             )}
           >
-            {subtask.isDone && <Check aria-hidden="true" className="size-3" />}
+            {subtask.isDone && <Check aria-hidden="true" className="size-3" strokeWidth={3} />}
           </span>
-          {/**
-           * `line-through` as well as the tick, because a checked row that is only
-           * a tick reads as "selected" rather than "done" at a glance — and §9's
-           * rule applies to shape as much as to colour: two signals, not one.
-           */}
           <span
             className={cn(
               'min-w-0 truncate text-md',
-              subtask.isDone ? 'text-fg-subtle line-through' : 'text-fg-muted',
+              subtask.isDone ? 'text-fg-subtle' : 'text-fg-muted',
             )}
           >
             {subtask.summary}
@@ -377,6 +405,14 @@ function Subtasks({ card }: { card: BoardCardValue }) {
        * the button so the 12px above and below it are both explicit.
        */}
       <span aria-hidden="true" className="mt-2.75 h-px shrink-0 bg-border-subtle" />
+      {/**
+       * `text-fg`, not a dimmed `--fg-subtle`: the reference's "+ Add Subtask" is its
+       * brightest ink on the dark card — pure white, the same as the title — with a
+       * `+` as heavy as the letters, and on the light card a dark grey. `text-fg` is
+       * exact for dark and a rung darker than the light sample, which is the honest
+       * choice between the two; the alternative pair does not exist as a token. The
+       * unavailability is carried by `aria-disabled`, the cursor and the title.
+       */}
       <button
         type="button"
         aria-disabled="true"
@@ -386,9 +422,9 @@ function Subtasks({ card }: { card: BoardCardValue }) {
           /** The card is a link; without this the click navigates. */
           event.preventDefault()
         }}
-        className="mt-3 flex h-7.75 items-center gap-2 text-fg-subtle aria-disabled:opacity-70"
+        className="mt-3 flex h-7.75 items-center gap-2 text-fg aria-disabled:cursor-not-allowed"
       >
-        <Plus aria-hidden="true" className="size-4.5 shrink-0" />
+        <Plus aria-hidden="true" className="size-4.5 shrink-0" strokeWidth={2.25} />
         <span className="text-md">Add subtask</span>
       </button>
     </div>
@@ -415,8 +451,14 @@ function Subtasks({ card }: { card: BoardCardValue }) {
  * more fashionable choice and it is the wrong one here for two reasons beyond the
  * mockup: the card is a link, so on a touch device there is no hover to reveal it
  * with, and a control that only exists once you have already guessed it is there is
- * a control most people never find. `opacity-70` from `aria-disabled` is what keeps
- * it from reading as live while it cannot act.
+ * a control most people never find.
+ *
+ * It is drawn in `--fg` at full strength, and it was a 70% `--fg-subtle`. The
+ * reference's kebab is pure white on the dark card and black on the light one — the
+ * same ink as the title beside it — and a washed-out one on every card was the
+ * quietest and most repeated departure on the board. The unavailability is carried
+ * by `aria-disabled`, by `cursor-not-allowed` and by the title, the same three
+ * signals every other inert control on this surface now relies on.
  *
  * `EllipsisVertical`, not `MoreHorizontal`: the reference's glyph is vertical, and
  * its ink measures 3px × 16px at x 1338..1340 — which `size-6` with `-mr-2` puts
@@ -439,11 +481,10 @@ function CardMenu({ issueKey }: { issueKey: string }) {
       }}
       className={cn(
         '-mr-2 flex shrink-0 items-center justify-center rounded-control',
-        'text-fg-subtle transition-colors duration-90 ease-out',
-        'group-hover/card:text-fg-muted aria-disabled:opacity-70',
+        'text-fg aria-disabled:cursor-not-allowed',
       )}
     >
-      <EllipsisVertical aria-hidden="true" className="size-6" />
+      <EllipsisVertical aria-hidden="true" className="size-6" strokeWidth={2.25} />
     </button>
   )
 }
@@ -467,11 +508,16 @@ interface CardCountProps {
  * tall; lucide's `Paperclip` is diagonal and wider. Kept as a knowing
  * divergence rather than drawn by hand, because a bespoke icon in one card
  * footer is a second icon set nobody maintains.
+ *
+ * `text-fg`: the counts are the reference's brightest ink — white on the dark card,
+ * rgb(35,35,35) on the light one — not the secondary grey this shipped with. On a
+ * card whose description is already muted, a muted count read as a third tier the
+ * reference does not have.
  */
 function CardCount({ icon: Icon, value, label }: CardCountProps) {
   if (value <= 0) return null
   return (
-    <span className="flex shrink-0 items-center gap-1 text-md text-fg-muted">
+    <span className="flex shrink-0 items-center gap-1 text-md text-fg">
       <Icon aria-hidden="true" className="size-5" />
       <span aria-label={`${String(value)} ${label}`}>{value}</span>
     </span>

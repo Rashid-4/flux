@@ -88,6 +88,15 @@ sRGB WCAG values, light / dark, against the surface each pair actually sits on.
 `-solid` for fills, `-soft`/`-soft-fg` for tinted chips. They have no shadcn
 equivalent; the generator does not produce status colours.
 
+Two further families exist for the references' *identity* colours, and neither is
+a status: **`mark-{blue,green,amber,violet,pink,red,grey}`** is a saturated hue for a
+stroke or a dot — the project glyph, a column's status dot, the light rail marker —
+and is the same value in both themes; **`tag-<hue>` / `tag-<hue>-fg`** is the
+label chip's fill and text, which *invert* per theme (saturated under white in
+light, pastel under near-black in dark). Both are hashed onto by their components
+and written out as literal tables there; `tokens.css` has the measurements, and
+`design/contrast.test.ts` holds every `tag` pair to AA.
+
 ---
 
 ## 3. Size, radius and type

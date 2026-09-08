@@ -27,9 +27,17 @@ import { paths } from '@/lib/paths'
  *
  * **`aria-disabled` and not `disabled`.** A `disabled` button is removed from the tab
  * order, which takes the explanation away from precisely the user who cannot hover to
- * read it. `Button`'s `aria-disabled:` variants carry the dimmed appearance, and the
- * `onClick` below calls `preventDefault` so the control is inert in fact as well as in
- * attribute.
+ * read it. The `onClick` below calls `preventDefault` so the control is inert in fact
+ * as well as in attribute, and `cursor-not-allowed` says so at the moment of reaching
+ * for it.
+ *
+ * **Full strength, in `--fg`.** Both references draw the panel's three glyphs in their
+ * brightest ink — pure white on the dark panel, near-black on the light one — and this
+ * cluster shipped in `--fg-muted` with the two inert ones at 70%: three greys in a
+ * row where the reference has one white. The dimming was the honest signal for
+ * "cannot act yet" and it cost the one thing the panel header is measured by, so it
+ * takes the trade `board/board-toolbar.tsx` made first — the attribute, the cursor
+ * and the title carry the state, and the pixels match.
  *
  * The watch button is worth drawing *because* it reads real state:
  * `IssueDetailSchema.watcherState` is `watching | muted | none`, so the glyph and the
@@ -76,7 +84,7 @@ export function WatchAction({ issueKey, watcherState }: WatchActionProps) {
       onClick={(event) => {
         event.preventDefault()
       }}
-      className="text-fg-muted aria-disabled:opacity-70"
+      className="text-fg aria-disabled:cursor-not-allowed"
     >
       {watcherState === 'muted' ? (
         <EyeOff aria-hidden="true" className={GLYPH} />
@@ -127,7 +135,7 @@ export function CopyLinkAction({ issueKey }: { issueKey: string }) {
         onClick={link.copy}
         aria-label={`Copy a link to ${issueKey}`}
         title="Copy link"
-        className="text-fg-muted"
+        className="text-fg"
       >
         {link.outcome === 'copied' ? (
           <Check aria-hidden="true" className={cn(GLYPH, 'text-success-accent')} />
@@ -153,7 +161,7 @@ export function MoreActions({ issueKey }: { issueKey: string }) {
       onClick={(event) => {
         event.preventDefault()
       }}
-      className="text-fg-muted aria-disabled:opacity-70"
+      className="text-fg aria-disabled:cursor-not-allowed"
     >
       <EllipsisVertical aria-hidden="true" className={GLYPH} />
     </Button>

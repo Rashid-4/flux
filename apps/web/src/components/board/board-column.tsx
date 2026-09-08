@@ -47,6 +47,18 @@ import { cn } from '@/lib/cn'
  * decoration copied across. It is never the only signal — the column is named
  * beside it, which is what §9 requires.
  *
+ * ### The dot's hues are the references', not the status family's
+ *
+ * Both mockups head their three columns with a **red**, a **neutral** and a **green**
+ * dot — rgb(253,74,96), white-on-dark / grey-on-light, rgb(60,197,55) — where this
+ * first shipped grey, blue and teal-green from the `*-solid` status tokens. Those
+ * tokens are tuned to carry text or to sit beside it; a 10px dot is a mark, so it
+ * takes the `--mark-*` family measured for marks, and the mapping is the
+ * reference's: work that has not started is red, work in flight is neutral, work
+ * that is done is green. The neutral is the one honest miss — the reference's
+ * in-progress dot is pure white in dark and mid-grey in light, and `--mark-grey`
+ * is the grey mark in both, dimmer than white on the dark board.
+ *
  * ### Not virtualized, and that is a scope line rather than an oversight
  *
  * §8 of the foundation spec: *"No unvirtualized list that can exceed ~100 rows."*
@@ -58,10 +70,10 @@ import { cn } from '@/lib/cn'
  */
 
 const DOT_TONE: Record<string, string> = {
-  todo: 'bg-neutral-solid',
-  in_progress: 'bg-info-solid',
-  done: 'bg-success-solid',
-  cancelled: 'bg-warning-solid',
+  todo: 'bg-mark-red',
+  in_progress: 'bg-mark-grey',
+  done: 'bg-mark-green',
+  cancelled: 'bg-mark-amber',
 }
 
 export interface BoardColumnProps {
@@ -101,7 +113,7 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
       <header className="flex h-9 shrink-0 items-center gap-2">
         <span
           aria-hidden="true"
-          className={cn('size-2.5 shrink-0 rounded-chip', DOT_TONE[category] ?? 'bg-neutral-solid')}
+          className={cn('size-2.5 shrink-0 rounded-chip', DOT_TONE[category] ?? 'bg-mark-grey')}
         />
         <h2 className="min-w-0 truncate text-lg text-fg">{column.name}</h2>
         <span
@@ -131,7 +143,11 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
          * it from a number chosen to fit.
          *
          * Disabled with a reason: column configuration is a board mutation and
-         * there is no board mutation layer (CR-002). §5's second rule.
+         * there is no board mutation layer (CR-002). §5's second rule — and, like
+         * every inert control on this surface now, not dimmed: the references draw
+         * the kebab at rgb(178,180,181) on dark and rgb(90,92,94) on light, which is
+         * `--fg-muted`, and a 70% version of `--fg-subtle` was a rung and a half
+         * quieter than that. `cursor-not-allowed` and the title carry the state.
          */}
         <button
           type="button"
@@ -140,7 +156,7 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
           title="Column settings arrive with the board mutation layer"
           className={cn(
             '-mr-2 ml-auto flex shrink-0 items-center justify-center rounded-control',
-            'text-fg-subtle aria-disabled:opacity-70',
+            'text-fg-muted aria-disabled:cursor-not-allowed',
           )}
         >
           <EllipsisVertical aria-hidden="true" className="size-6" />
@@ -158,6 +174,12 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
        * needs the create surface `docs/specs/web/issue.md` describes and that does
        * not exist — and §5's second rule is that an action you cannot perform is
        * shown and says why, not hidden.
+       *
+       * `text-fg` and no dim: the reference's `+` is pure white on the dark card and
+       * black on the light one, the same ink as a card title, and `strokeWidth={2}`
+       * because the base rule in `tokens.css` would otherwise thin it to 1.5 and the
+       * measured stroke is 2px. This is the most distinctive affordance on the board,
+       * and a grey one at 70% was the most washed-out thing in the column.
        */}
       <button
         type="button"
@@ -166,11 +188,11 @@ export function BoardColumn({ column, cards, totalCount, className }: BoardColum
         title="Creating an issue arrives with the issue surface"
         className={cn(
           'flex h-11 shrink-0 items-center justify-center rounded-card',
-          'bg-surface text-fg-subtle shadow-card',
-          'transition-colors duration-90 ease-out aria-disabled:opacity-70',
+          'bg-surface text-fg shadow-card',
+          'transition-colors duration-90 ease-out aria-disabled:cursor-not-allowed',
         )}
       >
-        <Plus aria-hidden="true" className="size-6" />
+        <Plus aria-hidden="true" className="size-6" strokeWidth={2.25} />
       </button>
 
       {/**

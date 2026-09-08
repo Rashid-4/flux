@@ -1,4 +1,4 @@
-import { FolderPlus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/cn'
@@ -76,12 +76,25 @@ export function NewProjectButton({
          * opacity is exempt under WCAG 2.2 1.4.3 the same way a native `disabled`
          * would be.
          *
-         * `aria-disabled:opacity-50` is here rather than in `ui/button.tsx` because
-         * that file's `disabled:` pair is correct for a genuinely disabled button; this
-         * is the one control in the app that is deliberately inert-but-reachable.
+         * It is **not dimmed**, and it was. Both references draw this button at full
+         * strength — a `--chrome-raised` pill with a `+` and the words in `--fg` at a
+         * medium weight, 42px tall — and it is the one control at the foot of the
+         * sidebar, so a 50% version of it was the most visible departure from the
+         * mockup on the whole chrome. The same trade `board/board-toolbar.tsx` makes
+         * for its unavailable layouts: the unavailability is carried by the three
+         * signals that cost no pixels — `aria-disabled`, `cursor-not-allowed` at the
+         * moment of reaching for it, and the tooltip that says why — rather than by
+         * washing out a measured colour.
+         *
+         * `variant="ghost"` and the fill classes here rather than `secondary`: the
+         * reference draws no border and no shadow, only the chrome's raised step, which
+         * is the fill a selected sidebar row and the rail's brand disc share. `Button`
+         * has no variant for "a filled pill on the chrome" and should not grow one for
+         * a single call site; `cn` resolves the ghost hover fill in favour of
+         * `--chrome-hover`, which is the quieter rung.
          */}
         <Button
-          variant="secondary"
+          variant="ghost"
           size={size}
           aria-disabled="true"
           /**
@@ -95,9 +108,20 @@ export function NewProjectButton({
           onClick={(event) => {
             event.preventDefault()
           }}
-          className={cn('aria-disabled:opacity-50', className)}
+          className={cn(
+            'rounded-card bg-chrome-raised text-md font-medium text-fg',
+            'hover:bg-chrome-hover hover:text-fg aria-disabled:cursor-not-allowed',
+            className,
+          )}
         >
-          <FolderPlus aria-hidden="true" />
+          {/**
+           * A `+` and not a folder: the references write "+ New Project" and the plus
+           * is what every create affordance on the board uses too (the column's
+           * add-slot, "Add subtask"). `strokeWidth={2.25}` because the base rule in
+           * `tokens.css` thins a default-weight icon to 1.5, which at 18px is a 1.1px
+           * hairline the reference does not draw — its plus is as heavy as the text.
+           */}
+          <Plus aria-hidden="true" className="size-4.5" strokeWidth={2.25} />
           New project
         </Button>
       </TooltipTrigger>

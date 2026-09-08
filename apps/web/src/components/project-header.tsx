@@ -110,8 +110,13 @@ export function ProjectHeader({ bootstrap, project }: ProjectHeaderProps) {
      * The **key**, not the name, and not a repeat of the `h1`. It is what the user
      * types into the palette and what they will see on every issue in the project,
      * and it is the one identifier the title above deliberately does not show.
+     *
+     * `size="xs" tone="muted"`: the references draw every crumb's mark as a 13px
+     * outline in the trail's own grey, not in the project's hue — a trail is a path,
+     * and the hue belongs to the title glyph above it, where the project is the
+     * subject rather than a step.
      */
-    { label: project.key, icon: <ProjectGlyph project={project} size="sm" /> },
+    { label: project.key, icon: <ProjectGlyph project={project} size="xs" tone="muted" /> },
   ]
 
   const tabs: readonly SurfaceHeaderTab[] = [
@@ -153,6 +158,14 @@ export function ProjectHeader({ bootstrap, project }: ProjectHeaderProps) {
  * `aria-pressed` carries the state, so the fill is not the only signal — a filled star
  * and an outlined one at 24px is a shape difference someone may well miss, and colour
  * alone would be worse.
+ *
+ * It is **not dimmed**, and it was. The references draw all three header glyphs in
+ * the brightest ink on the screen, and a star at 50% beside a magnifier and a kebab
+ * at full strength read as a broken control rather than an honest one. The same trade
+ * `board/board-toolbar.tsx` makes: the unavailability is carried by `aria-disabled`,
+ * by `cursor-not-allowed` at the moment of reaching for it, and by the tooltip that
+ * says why — three signals that cost no pixels — rather than by a fourth that costs
+ * the one landmark this cluster is measured by.
  */
 function FavouriteAction({ project }: { project: ProjectSummary }) {
   return (
@@ -167,7 +180,7 @@ function FavouriteAction({ project }: { project: ProjectSummary }) {
           onClick={(event) => {
             event.preventDefault()
           }}
-          className="aria-disabled:opacity-50 [&_svg]:size-6"
+          className="text-fg aria-disabled:cursor-not-allowed [&_svg]:size-6"
         >
           <Star
             aria-hidden="true"
@@ -208,7 +221,7 @@ function ProjectMenu({ project }: { project: ProjectSummary }) {
           variant="ghost"
           size="icon"
           aria-label={`Actions for ${project.name}`}
-          className="[&_svg]:size-6"
+          className="text-fg [&_svg]:size-6"
         >
           <EllipsisVertical aria-hidden="true" strokeWidth={1.5} />
         </Button>
@@ -344,8 +357,12 @@ function TeamCluster({ bootstrap }: { bootstrap: Bootstrap }) {
              * because this is the one control in the header the references draw with a
              * visible boundary, and the boundary is what makes its box the optical
              * edge the cluster aligns to.
+             *
+             * Full strength, not `opacity-50`, for the reason `FavouriteAction` gives:
+             * the reference's `+` is its brightest ink, and a dimmed disc beside a
+             * full-strength avatar stack reads as broken rather than as unavailable.
              */
-            className="size-10.5 rounded-chip border border-border aria-disabled:opacity-50 [&_svg]:size-5"
+            className="size-10.5 rounded-chip border border-border text-fg aria-disabled:cursor-not-allowed [&_svg]:size-5"
           >
             <Plus aria-hidden="true" strokeWidth={1.5} />
           </Button>

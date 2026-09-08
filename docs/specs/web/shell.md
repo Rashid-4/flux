@@ -222,14 +222,35 @@ the ink ratio so the measurement threshold's bias cancels instead of accumulatin
 sidebar rows 17px, section labels 15px, page title 28px, tabs 20px, sub-bar 19px.
 The control height ladder is 28 / 32 / 36 / 44.
 
-**Known divergences, deferred by decision rather than missed.** The reference's
-accent is blue (#2c87de) where flux's is violet, and its greys are neutral where
-flux's carry a blue tint — both belong to one colour pass that has to update
-`design/contrast.test.ts`'s claimed ratios in the same commit. The reference's dark
-sidebar is a gradient (#000000 → #101213) where flux's is a solid `--chrome`. And
-its per-project outline glyphs (star, circle, triangle, square, in per-project
-hues) and red count badges need contract fields that `BootstrapSchema.projects`
-does not carry — a change request, not a hand-written interface.
+**Colour, resolved.** The colour pass this paragraph used to defer has landed. The
+accent is the reference's blue (`tokens.css`, Brand block); the greys are the
+reference's own samples; dark secondary text is the lowest AA grey the surfaces
+allow (`--fg-muted` 0.69), because the reference's is 4.0:1 on a card and fails.
+Two hue families were added for the two things the reference colours that the
+status tokens could not: **`--mark-*`**, seven saturated hues for a stroke or a dot
+— the project glyph, the column dot, the light rail marker — and **`--tag-*`**,
+seven fill/text pairs for the label chip that invert per theme, saturated under
+white in light and pastel under near-black in dark, as both mockups draw them.
+Every pair is held to AA by `design/contrast.test.ts`, which means the light chips
+are the reference's hues a step darker than its pixels; that is recorded in the
+Tags block rather than absorbed.
+
+The dark sidebar is **not** a gradient. Sampled at five heights it is #000000 at
+every one; the earlier reading was the rail's divider. The per-project glyphs are
+the reference's outline shapes in the reference's hues, derived from the key by the
+same hash the avatar and the label chip use (`components/project-glyph.tsx`), so
+no contract field was needed. The red count badges still are one — they are data
+`BootstrapSchema.projects` does not carry, and nothing invents them.
+
+**Known divergences, still.** The typeface: the reference is set in a rounder
+geometric face, not Inter, and every horizontal ink width differs by a few percent
+because of it — `docs/change-requests/014-reference-typeface.md`. The rail's
+bottom cluster carries the theme and account controls the reference has no need
+of. The header's tab row has three tabs where the reference has five, and the
+card's footer carries the issue key, type and priority in the band the reference
+leaves empty — both argued in their components. The dark in-progress column dot is
+`--mark-grey` where the reference's is white, because the light one is grey and no
+token inverts that way.
 
 ## 4. The bootstrap gate
 

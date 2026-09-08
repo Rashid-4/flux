@@ -464,6 +464,17 @@ describe('a chip is legible', () => {
   // background with text on it, so the pair is body text and needs 4.5.
   const SOFT = ['primary', 'success', 'warning', 'info', 'danger', 'neutral'] as const
 
+  /**
+   * The label chip's own family, and the one whose light values were chosen *against*
+   * the reference: its saturated pills print white at 2.0:1 and 2.2:1, so every
+   * `--tag-*` fill is the reference's hue at the lightness that clears AA for 15px
+   * semibold text. This is the assertion that keeps that true when someone brightens
+   * a fill to look more like the mockup — which is exactly the edit the Tags block
+   * in `tokens.css` invites, since every value there is described as "the reference's
+   * hue".
+   */
+  const TAGS = ['blue', 'green', 'amber', 'violet', 'pink', 'red', 'grey'] as const
+
   for (const theme of THEMES) {
     it(`${theme.name}: every -soft-fg is AA on its own -soft`, () => {
       for (const family of SOFT) {
@@ -474,7 +485,41 @@ describe('a chip is legible', () => {
         ).toBeGreaterThanOrEqual(4.5)
       }
     })
+
+    it(`${theme.name}: every tag-fg is AA on its own tag fill`, () => {
+      for (const hue of TAGS) {
+        const measured = measure(theme, `tag-${hue}-fg`, `tag-${hue}`)
+        expect(
+          measured,
+          `--tag-${hue}-fg on --tag-${hue} in ${theme.name} is ${ratio(measured)}:1`,
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    })
   }
+
+  /**
+   * The inversion is the whole reason the family exists, so it is asserted rather than
+   * described: a light tag is a saturated mid-tone fill and a dark tag is a pastel
+   * under near-black text. A `.dark` block that forgot to redeclare one hue would leave
+   * a saturated pill on a dark card — legible, and wrong in the one way this palette
+   * was measured to avoid.
+   *
+   * Light is asserted on the fill alone, because its text is not one colour: six hues
+   * carry white and amber carries near-black, for the reason `--warning-fg` does. What
+   * every light fill shares is that it is a *colour* at a mid lightness — none of them
+   * is a pastel, which is the property the dark side is asserted to have.
+   */
+  it('inverts between the themes: saturated fills in light, pastels under black in dark', () => {
+    const [light, night] = THEMES as [Theme, Theme]
+    for (const hue of TAGS) {
+      const lightFill = color(light, `tag-${hue}`)
+      const darkFill = color(night, `tag-${hue}`)
+      const darkText = color(night, `tag-${hue}-fg`)
+      expect(lightFill.l, `light --tag-${hue} is a mid-tone fill, not a pastel`).toBeLessThan(0.8)
+      expect(darkFill.l, `dark --tag-${hue} is a pastel`).toBeGreaterThan(0.85)
+      expect(darkText.l, `dark --tag-${hue}-fg is near-black`).toBeLessThan(0.25)
+    }
+  })
 })
 
 describe('text on a solid fill', () => {

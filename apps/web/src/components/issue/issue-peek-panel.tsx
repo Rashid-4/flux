@@ -388,11 +388,17 @@ function PanelHeader({
         title="Close"
         className={cn(
           'flex size-9 shrink-0 items-center justify-center rounded-chip',
-          'bg-surface-2 text-fg-muted transition-colors duration-90 ease-out',
-          'hover:bg-surface-3 hover:text-fg',
+          'bg-surface-2 text-fg transition-colors duration-90 ease-out',
+          'hover:bg-surface-3',
         )}
       >
-        <X aria-hidden="true" className="size-4.5" />
+        {/**
+         * `text-fg` and a 2px stroke: the reference's × is its brightest ink at the
+         * weight of the title, and the base rule that thins a default lucide icon to
+         * 1.5 is written for a 14px glyph beside 13px text, not for the one control
+         * that closes the panel.
+         */}
+        <X aria-hidden="true" className="size-4.5" strokeWidth={2.25} />
       </Link>
 
       {/**
@@ -487,8 +493,15 @@ function Identity({ issue }: { issue: IssueDetail }) {
         <p className="mt-2 line-clamp-2 text-md text-fg-muted">{excerpt}</p>
       )}
 
+      {/**
+       * Both chips outlined on the panel's own fill, which is what both references
+       * draw: white with a `--border` hairline in light, the panel's near-black with
+       * a slightly lighter hairline in dark. The status chip's tinted `-soft` fill
+       * was the only saturated block in the dark panel, whose whole point is that it
+       * has none — see the Brand block in `tokens.css`.
+       */}
       <div className="mt-6.25 flex max-w-full items-center justify-center gap-2.5">
-        <StatusChip category={issue.statusCategory} label={issue.statusName} size="lg" />
+        <StatusChip category={issue.statusCategory} label={issue.statusName} size="lg" outline />
         <AssigneeChip assignee={issue.assignee} />
       </div>
     </div>
@@ -530,7 +543,12 @@ function AssigneeChip({ assignee }: { assignee: IssueDetail['assignee'] }) {
         }
 
   return (
-    <Badge variant="outline" size="lg" data-slot="assignee-chip" className="min-w-0">
+    <Badge
+      variant="outline"
+      size="lg"
+      data-slot="assignee-chip"
+      className="min-w-0 border-border bg-panel text-fg"
+    >
       <UserAvatar user={user} size="sm" absentLabel="Unassigned" decorative />
       {/**
        * The name is drawn beside the avatar rather than left to the avatar's `title`.

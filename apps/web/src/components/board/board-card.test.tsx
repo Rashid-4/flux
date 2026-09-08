@@ -228,17 +228,27 @@ describe('BoardCard', () => {
       const open = screen.getByText('Reconcile against the vendor sheet')
 
       /**
-       * §9: colour is never the only carrier. The tick and the strike are the two
-       * signals, and a checked row that is only a tick reads as "selected".
+       * §9: colour is never the only carrier. The two signals are the *filled* disc
+       * and the tick drawn inside it, against an empty ring for an open subtask —
+       * both shape, neither hue. The fill is the neutral `--fg-subtle` and not a
+       * success green, because the reference's done marker is a grey disc and the
+       * card below its chip row is otherwise achromatic; a strike-through was a third
+       * signal the reference does not draw, so the label's only change is its colour.
        */
-      expect(done.className).toContain('line-through')
-      expect(open.className).not.toContain('line-through')
-
       const doneMark = done.previousElementSibling
-      expect(doneMark?.className).toContain('bg-success-solid')
-      expect(open.previousElementSibling?.className).not.toContain('bg-success-solid')
-      /** The tick itself, inside the filled circle. */
+      const openMark = open.previousElementSibling
+      expect(doneMark).toHaveAttribute('data-done', 'true')
+      expect(doneMark?.className).toContain('bg-fg-subtle')
       expect(doneMark?.querySelector('svg')).not.toBeNull()
+
+      expect(openMark).not.toHaveAttribute('data-done')
+      expect(openMark?.className).toContain('border-border-control')
+      expect(openMark?.className).not.toContain('bg-fg-subtle')
+      expect(openMark?.querySelector('svg')).toBeNull()
+
+      expect(done.className).not.toContain('line-through')
+      expect(done.className).toContain('text-fg-subtle')
+      expect(open.className).toContain('text-fg-muted')
     })
 
     /**

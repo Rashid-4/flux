@@ -13,30 +13,26 @@ describe('LabelChip', () => {
    * recognisable. The competition worry is answered by the board card putting
    * status on a different row instead.
    */
-  it('renders a filled chip in one of the saturated fills', async () => {
+  it('renders a filled chip in one of the tag hues, with that hue’s own text colour', async () => {
     const { container } = renderWithProviders(<LabelChip label="warehouse" />)
     const chip = screen.getByText('warehouse').closest('[data-slot="label-chip"]')
 
     const tone = Number(chip?.getAttribute('data-tone'))
     expect(tone).toBeGreaterThanOrEqual(0)
-    expect(tone).toBeLessThan(6)
+    expect(tone).toBeLessThan(7)
 
     /**
-     * A saturated fill, and its measured foreground travelling with it. The first
-     * attempt used the `--entity-*` avatar hues and read as pastel beside the
-     * reference — those are deliberately muted for a face-sized disc. Asserted as
-     * "a fill and a matching fg are both present" rather than pinning which one,
-     * so the hash can be retuned without rewriting the test.
+     * A `--tag-*` fill and the *same hue's* `-fg` travelling with it. The pair is what
+     * makes the chip invert with the theme — saturated under white in light, pastel
+     * under near-black in dark — and `design/contrast.test.ts` holds every pair to AA.
+     * A fill from one hue with the text of another would be legible by accident in
+     * one theme and not in the other, which is why the hue is captured and compared
+     * rather than the two classes being asserted independently.
      */
     const classes = chip?.className ?? ''
-    const fill =
-      /bg-(info-solid|success-solid|warning-solid|primary|danger-solid|neutral-solid)\b/.exec(
-        classes,
-      )
-    expect(fill, `no saturated fill in "${classes}"`).not.toBeNull()
-    expect(
-      /text-(info-fg|success-fg|warning-fg|primary-fg|danger-fg|surface)\b/.test(classes),
-    ).toBe(true)
+    const fill = /\bbg-tag-(blue|green|amber|violet|pink|red|grey)\b/.exec(classes)
+    expect(fill, `no tag fill in "${classes}"`).not.toBeNull()
+    expect(classes).toContain(`text-tag-${fill?.[1] ?? ''}-fg`)
 
     await expectNoAxeViolations(container)
   })
@@ -69,7 +65,7 @@ describe('LabelChip', () => {
         return tone
       }),
     )
-    /** Collisions are fine at eight hues; all six landing on one would not be. */
+    /** Collisions are fine at seven hues; all six landing on one would not be. */
     expect(tones.size).toBeGreaterThan(1)
   })
 
